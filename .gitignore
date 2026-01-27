@@ -211,3 +211,4 @@ __marimo__/
 
 # MacOS system files (เผื่อใช้ Mac)
 .DS_Store
+service_account.json
