@@ -12,7 +12,7 @@ def render_dashboard(visits_df, patients_df):
         st.warning("ยังไม่มีข้อมูลการตรวจเยี่ยม")
         return
 
-    # --- 0. เตรียมข้อมูลหลัก (Data Preparation) ---
+    # --- 0. Data Preparation ---
     df = pd.merge(
         visits_df, 
         patients_df[['hn', 'prefix', 'first_name', 'last_name']], 
@@ -21,70 +21,71 @@ def render_dashboard(visits_df, patients_df):
     )
     
     df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    # แปลง next_appt เป็น datetime เพื่อใช้เปรียบเทียบ
     df['next_appt'] = pd.to_datetime(df['next_appt'], errors='coerce')
-    
     df['month_year'] = df['date'].dt.strftime('%Y-%m') 
     df['full_name'] = df['prefix'].fillna('') + df['first_name'].fillna('') + " " + df['last_name'].fillna('')
     
-    # ✅ FIX TIMEZONE: ปรับเวลา Server (UTC) เป็นไทย (UTC+7)
+    # Thai Time Adjustment
     thai_now = datetime.now() + timedelta(hours=7)
     today_date = thai_now.date()
-    today_str_iso = today_date.strftime('%Y-%m-%d') # สำหรับเทียบกับ DataFrame
 
     # ==============================================================================
-    # 🔔 ส่วนใหม่: แจ้งเตือนนัดหมายวันนี้ (Today's Appointments & DRP Alert)
+    # 🔔 TODAY'S APPOINTMENTS
     # ==============================================================================
-    today_date = datetime.now().date()
-    
-    # กรองหาแถวที่มีวันนัด (next_appt) ตรงกับวันนี้
-    # หมายเหตุ: ข้อมูลนี้มาจาก Visit รอบที่แล้ว ซึ่งจะมีข้อมูล DRP ของรอบที่แล้วติดมาด้วยพอดี
-    appts_today = df[df['next_appt'].dt.date == today_date].copy()
-    
+    today_date_dt = datetime.now().date()
+    appts_today = df[df['next_appt'].dt.date == today_date_dt].copy()
     count_appt = len(appts_today)
     
-    st.markdown(f"### 🔔 นัดหมายประจำวันที่ : {today_date.strftime('%d/%m/%Y')}")
-    
-    if count_appt > 0:
-        st.info(f"มีผู้ป่วยนัดวันนี้จำนวน **{count_appt}** ราย")
+    with st.container(border=True):
+        st.markdown(f"""
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="margin: 0; color: #1a365d;">🔔 นัดหมายวันนี้</h3>
+                    <p style="margin: 4px 0 0 0; color: #718096;">{today_date_dt.strftime('%d/%m/%Y')}</p>
+                </div>
+                <div style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 12px;
+                    font-size: 24px;
+                    font-weight: 700;
+                ">{count_appt} ราย</div>
+            </div>
+        """, unsafe_allow_html=True)
         
-        # เตรียมข้อมูลแสดงผล
-        display_appt = appts_today[['hn', 'full_name', 'drp']].copy()
-        
-        # ฟังก์ชันเช็ค DRP เพื่อสร้าง Alert
-        def check_drp_status(val):
-            val_str = str(val).strip()
-            if val_str not in ['', '-', 'nan', 'None']:
-                return f"⚠️ {val_str}" # มีปัญหา ให้โชว์ Warning
-            return "✅ ปกติ" # ไม่มีปัญหา
+        if count_appt > 0:
+            st.write("")
+            display_appt = appts_today[['hn', 'full_name', 'drp']].copy()
+            
+            def check_drp_status(val):
+                val_str = str(val).strip()
+                if val_str not in ['', '-', 'nan', 'None']:
+                    return f"⚠️ {val_str}"
+                return "✅ ปกติ"
 
-        display_appt['drp_status'] = display_appt['drp'].apply(check_drp_status)
-        
-        # เรียงลำดับ: เอาคนที่มีปัญหา DRP ขึ้นก่อน จะได้เห็นชัดๆ
-        display_appt['has_issue'] = display_appt['drp_status'].str.contains('⚠️')
-        display_appt = display_appt.sort_values(by=['has_issue', 'hn'], ascending=[False, True])
-        
-        # แสดงตาราง
-        st.dataframe(
-            display_appt[['hn', 'full_name', 'drp_status']],
-            column_config={
-                "hn": "HN",
-                "full_name": "ชื่อ-สกุล",
-                "drp_status": st.column_config.TextColumn("สถานะการใช้ยา (Visit ล่าสุด)", width="large"),
-            },
-            hide_index=True,
-            use_container_width=True
-        )
-    else:
-        st.success("✅ ไม่มีรายชื่อผู้ป่วยนัดหมายในวันนี้")
+            display_appt['drp_status'] = display_appt['drp'].apply(check_drp_status)
+            display_appt['has_issue'] = display_appt['drp_status'].str.contains('⚠️')
+            display_appt = display_appt.sort_values(by=['has_issue', 'hn'], ascending=[False, True])
+            
+            st.dataframe(
+                display_appt[['hn', 'full_name', 'drp_status']],
+                column_config={
+                    "hn": "HN",
+                    "full_name": "ชื่อ-สกุล",
+                    "drp_status": st.column_config.TextColumn("สถานะ DRP", width="large"),
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.success("✅ ไม่มีรายชื่อนัดหมายวันนี้")
 
-    st.divider()
+    st.write("")
 
     # ==============================================================================
-    # (ส่วนที่เหลือเหมือนเดิม)
+    # 📊 SUMMARY STATS
     # ==============================================================================
-
-    # --- ส่วนที่ 1: สรุปยอดประจำวัน (Walk-in / Visit จริงที่เกิดขึ้นวันนี้) ---
     today_str = datetime.now().strftime('%Y-%m-%d')
     today_visits_real = df[df['date'].dt.strftime('%Y-%m-%d') == today_str]
     count_today_total = len(today_visits_real)
@@ -97,18 +98,61 @@ def render_dashboard(visits_df, patients_df):
         
     total_patients = len(df['hn'].unique())
 
-    st.subheader(f"📅 สรุปยอดผู้มารับบริการจริง")
+    col1, col2, col3 = st.columns(3)
     
-    m1, m2, m3 = st.columns(3)
-    m1.metric("ผู้รับบริการวันนี้", f"{count_today_total} คน", "Visits", delta_color="off")
-    m2.metric("ผู้ป่วยใหม่วันนี้", f"{count_today_new} คน", f"+{count_today_new}" if count_today_new > 0 else "0")
-    m3.metric("ทะเบียนผู้ป่วยสะสม", f"{total_patients} คน")
+    with col1:
+        st.markdown(f"""
+            <div style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 24px;
+                border-radius: 16px;
+                color: white;
+                text-align: center;
+            ">
+                <div style="font-size: 14px; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;">ผู้รับบริการวันนี้</div>
+                <div style="font-size: 42px; font-weight: 700; margin: 8px 0;">{count_today_total}</div>
+                <div style="font-size: 14px; opacity: 0.8;">คน</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+            <div style="
+                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                padding: 24px;
+                border-radius: 16px;
+                color: white;
+                text-align: center;
+            ">
+                <div style="font-size: 14px; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;">ผู้ป่วยใหม่วันนี้</div>
+                <div style="font-size: 42px; font-weight: 700; margin: 8px 0;">{count_today_new}</div>
+                <div style="font-size: 14px; opacity: 0.8;">คน</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+            <div style="
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                padding: 24px;
+                border-radius: 16px;
+                color: white;
+                text-align: center;
+            ">
+                <div style="font-size: 14px; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px;">ทะเบียนผู้ป่วยสะสม</div>
+                <div style="font-size: 42px; font-weight: 700; margin: 8px 0;">{total_patients}</div>
+                <div style="font-size: 14px; opacity: 0.8;">คน</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.write("")
     st.divider()
 
-    # --- ส่วนที่ 2: ปริมาณงานรายเดือน (Monthly Workload) ---
-    st.subheader("📈 1. ปริมาณงานรายเดือน (Monthly Workload)")
+    # ==============================================================================
+    # 📈 MONTHLY WORKLOAD
+    # ==============================================================================
+    st.subheader("📈 ปริมาณงานรายเดือน")
     
-    # 2.1 กราฟแนวโน้ม
     monthly_visits = df.groupby('month_year').size().reset_index(name='Total Visits')
     
     if 'is_new_case' in df.columns:
@@ -123,13 +167,14 @@ def render_dashboard(visits_df, patients_df):
     workload_chart = alt.Chart(trend_long).mark_line(point=True, strokeWidth=3).encode(
         x=alt.X('month_year', title='เดือน-ปี'),
         y=alt.Y('Count', title='จำนวน (ราย)'),
-        color=alt.Color('Type', legend=alt.Legend(title="ประเภทผู้ป่วย"), 
-                        scale=alt.Scale(domain=['Total Visits', 'New Cases'], range=['#1E88E5', '#D81B60'])),
+        color=alt.Color('Type', legend=alt.Legend(title="ประเภท"), 
+                        scale=alt.Scale(domain=['Total Visits', 'New Cases'], range=['#667eea', '#f5576c'])),
         tooltip=['month_year', 'Type', 'Count']
     ).properties(height=350).interactive()
+    
     st.altair_chart(workload_chart, use_container_width=True)
 
-    # 2.2 ตารางสรุปรายเดือน
+    # Monthly Table
     one_year_ago = datetime.now() - timedelta(days=365)
     df_1y = df[df['date'] >= one_year_ago].copy()
     
@@ -142,24 +187,17 @@ def render_dashboard(visits_df, patients_df):
         monthly_summary = monthly_summary.sort_values('month_year', ascending=False)
         monthly_summary['Month Name'] = pd.to_datetime(monthly_summary['month_year'] + '-01').dt.strftime('%B %Y')
         display_monthly = monthly_summary[['Month Name', 'total_visits', 'new_cases']]
-        display_monthly.columns = ['เดือน', 'จำนวนผู้ป่วยทั้งหมด (ราย)', 'ผู้ป่วยใหม่ (ราย)']
+        display_monthly.columns = ['เดือน', 'จำนวนผู้ป่วยทั้งหมด', 'ผู้ป่วยใหม่']
 
-        with st.expander("📂 ดูตารางสรุปยอดรายเดือน (คลิก)", expanded=False):
-            st.dataframe(
-                display_monthly,
-                column_config={
-                    "เดือน": st.column_config.TextColumn("เดือน"),
-                    "จำนวนผู้ป่วยทั้งหมด (ราย)": st.column_config.NumberColumn("ยอดรวม (คน)", format="%d"),
-                    "ผู้ป่วยใหม่ (ราย)": st.column_config.NumberColumn("รายใหม่ (คน)", format="%d"),
-                },
-                hide_index=True,
-                use_container_width=True
-            )
+        with st.expander("📂 ดูตารางสรุปยอดรายเดือน"):
+            st.dataframe(display_monthly, hide_index=True, use_container_width=True)
 
     st.divider()
 
-    # --- ส่วนที่ 3: ปริมาณงานรายสัปดาห์ (4 Weeks) ---
-    st.subheader("📊 2. ปริมาณงานรายสัปดาห์ (4 Weeks Lookback)")
+    # ==============================================================================
+    # 📊 WEEKLY WORKLOAD
+    # ==============================================================================
+    st.subheader("📊 ปริมาณงานรายสัปดาห์ (4 สัปดาห์)")
     
     weeks_to_look_back = 4
     four_weeks_ago = datetime.now() - timedelta(weeks=weeks_to_look_back)
@@ -175,13 +213,9 @@ def render_dashboard(visits_df, patients_df):
         avg_new_per_week = total_new_period / weeks_to_look_back
         
         c_avg1, c_avg2 = st.columns(2)
-        with c_avg1:
-            st.metric(label=f"เฉลี่ยผู้ป่วย (ย้อนหลัง {weeks_to_look_back} สัปดาห์)", value=f"{avg_visits_per_week:.1f} คน/สัปดาห์")
-        with c_avg2:
-            st.metric(label="เฉลี่ยผู้ป่วยใหม่", value=f"{avg_new_per_week:.1f} คน/สัปดาห์")
+        c_avg1.metric(f"เฉลี่ยผู้ป่วย (ย้อนหลัง {weeks_to_look_back} สัปดาห์)", f"{avg_visits_per_week:.1f} คน/สัปดาห์")
+        c_avg2.metric("เฉลี่ยผู้ป่วยใหม่", f"{avg_new_per_week:.1f} คน/สัปดาห์")
         
-        st.write("") 
-
         st.markdown("##### 📂 รายละเอียดรายสัปดาห์")
         unique_weeks = sorted(df_weekly['week_start'].unique(), reverse=True)
         
@@ -193,8 +227,8 @@ def render_dashboard(visits_df, patients_df):
             w_new = len(week_data[week_data['is_new_case'].astype(str).str.upper() == 'TRUE'])
             week_label = w.strftime('%d/%m/%Y')
             
-            with st.expander(f"Week {week_label} (รวม: {w_total} | ใหม่: {w_new})"):
-                 st.dataframe(
+            with st.expander(f"สัปดาห์ {week_label} (รวม: {w_total} | ใหม่: {w_new})"):
+                st.dataframe(
                     week_data[['date', 'hn', 'full_name', 'pefr', 'control_level', 'note']],
                     column_config={
                         "date": st.column_config.DateColumn("วันที่", format="DD/MM/YYYY"),
@@ -212,16 +246,18 @@ def render_dashboard(visits_df, patients_df):
 
     st.divider()
 
-    # --- ส่วนที่ 4: KPI ย่อย ---
+    # ==============================================================================
+    # 🥧 CONTROL STATUS & TECHNIQUE
+    # ==============================================================================
     c_left, c_right = st.columns([1, 1.2])
     
     with c_left:
-        st.subheader("3. การควบคุมโรค (Status)")
+        st.subheader("🎯 การควบคุมโรค")
         latest_visits = df.sort_values('date').groupby('hn').tail(1)
         control_counts = latest_visits['control_level'].value_counts().reset_index()
         control_counts.columns = ['status', 'count']
         domain = ['Well Controlled', 'Partly Controlled', 'Uncontrolled']
-        range_ = ['#66BB6A', '#FFCA28', '#EF5350'] 
+        range_ = ['#10B981', '#F59E0B', '#EF4444']
 
         pie = alt.Chart(control_counts).mark_arc(innerRadius=60).encode(
             theta=alt.Theta(field="count", type="quantitative"),
@@ -232,7 +268,7 @@ def render_dashboard(visits_df, patients_df):
         st.altair_chart(pie, use_container_width=True)
 
     with c_right:
-        st.subheader("4. สอนเทคนิคพ่นยา (Fiscal Year)")
+        st.subheader("💨 สอนเทคนิคพ่นยา (ปีงบ)")
         df_tech = df[df['technique_check'].astype(str).str.contains('ทำ', na=False)].copy()
 
         if not df_tech.empty:
@@ -251,7 +287,7 @@ def render_dashboard(visits_df, patients_df):
             bar_fiscal = alt.Chart(chart_data).mark_bar().encode(
                 y=alt.Y('ปีงบ (พ.ศ.):O', title="ปีงบประมาณ (พ.ศ.)"),
                 x=alt.X('Value', title='จำนวน'),
-                color=alt.Color('Unit', legend=alt.Legend(title="หน่วยนับ"), scale=alt.Scale(range=['#FFB74D', '#26A69A'])),
+                color=alt.Color('Unit', legend=alt.Legend(title="หน่วยนับ"), scale=alt.Scale(range=['#F59E0B', '#10B981'])),
                 tooltip=['ปีงบ (พ.ศ.)', 'Unit', 'Value']
             ).properties(height=200)
             st.altair_chart(bar_fiscal, use_container_width=True)
@@ -259,9 +295,12 @@ def render_dashboard(visits_df, patients_df):
         else:
             st.info("ยังไม่มีข้อมูลการสอนพ่นยา")
 
-    # --- ส่วนที่ 5: สถิติ DRP ---
+    # ==============================================================================
+    # 💊 DRP STATISTICS
+    # ==============================================================================
     st.divider()
-    st.subheader("💊 5. สถิติปัญหาจากการใช้ยา (DRP Summary)")
+    st.subheader("💊 สถิติปัญหาจากการใช้ยา (DRP)")
+    
     df_drp = df.copy()
     df_drp['drp_str'] = df_drp['drp'].astype(str).str.strip()
     df_drp = df_drp[(df_drp['drp_str'] != '') & (df_drp['drp_str'] != '-') & (df_drp['drp_str'].str.lower() != 'nan')]
@@ -276,7 +315,7 @@ def render_dashboard(visits_df, patients_df):
         with c_drp_table:
             st.dataframe(drp_stats, hide_index=True, use_container_width=True)
         with c_drp_chart:
-            drp_chart = alt.Chart(drp_stats).mark_bar(color='#EF5350').encode(
+            drp_chart = alt.Chart(drp_stats).mark_bar(color='#EF4444').encode(
                 x=alt.X('fiscal_year_be:O', title='ปีงบประมาณ'),
                 y=alt.Y('จำนวนเรื่อง (DRPs)', title='จำนวนเรื่อง'),
                 tooltip=['fiscal_year_be', 'จำนวนเรื่อง (DRPs)']
@@ -285,13 +324,15 @@ def render_dashboard(visits_df, patients_df):
     else:
         st.success("ยังไม่พบรายงานปัญหาการใช้ยา (DRP) ในระบบ")
 
-    # --- ส่วนที่ 6: รายชื่อผู้รับบริการรายวัน (Log) ---
+    # ==============================================================================
+    # 🗓️ DAILY LOG
+    # ==============================================================================
     st.divider()
-    st.subheader("🗓️ 6. ตรวจสอบรายชื่อผู้รับบริการ (Daily Log)")
+    st.subheader("🗓️ ตรวจสอบรายชื่อผู้รับบริการ")
     
     col_date, col_summary = st.columns([1, 2])
     with col_date:
-        selected_date = st.date_input("เลือกวันที่ต้องการดูข้อมูล", value=datetime.today())
+        selected_date = st.date_input("เลือกวันที่", value=datetime.today())
     
     daily_visits = df[df['date'].dt.date == selected_date]
     
@@ -304,7 +345,7 @@ def render_dashboard(visits_df, patients_df):
             st.markdown(f"**สรุปยอดวันที่ {selected_date.strftime('%d/%m/%Y')}**")
             s1, s2 = st.columns(2)
             s1.metric("ทั้งหมด", f"{daily_total} คน")
-            s2.metric("รายใหม่ (New)", f"{daily_new} คน")
+            s2.metric("รายใหม่", f"{daily_new} คน")
         
         display_df = daily_visits[['hn', 'full_name', 'is_new_case', 'pefr', 'control_level', 'note']].copy()
         display_df['is_new_case'] = display_df['is_new_case'].apply(lambda x: "🆕 New" if str(x).upper() == 'TRUE' else "")
@@ -315,28 +356,31 @@ def render_dashboard(visits_df, patients_df):
     else:
         st.info(f"ℹ️ ไม่มีรายการตรวจในวันที่ {selected_date.strftime('%d/%m/%Y')}")
 
-    # --- ส่วนที่ 7: สำรองข้อมูล ---
+    # ==============================================================================
+    # 💾 BACKUP
+    # ==============================================================================
     st.divider()
-    st.subheader("💾 7. สำรองข้อมูล (Backup Database)")
-    st.info("ระบบจะรวมข้อมูล 'ทะเบียนผู้ป่วย (Patients)' และ 'ประวัติการตรวจ (Visits)' ทั้งหมดเป็นไฟล์ Excel เดียว")
+    st.subheader("💾 สำรองข้อมูล")
+    
+    with st.container(border=True):
+        st.info("ดาวน์โหลดข้อมูลทั้งหมดเป็นไฟล์ Excel")
+        
+        def to_excel(df1, df2):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df1.to_excel(writer, sheet_name='Patients', index=False)
+                df2.to_excel(writer, sheet_name='Visits', index=False)
+            return output.getvalue()
 
-    def to_excel(df1, df2):
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df1.to_excel(writer, sheet_name='Patients', index=False)
-            df2.to_excel(writer, sheet_name='Visits', index=False)
-        processed_data = output.getvalue()
-        return processed_data
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+        file_name = f"asthma_backup_{timestamp}.xlsx"
+        excel_data = to_excel(patients_df, visits_df)
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    file_name = f"asthma_backup_{timestamp}.xlsx"
-    excel_data = to_excel(patients_df, visits_df)
-
-    st.download_button(
-        label="📥 ดาวน์โหลดไฟล์ Backup (.xlsx)",
-        data=excel_data,
-        file_name=file_name,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        type="primary",
-        help="คลิกเพื่อดาวน์โหลดข้อมูลทั้งหมดลงเครื่องคอมพิวเตอร์"
-    )
+        st.download_button(
+            label="📥 ดาวน์โหลดไฟล์ Backup (.xlsx)",
+            data=excel_data,
+            file_name=file_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True
+        )
