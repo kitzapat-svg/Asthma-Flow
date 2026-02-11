@@ -1,0 +1,265 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Warm Claude-inspired Theme Colors */
+:root {
+  --radius: 0px;
+  
+  /* Light Mode - Warm Cream/Paper Theme (Claude-inspired) */
+  --background: #FEFCF8;
+  --background-secondary: #F7F3ED;
+  --foreground: #2D2A26;
+  --foreground-muted: #6B6560;
+  
+  /* Primary - Warm Terracotta/Burnt Orange */
+  --primary: #D97736;
+  --primary-hover: #B85C28;
+  --primary-foreground: #FFFFFF;
+  
+  /* Secondary - Warm Sand */
+  --secondary: #EDE6DB;
+  --secondary-foreground: #2D2A26;
+  
+  /* Accent - Warm Brown/Caramel */
+  --accent: #8B5A2B;
+  --accent-foreground: #FEFCF8;
+  
+  /* Muted - Warm Gray */
+  --muted: #E8E2D9;
+  --muted-foreground: #8A8580;
+  
+  /* Borders - Warm dark outlines */
+  --border: #3D3834;
+  --border-light: #D9D3CA;
+  --input: #3D3834;
+  
+  /* Card - Warm cream */
+  --card: #FEFCF8;
+  --card-foreground: #2D2A26;
+  
+  /* Warm accent colors */
+  --warm-orange: #E07B39;
+  --warm-amber: #F4A261;
+  --warm-brown: #6B4423;
+  --warm-cream: #FAF6F1;
+  --warm-sand: #E6DCC8;
+  
+  /* Retro specific */
+  --retro-shadow: 4px 4px 0px 0px #3D3834;
+  --retro-shadow-sm: 2px 2px 0px 0px #3D3834;
+  --retro-shadow-lg: 6px 6px 0px 0px #3D3834;
+  --retro-shadow-colored: 4px 4px 0px 0px #D97736;
+  
+  /* Grid pattern color */
+  --grid-color: rgba(45, 42, 38, 0.06);
+}
+
+.dark {
+  /* Dark Mode - Dark warm theme */
+  --background: #1A1816;
+  --background-secondary: #242220;
+  --foreground: #FEFCF8;
+  --foreground-muted: #A8A39D;
+  
+  /* Primary - Warm Orange */
+  --primary: #E88B52;
+  --primary-hover: #D97736;
+  --primary-foreground: #1A1816;
+  
+  /* Secondary - Dark Warm Gray */
+  --secondary: #2D2A26;
+  --secondary-foreground: #FEFCF8;
+  
+  /* Accent - Light Caramel */
+  --accent: #F4A261;
+  --accent-foreground: #1A1816;
+  
+  /* Muted */
+  --muted: #2D2A26;
+  --muted-foreground: #8A8580;
+  
+  /* Borders */
+  --border: #4A4540;
+  --border-light: #3D3834;
+  --input: #4A4540;
+  
+  /* Card */
+  --card: #242220;
+  --card-foreground: #FEFCF8;
+  
+  /* Retro specific */
+  --retro-shadow: 4px 4px 0px 0px #4A4540;
+  --retro-shadow-sm: 2px 2px 0px 0px #4A4540;
+  --retro-shadow-lg: 6px 6px 0px 0px #4A4540;
+  --retro-shadow-colored: 4px 4px 0px 0px #E88B52;
+  
+  /* Grid pattern color */
+  --grid-color: rgba(254, 252, 248, 0.04);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-ring: var(--primary);
+  --color-destructive: #DC2626;
+  
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Retro Utility Classes */
+@layer utilities {
+  .retro-box {
+    border: 2px solid var(--border);
+    box-shadow: var(--retro-shadow);
+    transition: all 0.15s ease;
+  }
+  
+  .retro-box:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px 0px var(--border);
+  }
+  
+  .retro-box-sm {
+    border: 2px solid var(--border);
+    box-shadow: var(--retro-shadow-sm);
+    transition: all 0.15s ease;
+  }
+  
+  .retro-box-sm:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0px 0px var(--border);
+  }
+  
+  .retro-box-primary {
+    border: 2px solid var(--primary);
+    box-shadow: var(--retro-shadow-colored);
+    transition: all 0.15s ease;
+  }
+  
+  .retro-box-primary:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px 0px var(--primary);
+  }
+  
+  .retro-button {
+    border: 2px solid var(--border);
+    box-shadow: var(--retro-shadow-sm);
+    transition: all 0.1s ease;
+  }
+  
+  .retro-button:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0px 0px var(--border);
+  }
+  
+  .retro-button:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0px 0px var(--border);
+  }
+  
+  .retro-button-primary {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    border: 2px solid var(--border);
+    box-shadow: var(--retro-shadow-sm);
+    transition: all 0.1s ease;
+  }
+  
+  .retro-button-primary:hover {
+    background-color: var(--primary-hover);
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0px 0px var(--border);
+  }
+  
+  .retro-button-primary:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0px 0px var(--border);
+  }
+  
+  .retro-card {
+    background-color: var(--card);
+    border: 2px solid var(--border);
+    box-shadow: var(--retro-shadow);
+  }
+  
+  .retro-grid {
+    background-image: 
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  
+  .retro-dots {
+    background-image: radial-gradient(var(--grid-color) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  
+  .text-retro-display {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+  
+  .gradient-warm {
+    background: linear-gradient(135deg, var(--warm-orange) 0%, var(--warm-amber) 100%);
+  }
+}
+
+::selection {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Retro Scrollbar */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+  border-left: 2px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--foreground-muted);
+  border: 2px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+html {
+  scroll-behavior: smooth;
+}

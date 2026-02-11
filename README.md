@@ -1,36 +1,36 @@
-# Asthma Flow 🫁
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-**Asthma Flow** is a web-based clinical application designed to assist pharmacists at **Sawankhalok Hospital** in managing and monitoring asthma patients effectively.
+## Getting Started
 
-This application streamlines the process of tracking patient outcomes, assessing inhaler techniques, and documenting Drug-Related Problems (DRPs), leveraging a modern tech stack for reliability and real-time data management.
+First, run the development server:
 
-## 🎯 Key Features
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-* **Patient Profile Management:** Centralized view of patient demographic and clinical data.
-* **Symptom & ACT Tracking:** Monitor Asthma Control Test (ACT) scores and symptom trends over time.
-* **Inhaler Technique Assessment:** Tools for recording and correcting patient inhalation methods.
-* **DRP Documentation:** Log medication issues and pharmacist interventions.
-* **Clinical Dashboard:** Visualizing key metrics for quick decision-making.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## 🛠 Technology Stack
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project moves beyond static data by integrating a robust backend database:
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-* **Frontend & Logic:** [Streamlit](https://streamlit.io/) (Python framework for data apps)
-* **Database & Backend:** [Supabase](https://supabase.com/) (Open source Firebase alternative based on PostgreSQL)
-* **Data Handling:** Pandas
-* **Visualization:** Plotly / Altair
+## Learn More
 
-## ⚙️ Setup & Configuration
+To learn more about Next.js, take a look at the following resources:
 
-To run this project locally, you need to connect it to your Supabase instance.
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-1.  Clone the repository.
-2.  Install requirements: `pip install -r requirements.txt`
-3.  Create a `.streamlit/secrets.toml` file in the project root directory.
-4.  Add your Supabase credentials:
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-```toml
-[supabase]
-url = "YOUR_SUPABASE_PROJECT_URL"
-key = "YOUR_SUPABASE_API_KEY" # service_role or anon key depending on your RLS setup
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
