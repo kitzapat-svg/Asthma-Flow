@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, FileText, ChevronDown, ChevronUp, Clock, Pill,
-  AlertTriangle, Timer, CheckCircle, Sparkles, X, List, History
+  AlertTriangle, Timer, CheckCircle, Sparkles, X, History, Edit, Trash2, Save
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -25,6 +25,7 @@ interface Patient {
   best_pefr: string;
   status: string;
   public_token: string;
+  phone?: string;
 }
 
 interface Visit {
@@ -56,11 +57,18 @@ export default function PatientDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showTechniqueModal, setShowTechniqueModal] = useState(false);
+  
+  // Edit Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState<any>({});
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const mdiSteps = [
     "เขย่าหลอด", "ถือแนวตั้ง", "หายใจออกสุด", "ตั้งศีรษะตรง", 
     "อมปากสนิท", "กดพร้อมสูด", "กลั้น 10 วิ", "ผ่อนลมหายใจ"
   ];
+
+  const normalizeHN = (val: any) => String(val).trim().replace(/^0+/, '');
 
   useEffect(() => {
     fetchData();
@@ -68,48 +76,120 @@ export default function PatientDetailPage() {
 
   const fetchData = async () => {
     try {
-      const resPatients = await fetch('/api/db?type=patients');
+      const resPatients = await fetch(`/api/db?type=patients&hn=${params.hn}`);
       const dataPatients: Patient[] = await resPatients.json();
-      const foundPatient = dataPatients.find(p => p.hn === params.hn);
+      const foundPatient = dataPatients.find(p => normalizeHN(p.hn) === normalizeHN(params.hn));
 
       if (foundPatient) {
         setPatient(foundPatient);
-        const resVisits = await fetch('/api/db?type=visits');
+        // Prepare edit form data
+        setEditFormData({
+            ...foundPatient,
+        });
+
+        const resVisits = await fetch(`/api/db?type=visits&hn=${params.hn}`);
         const dataVisits: Visit[] = await resVisits.json();
-        const resTechniques = await fetch('/api/db?type=technique_checks');
-        const dataTechniques: any[] = await resTechniques.json();
+        
+        const resTechniques = await fetch(`/api/db?type=technique_checks&hn=${params.hn}`);
+        const rawTechniqueData = await resTechniques.json();
 
         const history = dataVisits
-          .filter(v => v.hn === params.hn)
+          .filter(v => normalizeHN(v.hn) === normalizeHN(params.hn))
           .map(v => ({
             ...v,
             dateDisplay: new Date(v.date).toLocaleDateString('th-TH', { 
                 day: '2-digit', month: 'short', year: '2-digit' 
             }),
             fullDate: v.date,
-            pefr: parseInt(v.pefr) || 0
+            pefr: parseInt(v.pefr) || null 
           }))
           .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
         setVisitHistory(history);
 
-        const techHistory = dataTechniques
-            .filter(t => t[0] === params.hn)
-            .map(t => ({
-                hn: t[0],
-                date: t[1],
-                steps: t.slice(2, 10),
-                total_score: t[10],
-                note: t[11] || '-'
-            }))
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
-        setTechniqueHistory(techHistory);
+        if (Array.isArray(rawTechniqueData)) {
+            const techHistory = rawTechniqueData
+                .filter((t: any) => normalizeHN(t.hn) === normalizeHN(params.hn)) 
+                .map((t: any) => ({
+                    hn: t.hn,
+                    date: t.date,
+                    steps: [
+                        t.step_1, t.step_2, t.step_3, t.step_4, 
+                        t.step_5, t.step_6, t.step_7, t.step_8
+                    ],
+                    total_score: t.total_score,
+                    note: t.note || '-'
+                }))
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            
+            setTechniqueHistory(techHistory);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+      if (!confirm("⚠️ ยืนยันการลบข้อมูลผู้ป่วย?\nข้อมูลทั้งหมดจะหายไปและกู้คืนไม่ได้")) return;
+      
+      setIsDeleting(true);
+      try {
+          const res = await fetch(`/api/db?type=patients&hn=${patient?.hn}`, { method: 'DELETE' });
+          if (res.ok) {
+              alert("ลบข้อมูลเรียบร้อย");
+              router.push('/staff/dashboard');
+          } else {
+              alert("เกิดข้อผิดพลาดในการลบ");
+          }
+      } catch (e) {
+          alert("เชื่อมต่อ Server ไม่ได้");
+      } finally {
+          setIsDeleting(false);
+      }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!patient) return;
+
+      try {
+          // Prepare data array [HN, Prefix, First, Last, DOB, PEFR, Height, Status, Token, Phone]
+          const dataToUpdate = [
+              patient.hn, // ห้ามแก้ HN
+              editFormData.prefix,
+              editFormData.first_name,
+              editFormData.last_name,
+              editFormData.dob,
+              editFormData.best_pefr,
+              editFormData.height,
+              editFormData.status,
+              patient.public_token, // ห้ามแก้ Token
+              editFormData.phone || ""
+          ];
+
+          const res = await fetch('/api/db', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  type: 'patients',
+                  hn: patient.hn,
+                  data: dataToUpdate
+              })
+          });
+
+          if (res.ok) {
+              alert("บันทึกการแก้ไขเรียบร้อย");
+              setPatient({ ...patient, ...editFormData });
+              setShowEditModal(false);
+          } else {
+              alert("เกิดข้อผิดพลาดในการบันทึก");
+          }
+      } catch (e) {
+          console.error(e);
+          alert("เชื่อมต่อ Server ไม่ได้");
+      }
   };
 
   const getInhalerStatus = () => {
@@ -179,7 +259,10 @@ export default function PatientDetailPage() {
                         if (confirmChange) {
                             const update = async () => {
                                 setUpdatingStatus(true);
-                                await fetch('/api/db', { method: 'PUT', body: JSON.stringify({ type: 'patients', hn: patient.hn, status: newStatus })});
+                                await fetch('/api/db', { 
+                                    method: 'PUT', 
+                                    body: JSON.stringify({ type: 'patients', hn: patient.hn, status: newStatus })
+                                });
                                 setPatient({...patient, status: newStatus});
                                 setUpdatingStatus(false);
                             };
@@ -202,7 +285,17 @@ export default function PatientDetailPage() {
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="space-y-6">
           {/* ข้อมูลส่วนตัว */}
-          <div className="bg-white dark:bg-zinc-900 p-6 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none transition-colors">
+          <div className="bg-white dark:bg-zinc-900 p-6 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none transition-colors relative">
+            
+            {/* Edit Button */}
+            <button 
+                onClick={() => setShowEditModal(true)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-[#D97736] transition-colors"
+                title="แก้ไขข้อมูล"
+            >
+                <Edit size={18} />
+            </button>
+
             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
                 <div className="w-12 h-12 bg-[#D97736] flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700"><User size={24} /></div>
                 <div>
@@ -226,7 +319,7 @@ export default function PatientDetailPage() {
              <p className="text-white/60 text-sm mt-1">ให้ผู้ป่วยสแกนเพื่อดูผลการรักษา</p>
           </div>
 
-          {/* Inhaler Review (Warm Retro Theme) */}
+          {/* Inhaler Review Box */}
           <div className="bg-white dark:bg-zinc-900 p-6 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none transition-colors">
              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
                 <div className={`w-12 h-12 flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700 ${
@@ -271,7 +364,6 @@ export default function PatientDetailPage() {
                     </div>
                 )}
 
-                {/* ปุ่มดูรายละเอียด (Retro Style) */}
                 <button 
                     onClick={() => setShowTechniqueModal(true)}
                     className="w-full py-3 bg-[#F7F3ED] dark:bg-zinc-800 text-[#2D2A26] dark:text-white font-bold border-2 border-[#3D3834] dark:border-zinc-600 shadow-[2px_2px_0px_0px_#3D3834] dark:shadow-none hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2"
@@ -298,7 +390,7 @@ export default function PatientDetailPage() {
                             <Tooltip contentStyle={{ borderRadius: '0px', border: '2px solid #3D3834', boxShadow: '4px 4px 0px 0px #3D3834', color: '#000' }}/>
                             <ReferenceLine y={predictedVal * 0.8} stroke="#22c55e" strokeDasharray="3 3"><Label value="Green Zone" fill="#22c55e" fontSize={10} position="insideTopRight" /></ReferenceLine>
                             <ReferenceLine y={predictedVal * 0.6} stroke="#ef4444" strokeDasharray="3 3"><Label value="Red Zone" fill="#ef4444" fontSize={10} position="insideTopRight" /></ReferenceLine>
-                            <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                            <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} connectNulls />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
@@ -336,7 +428,15 @@ export default function PatientDetailPage() {
                                 {[...visitHistory].reverse().map((visit, index) => (
                                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
                                         <td className="p-3 font-mono font-bold whitespace-nowrap dark:text-zinc-300">{visit.dateDisplay}</td>
-                                        <td className="p-3"><span className={`font-black ${visit.pefr > predictedVal * 0.8 ? 'text-green-600' : visit.pefr > predictedVal * 0.6 ? 'text-yellow-600' : 'text-red-600'}`}>{visit.pefr}</span></td>
+                                        <td className="p-3">
+                                            <span className={`font-black ${
+                                                !visit.pefr ? 'text-gray-400' :
+                                                visit.pefr > predictedVal * 0.8 ? 'text-green-600' :
+                                                visit.pefr > predictedVal * 0.6 ? 'text-yellow-600' : 'text-red-600'
+                                            }`}>
+                                                {visit.pefr || "-"}
+                                            </span>
+                                        </td>
                                         <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs border ${visit.control_level === 'Well-controlled' ? 'bg-green-50 text-green-700 border-green-200' : visit.control_level === 'Partly Controlled' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{visit.control_level}</span></td>
                                         <td className="p-3 text-xs dark:text-zinc-400"><div className="flex flex-col gap-1"><span className="flex items-center gap-1"><Pill size={10} className="text-blue-500"/> {visit.controller}</span><span className="flex items-center gap-1"><Pill size={10} className="text-orange-500"/> {visit.reliever}</span></div></td>
                                         <td className="p-3 text-xs">{visit.technique_check === 'ทำ' ? <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={12}/> สอนแล้ว</span> : <span className="text-gray-400">-</span>}</td>
@@ -351,20 +451,17 @@ export default function PatientDetailPage() {
         </div>
       </div>
 
-      {/* MODAL: รายละเอียดคะแนนเทคนิคพ่นยา */}
+      {/* --- TECHNIQUE MODAL --- */}
       {showTechniqueModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white dark:bg-zinc-900 w-full max-w-2xl max-h-[90vh] overflow-y-auto border-2 border-[#3D3834] dark:border-zinc-700 shadow-[8px_8px_0px_0px_#3D3834] dark:shadow-none p-6 rounded-lg relative">
-                
                 <button onClick={() => setShowTechniqueModal(false)} className="absolute right-4 top-4 text-gray-400 hover:text-black dark:hover:text-white transition-colors">
                     <X size={24} />
                 </button>
-
                 <h2 className="text-2xl font-black mb-1 flex items-center gap-2 text-[#2D2A26] dark:text-white">
                     <Sparkles className="text-[#D97736]" /> ประวัติการสอนพ่นยา
                 </h2>
                 <p className="text-sm text-gray-500 mb-6">รายละเอียดคะแนนและข้อผิดพลาดที่พบ</p>
-
                 {techniqueHistory.length > 0 ? (
                     <div className="space-y-6">
                         {techniqueHistory.map((record, index) => (
@@ -380,8 +477,6 @@ export default function PatientDetailPage() {
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* รายการที่ผิด (ไม่ได้ติ๊ก) */}
                                 <div className="mb-3">
                                     <p className="text-xs font-bold text-gray-500 uppercase mb-2">จุดที่ทำไม่ได้ / ต้องปรับปรุง:</p>
                                     <div className="flex flex-wrap gap-2">
@@ -399,8 +494,6 @@ export default function PatientDetailPage() {
                                         )}
                                     </div>
                                 </div>
-
-                                {/* Note */}
                                 <div className="bg-white dark:bg-zinc-900 p-3 rounded border border-dashed border-gray-300 dark:border-zinc-700 text-sm">
                                     <span className="font-bold text-gray-500 mr-2">Note:</span>
                                     <span className="text-gray-800 dark:text-zinc-300">{record.note}</span>
@@ -414,6 +507,90 @@ export default function PatientDetailPage() {
                         <p>ยังไม่มีประวัติการประเมินเทคนิคพ่นยา</p>
                     </div>
                 )}
+            </div>
+        </div>
+      )}
+
+      {/* --- EDIT MODAL (New) --- */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-lg border-2 border-[#3D3834] dark:border-zinc-700 shadow-[8px_8px_0px_0px_#3D3834] dark:shadow-none p-6 rounded-lg relative">
+                <button onClick={() => setShowEditModal(false)} className="absolute right-4 top-4 text-gray-400 hover:text-black dark:hover:text-white transition-colors">
+                    <X size={24} />
+                </button>
+                <h2 className="text-2xl font-black mb-6 flex items-center gap-2 text-[#2D2A26] dark:text-white">
+                    <Edit className="text-[#D97736]" /> แก้ไขข้อมูลผู้ป่วย
+                </h2>
+                
+                <form onSubmit={handleEditSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold mb-1">คำนำหน้า</label>
+                            <select 
+                                value={editFormData.prefix} 
+                                onChange={e => setEditFormData({...editFormData, prefix: e.target.value})}
+                                className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600"
+                            >
+                                <option value="นาย">นาย</option>
+                                <option value="นาง">นาง</option>
+                                <option value="น.ส.">น.ส.</option> {/* แก้ไขตรงนี้ */}
+                                <option value="ด.ช.">ด.ช.</option>
+                                <option value="ด.ญ.">ด.ญ.</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold mb-1">สถานะ</label>
+                            <select 
+                                value={editFormData.status} 
+                                onChange={e => setEditFormData({...editFormData, status: e.target.value})}
+                                className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600"
+                            >
+                                <option value="Active">Active</option>
+                                <option value="COPD">COPD</option>
+                                <option value="Discharge">Discharge</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold mb-1">ชื่อ</label>
+                            <input type="text" value={editFormData.first_name} onChange={e => setEditFormData({...editFormData, first_name: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold mb-1">นามสกุล</label>
+                            <input type="text" value={editFormData.last_name} onChange={e => setEditFormData({...editFormData, last_name: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold mb-1">วันเกิด</label>
+                            <input type="date" value={editFormData.dob} onChange={e => setEditFormData({...editFormData, dob: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold mb-1">ส่วนสูง (cm)</label>
+                            <input type="number" value={editFormData.height} onChange={e => setEditFormData({...editFormData, height: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold mb-1">Predicted PEFR</label>
+                            <input type="number" value={editFormData.best_pefr} onChange={e => setEditFormData({...editFormData, best_pefr: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold mb-1">เบอร์โทร</label>
+                            <input type="tel" value={editFormData.phone} onChange={e => setEditFormData({...editFormData, phone: e.target.value})} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-6 pt-4 border-t dark:border-zinc-700">
+                        <button type="button" onClick={handleDelete} disabled={isDeleting} className="flex-1 px-4 py-2 bg-red-100 text-red-700 font-bold rounded hover:bg-red-200 flex items-center justify-center gap-2">
+                            {isDeleting ? "กำลังลบ..." : <><Trash2 size={18}/> ลบผู้ป่วย</>}
+                        </button>
+                        <button type="submit" className="flex-[2] px-4 py-2 bg-[#D97736] text-white font-bold rounded hover:bg-[#c66a2e] flex items-center justify-center gap-2">
+                            <Save size={18}/> บันทึกการแก้ไข
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
       )}
