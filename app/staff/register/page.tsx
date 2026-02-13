@@ -2,23 +2,20 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, FieldError } from 'react-hook-form';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowLeft, Save, UserPlus, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 
-// 1. สร้าง Schema กฎการตรวจสอบข้อมูล (Validation Rules)
-const registerSchema = z.object({
-  hn: z.string().min(1, "กรุณากรอก HN").regex(/^\d+$/, "HN ต้องเป็นตัวเลขเท่านั้น"),
-  prefix: z.string(),
-  first_name: z.string().min(1, "กรุณากรอกชื่อจริง"),
-  last_name: z.string().min(1, "กรุณากรอกนามสกุล"),
-  dob: z.string().refine((date) => date !== "", "กรุณาระบุวันเกิด"),
-  height: z.string().min(1, "กรุณาระบุส่วนสูง").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "ส่วนสูงต้องเป็นตัวเลข"),
-  phone: z.string().regex(/^0\d{9}$/, "เบอร์โทรต้องเป็นตัวเลข 10 หลัก (เช่น 0812345678)").optional().or(z.literal('')),
-  status: z.string(),
-});
+
+
+import { registerSchema } from '@/lib/schemas';
+
+// 1. สร้าง Schema กฎการตรวจสอบข้อมูล (Validation Rules) - MOVED TO lib/schemas.ts
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
@@ -66,7 +63,8 @@ export default function RegisterPatientPage() {
       const checkRes = await fetch(`/api/db?type=patients&hn=${formattedHN}`);
       const existing = await checkRes.json();
       if (Array.isArray(existing) && existing.length > 0) {
-        alert(`❌ HN: ${formattedHN} มีในระบบแล้ว!`);
+        toast.error(`❌ HN: ${formattedHN} มีในระบบแล้ว!`);
+
         setIsSubmitting(false);
         return;
       }
@@ -104,41 +102,47 @@ export default function RegisterPatientPage() {
       });
 
       if (res.ok) {
-        alert(`✅ ลงทะเบียนสำเร็จ!\nHN: ${formattedHN}`);
+        toast.success(`✅ ลงทะเบียนสำเร็จ! HN: ${formattedHN}`);
+
         router.push('/staff/dashboard');
       } else {
-        alert("เกิดข้อผิดพลาดในการบันทึก");
+        toast.error("เกิดข้อผิดพลาดในการบันทึก");
+
       }
     } catch (error) {
       console.error(error);
-      alert("Server Error");
+      toast.error("Server Error");
+
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // Helper สำหรับ Input Style
-  const inputClass = (error?: any) => `w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 ${error ? 'border-red-500 focus:border-red-500' : 'border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736]'} outline-none font-bold dark:text-white transition-colors`;
+  const inputClass = (error?: FieldError) => `w-full px-4 py-3 bg-muted dark:bg-zinc-800 border-2 ${error ? 'border-red-500 focus:border-red-500' : 'border-border dark:border-zinc-600 focus:border-primary'} outline-none font-bold dark:text-white transition-colors`;
+
+
 
   return (
-    <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
+    <div className="min-h-screen bg-background dark:bg-black p-6 font-sans text-foreground dark:text-white transition-colors duration-300">
       <nav className="max-w-2xl mx-auto mb-8 flex items-center justify-between">
-        <button onClick={() => router.back()} className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] font-bold">
+        <Button variant="ghost" onClick={() => router.back()} className="flex items-center gap-2 text-muted-foreground dark:text-zinc-400 hover:text-primary font-bold">
           <ArrowLeft size={20} /> ยกเลิก
-        </button>
+        </Button>
 
       </nav>
 
-      <div className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[8px_8px_0px_0px_#3D3834] dark:shadow-none p-8">
+      <div className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 border-2 border-border dark:border-zinc-800 shadow-[8px_8px_0px_0px_var(--border)] dark:shadow-none p-8">
         <div className="flex items-center gap-3 mb-8 pb-4 border-b border-gray-100 dark:border-zinc-800">
-          <div className="w-12 h-12 bg-[#D97736] flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700">
+          <div className="w-12 h-12 bg-primary flex items-center justify-center text-white border-2 border-border dark:border-zinc-700">
             <UserPlus size={24} />
           </div>
           <div>
             <h1 className="text-2xl font-black">ลงทะเบียนผู้ป่วยใหม่</h1>
-            <p className="text-[#6B6560] dark:text-zinc-400 font-medium">ระบบตรวจสอบข้อมูลอัตโนมัติ (Zod Validation)</p>
+            <p className="text-muted-foreground dark:text-zinc-400 font-medium">ระบบตรวจสอบข้อมูลอัตโนมัติ (Zod Validation)</p>
           </div>
         </div>
+
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
@@ -204,9 +208,10 @@ export default function RegisterPatientPage() {
             {errors.phone && <p className="text-red-500 text-xs mt-1 font-bold">{errors.phone.message}</p>}
           </div>
 
-          <button type="submit" disabled={isSubmitting} className="w-full bg-[#2D2A26] dark:bg-white text-white dark:text-black font-bold text-lg py-4 border-2 border-[#3D3834] dark:border-zinc-600 shadow-[4px_4px_0px_0px_#888] hover:bg-[#D97736] hover:shadow-[4px_4px_0px_0px_#3D3834] dark:hover:bg-gray-200 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2">
+          <Button type="submit" disabled={isSubmitting} className="w-full bg-foreground dark:bg-white text-background dark:text-black font-bold text-lg h-14 border-2 border-border dark:border-zinc-600 shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-[4px_4px_0px_0px_#3D3834] dark:hover:bg-gray-200 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2">
             {isSubmitting ? "กำลังบันทึก..." : <><Save size={20} /> ยืนยันการลงทะเบียน</>}
-          </button>
+          </Button>
+
 
         </form>
       </div>

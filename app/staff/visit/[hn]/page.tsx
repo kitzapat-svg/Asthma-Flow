@@ -2,47 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, FieldError, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList, RefreshCw, Users } from 'lucide-react';
 import { MDI_STEPS } from '@/lib/types';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 
-// 1. Schema Validation
-const visitSchema = z.object({
-  pefr: z.string().optional(),
-  control_level: z.string(),
-  controller: z.string(),
-  reliever: z.string(),
-  adherence: z.string(),
-  drp: z.string(),
-  advice: z.string(),
-  technique_check: z.string(),
-  technique_note: z.string().optional(),
-  next_appt: z.string().optional(),
-  note: z.string().optional(),
-  is_new_case: z.boolean(),
-  is_relative_pickup: z.boolean(),
-  no_pefr: z.boolean(),
-}).superRefine((data, ctx) => {
-  // กฎพิเศษ: ถ้าไม่ได้ติ๊ก no_pefr ต้องกรอกค่า PEFR
-  if (!data.no_pefr) {
-    if (!data.pefr || data.pefr.trim() === '') {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "กรุณากรอกค่า PEFR หรือติ๊ก 'ไม่ได้เป่า'",
-        path: ["pefr"],
-      });
-    } else if (Number(data.pefr) < 0 || Number(data.pefr) > 900) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "ค่า PEFR ไม่ถูกต้อง (0-900)",
-        path: ["pefr"],
-      });
-    }
-  }
-});
+
+
+import { visitSchema } from '@/lib/schemas';
+
+// 1. Schema Validation - MOVED TO lib/schemas.ts
 
 type VisitFormValues = z.infer<typeof visitSchema>;
 
@@ -141,28 +114,36 @@ export default function RecordVisitPage() {
       }
 
       await Promise.all(promises);
-      alert("บันทึกเรียบร้อย!");
+      toast.success("บันทึกเรียบร้อย!");
+
       router.push(`/staff/patient/${params.hn}`);
     } catch (e) {
-      alert("Error saving data");
+      toast.error("Error saving data");
+
     } finally {
       setLoading(false);
     }
   };
 
-  const inputClass = (err?: any) => `w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 ${err ? 'border-red-500' : 'border-[#3D3834] dark:border-zinc-600'} focus:border-[#D97736] outline-none font-bold dark:text-white transition-colors`;
+  const inputClass = (err?: FieldError) => `w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 ${err ? 'border-red-500' : 'border-border dark:border-zinc-600'} focus:border-primary outline-none font-bold dark:text-white transition-colors`;
+
+
 
   return (
-    <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 pb-20 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
+    <div className="min-h-screen bg-background dark:bg-black p-6 pb-20 font-sans text-foreground dark:text-white transition-colors duration-300">
       <nav className="max-w-3xl mx-auto mb-8 flex justify-between items-center">
-        <button onClick={() => router.back()} className="flex gap-2 font-bold hover:text-[#D97736]"><ArrowLeft size={20} /> ยกเลิก</button>
+        <Button variant="ghost" onClick={() => router.back()} className="flex gap-2 font-bold hover:text-primary">
+          <ArrowLeft size={20} /> ยกเลิก
+        </Button>
+
 
       </nav>
 
-      <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[8px_8px_0px_0px_#3D3834] dark:shadow-none p-8">
+      <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 border-2 border-border dark:border-zinc-800 shadow-[8px_8px_0px_0px_var(--border)] dark:shadow-none p-8">
         <div className="flex gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-zinc-800 items-center">
-          <div className="w-12 h-12 bg-[#D97736] flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700"><Activity size={24} /></div>
-          <div><h1 className="text-xl font-black">บันทึกการตรวจรักษา</h1><p className="text-gray-500 font-medium">HN: {params.hn}</p></div>
+          <div className="w-12 h-12 bg-primary flex items-center justify-center text-white border-2 border-border dark:border-zinc-700"><Activity size={24} /></div>
+          <div><h1 className="text-xl font-black">บันทึกการตรวจรักษา</h1><p className="text-muted-foreground font-medium">HN: {params.hn}</p></div>
+
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -170,9 +151,10 @@ export default function RecordVisitPage() {
           {/* 1. Clinical */}
           <div className="bg-[#F7F3ED] dark:bg-zinc-800/50 p-6 border border-[#3D3834]/20 rounded-lg space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold flex gap-2 text-[#D97736]"><Activity size={18} /> 1. การประเมินผล</h3>
-              <label className="flex gap-2 cursor-pointer bg-white dark:bg-zinc-900 px-3 py-1 rounded border hover:border-[#D97736]">
-                <input type="checkbox" {...register("is_relative_pickup")} className="accent-[#D97736]" />
+              <h3 className="font-bold flex gap-2 text-primary"><Activity size={18} /> 1. การประเมินผล</h3>
+              <label className="flex gap-2 cursor-pointer bg-white dark:bg-zinc-900 px-3 py-1 rounded border hover:border-primary">
+                <input type="checkbox" {...register("is_relative_pickup")} className="accent-primary" />
+
                 <span className="text-sm font-bold flex gap-1"><Users size={14} /> ญาติรับยาแทน</span>
               </label>
             </div>
@@ -180,8 +162,9 @@ export default function RecordVisitPage() {
               <div>
                 <div className="flex justify-between mb-2">
                   <label className="text-sm font-bold">ค่า PEFR <span className="text-red-500">*</span></label>
-                  <label className="flex gap-1.5 text-xs text-gray-500 cursor-pointer">
-                    <input type="checkbox" {...register("no_pefr")} className="accent-[#D97736]" /> ไม่ได้เป่า (N/A)
+                  <label className="flex gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                    <input type="checkbox" {...register("no_pefr")} className="accent-primary" /> ไม่ได้เป่า (N/A)
+
                   </label>
                 </div>
                 <input type="number" {...register("pefr")} disabled={noPefr} placeholder={noPefr ? "-" : "000"} className={`${inputClass(errors.pefr)} text-center text-xl ${noPefr ? 'opacity-50 cursor-not-allowed' : ''}`} />
@@ -197,7 +180,8 @@ export default function RecordVisitPage() {
               </div>
             </div>
             <label className="flex gap-2 cursor-pointer mt-2">
-              <input type="checkbox" {...register("is_new_case")} className="accent-[#D97736] w-5 h-5" />
+              <input type="checkbox" {...register("is_new_case")} className="accent-primary w-5 h-5" />
+
               <span className="font-bold text-sm">ผู้ป่วยรายใหม่ (New Case)</span>
             </label>
           </div>
@@ -205,7 +189,8 @@ export default function RecordVisitPage() {
           {/* 2. Medication */}
           <div className="space-y-4">
             <div className="flex justify-between">
-              <h3 className="font-bold flex gap-2 text-[#D97736]"><Stethoscope size={18} /> 2. การใช้ยา</h3>
+              <h3 className="font-bold flex gap-2 text-primary"><Stethoscope size={18} /> 2. การใช้ยา</h3>
+
               {fetchingHistory && <span className="text-xs text-gray-400 animate-pulse flex gap-1"><RefreshCw size={12} className="animate-spin" /> กำลังดึงข้อมูล...</span>}
             </div>
             <div className="grid md:grid-cols-2 gap-6">
@@ -221,7 +206,8 @@ export default function RecordVisitPage() {
           {/* 3. Technique */}
           <div className="border-t pt-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold flex gap-2 text-[#D97736]"><ClipboardList size={18} /> 3. เทคนิคพ่นยา</h3>
+              <h3 className="font-bold flex gap-2 text-primary"><ClipboardList size={18} /> 3. เทคนิคพ่นยา</h3>
+
               <select {...register("technique_check")} disabled={isRelative} className="px-3 py-1 border rounded bg-white dark:bg-zinc-800 disabled:opacity-50">
                 <option value="ไม่">❌ ไม่ประเมิน</option><option value="ทำ">✅ ประเมิน</option>
               </select>
@@ -231,11 +217,12 @@ export default function RecordVisitPage() {
                 {MDI_STEPS.map((step, index) => (
 
                   <label key={index} className="flex gap-3 cursor-pointer group p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded">
-                    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 ${checklist[index] ? 'bg-[#D97736] border-[#D97736]' : 'border-gray-300'}`}>
+                    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 ${checklist[index] ? 'bg-primary border-primary' : 'border-gray-300'}`}>
                       <input type="checkbox" className="hidden" checked={checklist[index]} onChange={() => toggleCheck(index)} />
                       {checklist[index] && <CheckCircle size={16} className="text-white" />}
                     </div>
-                    <span className={`text-sm ${checklist[index] ? 'text-[#D97736] font-bold' : 'text-gray-600 dark:text-zinc-400'}`}>{step}</span>
+                    <span className={`text-sm ${checklist[index] ? 'text-primary font-bold' : 'text-muted-foreground dark:text-zinc-400'}`}>{step}</span>
+
                   </label>
                 ))}
                 <textarea {...register("technique_note")} rows={2} placeholder="บันทึกเพิ่มเติม..." className="w-full mt-2 p-2 border rounded dark:bg-zinc-800 dark:text-white" />
@@ -244,16 +231,18 @@ export default function RecordVisitPage() {
           </div>
 
           {/* 4. Plan */}
-          <div className="bg-[#FFF9F0] dark:bg-orange-900/10 p-6 border border-[#D97736]/30 rounded-lg space-y-4">
-            <h3 className="font-bold flex gap-2 text-[#D97736]"><FileText size={18} /> 4. แผนการรักษา</h3>
+          <div className="bg-orange-50 dark:bg-orange-900/10 p-6 border border-primary/30 rounded-lg space-y-4">
+            <h3 className="font-bold flex gap-2 text-primary"><FileText size={18} /> 4. แผนการรักษา</h3>
+
             <div><label className="text-sm font-bold mb-2 block">คำแนะนำ</label><input type="text" {...register("advice")} className={inputClass()} /></div>
             <div><label className="text-sm font-bold mb-2 block">Note</label><textarea {...register("note")} rows={2} className={inputClass()} /></div>
             <div><label className="text-sm font-bold mb-2 block">วันนัดถัดไป</label><input type="date" {...register("next_appt")} className={inputClass()} /></div>
           </div>
 
-          <button type="submit" disabled={loading} className="w-full bg-[#2D2A26] text-white font-bold text-lg py-4 border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#888] hover:bg-[#D97736] hover:shadow-none active:translate-y-0.5 transition-all flex justify-center gap-2">
+          <Button type="submit" disabled={loading} className="w-full bg-foreground text-background font-bold text-lg h-14 border-2 border-border shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5 transition-all flex justify-center gap-2">
             {loading ? "กำลังบันทึก..." : <><Save size={20} /> บันทึกผล</>}
-          </button>
+          </Button>
+
         </form>
       </div>
     </div>

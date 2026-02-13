@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { getSheetData, appendData, updatePatientStatus, updatePatientData, deleteRow } from '@/lib/sheets';
 import { normalizeHN } from '@/lib/helpers';
+import { Patient } from '@/lib/types';
+
 
 
 const SHEET_CONFIG = {
@@ -34,7 +36,8 @@ export async function GET(request: Request) {
 
     if (hn) {
       const filteredData = Array.isArray(data)
-        ? data.filter((item: any) => normalizeHN(item.hn || item[0]) === normalizeHN(hn))
+        ? data.filter((item: Patient) => normalizeHN(item.hn) === normalizeHN(hn))
+
 
         : data;
       return NextResponse.json(filteredData);
@@ -47,6 +50,10 @@ export async function GET(request: Request) {
   }
 }
 
+import { patientRowSchema, visitRowSchema, strictTechniqueCheckRowSchema } from '@/lib/schemas';
+
+// ... (imports)
+
 // --- POST ---
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -57,12 +64,25 @@ export async function POST(request: Request) {
     const { type, data } = body;
 
     let tabName = '';
-    if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
-    else if (type === 'visits') tabName = SHEET_CONFIG.VISITS_TAB;
-    else if (type === 'technique_checks') tabName = SHEET_CONFIG.TECHNIQUE_TAB;
+    // Validation Logic
+    if (type === 'patients') {
+      tabName = SHEET_CONFIG.PATIENTS_TAB;
+      const result = patientRowSchema.safeParse(data);
+      if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
+    }
+    else if (type === 'visits') {
+      tabName = SHEET_CONFIG.VISITS_TAB;
+      const result = visitRowSchema.safeParse(data);
+      if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
+    }
+    else if (type === 'technique_checks') {
+      tabName = SHEET_CONFIG.TECHNIQUE_TAB;
+      const result = strictTechniqueCheckRowSchema.safeParse(data);
+      if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
+    }
     else return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
-    const result = await appendData(tabName, data);
+    const result = await appendData(tabName, data); // Type is implicitly any[] but vetted by Zod
 
     if (result.success) {
       return NextResponse.json({ message: 'Success' });
@@ -94,6 +114,10 @@ export async function PUT(request: Request) {
 
     let result;
     if (data) {
+      if (type === 'patients') {
+        const result = patientRowSchema.safeParse(data);
+        if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
+      }
       // กรณีมี data เข้ามา แปลว่าเป็น Full Edit
       result = await updatePatientData(tabName, hn, data);
     } else if (status) {

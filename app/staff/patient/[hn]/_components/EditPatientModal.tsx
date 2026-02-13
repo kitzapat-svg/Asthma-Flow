@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Edit, Trash2, Save } from 'lucide-react';
+import { toast } from 'sonner';
+
 import { Patient } from './types';
 
 interface EditPatientModalProps {
@@ -13,7 +15,8 @@ interface EditPatientModalProps {
 
 export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModalProps) {
     const router = useRouter();
-    const [editFormData, setEditFormData] = useState<any>({ ...patient });
+    const [editFormData, setEditFormData] = useState<Patient>({ ...patient });
+
     const [isDeleting, setIsDeleting] = useState(false);
 
     const handleEditSubmit = async (e: React.FormEvent) => {
@@ -44,15 +47,18 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
             });
 
             if (res.ok) {
-                alert("บันทึกการแก้ไขเรียบร้อย");
+                toast.success("บันทึกการแก้ไขเรียบร้อย");
+
                 onSaved({ ...patient, ...editFormData });
                 onClose();
             } else {
-                alert("เกิดข้อผิดพลาดในการบันทึก");
+                toast.error("เกิดข้อผิดพลาดในการบันทึก");
+
             }
         } catch (e) {
             console.error(e);
-            alert("เชื่อมต่อ Server ไม่ได้");
+            toast.error("เชื่อมต่อ Server ไม่ได้");
+
         }
     };
 
@@ -63,13 +69,16 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
         try {
             const res = await fetch(`/api/db?type=patients&hn=${patient.hn}`, { method: 'DELETE' });
             if (res.ok) {
-                alert("ลบข้อมูลเรียบร้อย");
+                toast.success("ลบข้อมูลเรียบร้อย");
+
                 router.push('/staff/dashboard');
             } else {
-                alert("เกิดข้อผิดพลาดในการลบ");
+                toast.error("เกิดข้อผิดพลาดในการลบ");
+
             }
         } catch (e) {
-            alert("เชื่อมต่อ Server ไม่ได้");
+            toast.error("เชื่อมต่อ Server ไม่ได้");
+
         } finally {
             setIsDeleting(false);
         }

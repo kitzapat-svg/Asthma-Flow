@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UserPlus, Users, Activity, FileText, Search, X, Filter } from 'lucide-react';
 import { useSession } from "next-auth/react";
+import { Button } from '@/components/ui/button';
 
 import { Patient } from '@/lib/types';
 
@@ -15,7 +16,7 @@ export default function PatientListPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
 
   useEffect(() => {
@@ -31,7 +32,8 @@ export default function PatientListPage() {
       const res = await fetch('/api/db?type=patients');
       const data = await res.json();
       const sortedData = Array.isArray(data)
-        ? data.sort((a: any, b: any) => b.hn.localeCompare(a.hn))
+        ? data.sort((a: Patient, b: Patient) => b.hn.localeCompare(a.hn))
+
         : [];
       setPatients(sortedData);
     } catch (error) {
@@ -42,7 +44,7 @@ export default function PatientListPage() {
   };
 
   const filteredPatients = patients.filter(patient => {
-    const query = searchQuery.toLowerCase().trim();
+    const query = searchTerm.toLowerCase().trim();
     const matchSearch =
       patient.hn.toLowerCase().includes(query) ||
       patient.first_name.toLowerCase().includes(query) ||
@@ -69,35 +71,36 @@ export default function PatientListPage() {
 
         {/* ปุ่มลงทะเบียน */}
         <Link href="/staff/register">
-          <button className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-[#D97736] text-white font-bold text-lg border-2 border-[#3D3834] dark:border-zinc-600 shadow-[4px_4px_0px_0px_#3D3834] hover:translate-y-0.5 hover:shadow-none transition-all">
+          <Button className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 text-lg" variant="default">
             <UserPlus size={24} /> ลงทะเบียนผู้ป่วยใหม่
-          </button>
+          </Button>
         </Link>
       </div>
 
       {/* Search Bar & Filter */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={20} />
           <input
             type="text"
-            placeholder="ค้นหา HN หรือ ชื่อ-สกุล..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-10 py-3 bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-700 focus:border-[#D97736] outline-none font-bold text-[#2D2A26] dark:text-white transition-all placeholder:font-normal"
+            placeholder="ค้นหาชื่อ หรือ HN..."
+            className="w-full pl-10 pr-4 py-2 border-2 border-border dark:border-zinc-700 rounded-lg focus:outline-none focus:border-primary dark:bg-zinc-800 transition-colors"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500">
+          {searchTerm && (
+            <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500">
               <X size={16} />
             </button>
           )}
         </div>
 
         <div className="relative">
+          <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={20} />
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="h-full px-4 pl-9 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-700 font-bold cursor-pointer outline-none focus:border-[#D97736] appearance-none min-w-[120px]"
+            className="pl-10 pr-8 py-2 border-2 border-border dark:border-zinc-700 rounded-lg focus:outline-none focus:border-primary appearance-none bg-white dark:bg-zinc-800 cursor-pointer transition-colors"
           >
             <option value="All">สถานะ: ทั้งหมด</option>
             <option value="Active">Active</option>
@@ -123,8 +126,8 @@ export default function PatientListPage() {
                   <div className="flex justify-between items-start mb-2">
                     <span className="font-mono text-sm text-[#6B6560] dark:text-zinc-400 font-bold">HN: {patient.hn}</span>
                     <span className={`text-[10px] uppercase px-2 py-0.5 border font-bold ${patient.status === 'Active' ? 'bg-green-100 text-green-700 border-green-200' :
-                        patient.status === 'COPD' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                          'bg-gray-100 text-gray-600 border-gray-300'
+                      patient.status === 'COPD' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                        'bg-gray-100 text-gray-600 border-gray-300'
                       }`}>
                       {patient.status}
                     </span>

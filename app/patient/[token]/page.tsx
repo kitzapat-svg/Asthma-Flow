@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, Printer } from 'lucide-react';
+import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, Printer, ChevronDown } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -10,7 +10,10 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { ThemeToggle } from '@/components/theme-toggle'; // <--- เรียกใช้ปุ่มปรับธีม
 
+import { ActionPlanPrint } from './_components/ActionPlanPrint';
 import { Patient, Visit } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+
 
 
 export default function PatientPublicPage() {
@@ -63,11 +66,20 @@ export default function PatientPublicPage() {
     fetchData();
   }, [params.token]);
 
-  // --- Helpers ---
-  const handlePrint = () => {
-    window.print();
+  // --- Print Logic ---
+  const [printMode, setPrintMode] = useState<'card' | 'plan'>('card');
+
+  const handlePrintCard = () => {
+    setPrintMode('card');
+    setTimeout(() => window.print(), 100);
   };
 
+  const handlePrintPlan = () => {
+    setPrintMode('plan');
+    setTimeout(() => window.print(), 100);
+  };
+
+  // --- Helpers ---
   const getStatusColor = (level: string) => {
     if (level === 'Well-controlled') return 'bg-green-500 text-white dark:bg-green-600';
     if (level === 'Partly Controlled') return 'bg-yellow-500 text-white dark:bg-yellow-600';
@@ -86,78 +98,92 @@ export default function PatientPublicPage() {
     return 'ยังคุมไม่ได้ (Uncontrolled)';
   };
 
-  // --- Logic Action Plan ---
-  const renderActionPlan = (visit: Visit) => {
+  // State for collapsible plan
+  const [showFullPlan, setShowFullPlan] = useState(false);
+
+  // ... (renderActionPlan removed or ignored?) 
+  // Let's create a new function for the 3 zones
+
+  const renderFullActionPlan = (visit: Visit) => {
     const controller = visit.controller || "ยาควบคุม";
     const reliever = visit.reliever || "ยาฉุกเฉิน";
 
-    if (visit.control_level === 'Well-controlled') {
-      return (
-        <div className="bg-green-50 dark:bg-green-900/20 border-l-8 border-green-500 rounded-lg p-5 mt-6 shadow-sm">
-          <h3 className="text-green-800 dark:text-green-400 font-black text-lg flex items-center gap-2">
-            <CheckCircle /> โซนสีเขียว: สบายดี
-          </h3>
-          <ul className="mt-3 space-y-2 text-green-900 dark:text-green-200 text-sm font-medium list-disc pl-5">
-            <li>คุณไม่มีอาการหอบเหนื่อย สามารถทำกิจกรรมได้ปกติ</li>
-            <li><strong>การใช้ยา:</strong> ใช้ยา <span className="font-bold underline">{controller}</span> วันละ 2 ครั้ง เช้า-เย็น อย่างต่อเนื่อง (ห้ามหยุดยาเอง)</li>
-            <li>ใช้ยา <span className="font-bold underline">{reliever}</span> เฉพาะเวลามีอาการ หรือก่อนออกกำลังกาย</li>
-          </ul>
+    return (
+      <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+        {/* Green */}
+        <div className="border border-green-200 dark:border-green-800 rounded-xl overflow-hidden">
+          <div className="bg-green-100 dark:bg-green-900/40 p-3 flex items-center gap-3">
+            <CheckCircle className="text-green-600 dark:text-green-400" />
+            <h3 className="font-black text-green-800 dark:text-green-300">สบายดี (Green)</h3>
+          </div>
+          <div className="p-4 bg-white dark:bg-zinc-900 text-sm">
+            <ul className="space-y-2 list-disc pl-5">
+              <li>ไม่มีอาการหอบเหนื่อย</li>
+              <li>ใช้ยาควบคุม <span className="font-bold">{controller}</span> เช้า-เย็น</li>
+              <li>ใช้ยาฉุกเฉิน <span className="font-bold">{reliever}</span> เมื่อมีอาการ</li>
+            </ul>
+          </div>
         </div>
-      );
-    } else if (visit.control_level === 'Partly Controlled') {
-      return (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-8 border-yellow-500 rounded-lg p-5 mt-6 shadow-sm">
-          <h3 className="text-yellow-800 dark:text-yellow-400 font-black text-lg flex items-center gap-2">
-            <AlertTriangle /> โซนสีเหลือง: เริ่มมีอาการ
-          </h3>
-          <ul className="mt-3 space-y-2 text-yellow-900 dark:text-yellow-200 text-sm font-medium list-disc pl-5">
-            <li>มีอาการไอ เหนื่อย หรือตื่นมาไอตอนกลางคืน</li>
-            <li><strong>การใช้ยา:</strong> ใช้ยา <span className="font-bold underline">{controller}</span> ต่อเนื่องตามปกติ</li>
-            <li>เพิ่มการใช้ยา <span className="font-bold underline">{reliever}</span> 2 พัฟ ทุก 4-6 ชั่วโมง</li>
-            <li>ถ้าอาการไม่ดีขึ้นใน 24 ชั่วโมง ให้รีบมาพบแพทย์</li>
-          </ul>
+
+        {/* Yellow */}
+        <div className="border border-yellow-200 dark:border-yellow-800 rounded-xl overflow-hidden">
+          <div className="bg-yellow-100 dark:bg-yellow-900/40 p-3 flex items-center gap-3">
+            <AlertTriangle className="text-yellow-600 dark:text-yellow-400" />
+            <h3 className="font-black text-yellow-800 dark:text-yellow-300">เริ่มมีอาการ (Yellow)</h3>
+          </div>
+          <div className="p-4 bg-white dark:bg-zinc-900 text-sm">
+            <ul className="space-y-2 list-disc pl-5">
+              <li>มีอาการไอ เหนื่อย แน่นหน้าอก</li>
+              <li>ใช้ยาควบคุม <span className="font-bold">{controller}</span> ต่อเนื่อง</li>
+              <li>เพิ่มยาฉุกเฉิน <span className="font-bold">{reliever}</span> 2 พัฟ ทุก 4-6 ชม.</li>
+            </ul>
+          </div>
         </div>
-      );
-    } else {
-      return (
-        <div className="bg-red-50 dark:bg-red-900/20 border-l-8 border-red-500 rounded-lg p-5 mt-6 shadow-sm animate-pulse">
-          <h3 className="text-red-800 dark:text-red-400 font-black text-lg flex items-center gap-2">
-            <XCircle /> โซนสีแดง: อันตราย!
-          </h3>
-          <ul className="mt-3 space-y-2 text-red-900 dark:text-red-200 text-sm font-medium list-disc pl-5">
-            <li>หอบเหนื่อยมาก พูดได้ทีละคำ หายใจมีเสียงหวีด</li>
-            <li><strong>การปฏิบัติตัวด่วน:</strong> พ่นยา <span className="font-bold underline">{reliever}</span> 2-4 พัฟ ทันที!</li>
-            <li>ถ้าไม่ดีขึ้น ให้พ่นซ้ำได้ทุก 15 นาที (ไม่เกิน 3 ครั้ง)</li>
-            <li><strong>รีบไปโรงพยาบาลที่ใกล้ที่สุดทันที</strong> หรือโทร 1669</li>
-          </ul>
+
+        {/* Red */}
+        <div className="border border-red-200 dark:border-red-800 rounded-xl overflow-hidden">
+          <div className="bg-red-100 dark:bg-red-900/40 p-3 flex items-center gap-3">
+            <XCircle className="text-red-600 dark:text-red-400" />
+            <h3 className="font-black text-red-800 dark:text-red-300">อันตราย (Red)</h3>
+          </div>
+          <div className="p-4 bg-white dark:bg-zinc-900 text-sm">
+            <ul className="space-y-2 list-disc pl-5">
+              <li>หอบมาก พูดไม่เป็นประโยค</li>
+              <li><span className="font-bold text-red-600">ไปโรงพยาบาลทันที!</span></li>
+              <li>พ่นยาฉุกเฉิน <span className="font-bold">{reliever}</span> 2-4 พัฟ ระหว่างเดินทาง</li>
+            </ul>
+          </div>
         </div>
-      );
-    }
+      </div>
+    );
   };
 
   if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FEFCF8] dark:bg-black">
-      <div className="animate-spin text-[#D97736] mb-4"><Activity size={40} /></div>
-      <p className="text-[#6B6560] dark:text-gray-400 font-bold">กำลังโหลดข้อมูล...</p>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background dark:bg-black">
+      <div className="animate-spin text-primary mb-4"><Activity size={40} /></div>
+      <p className="text-muted-foreground dark:text-gray-400 font-bold">กำลังโหลดข้อมูล...</p>
     </div>
   );
 
   if (!patient) return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#FEFCF8] dark:bg-black text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background dark:bg-black text-center">
       <AlertTriangle size={48} className="text-red-500 mb-4" />
-      <h1 className="text-xl font-black text-[#2D2A26] dark:text-white">ไม่พบข้อมูล</h1>
-      <p className="text-[#6B6560] dark:text-gray-400 mt-2">QR Code อาจไม่ถูกต้อง หรือข้อมูลถูกลบไปแล้ว</p>
+      <h1 className="text-xl font-black text-foreground dark:text-white">ไม่พบข้อมูล</h1>
+      <p className="text-muted-foreground dark:text-gray-400 mt-2">QR Code อาจไม่ถูกต้อง หรือข้อมูลถูกลบไปแล้ว</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F2F2F2] dark:bg-black pb-10 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
+    <div className="min-h-screen bg-secondary/30 dark:bg-black pb-10 font-sans text-foreground dark:text-white transition-colors duration-300">
+
 
       {/* ส่วนแสดงผลหน้าจอ (ซ่อนตอนพิมพ์) */}
       <div className="print:hidden">
 
         {/* Header */}
-        <div className="bg-[#2D2A26] dark:bg-[#1a1a1a] text-white p-6 rounded-b-[30px] shadow-lg relative overflow-hidden transition-colors">
+        {/* Header */}
+        <div className="bg-foreground dark:bg-[#1a1a1a] text-background p-6 rounded-b-[30px] shadow-lg relative overflow-hidden transition-colors">
+
           {/* ปุ่มเปลี่ยนธีม (ลอยขวาบน) */}
           <div className="absolute top-4 right-4 z-50">
             <ThemeToggle />
@@ -177,35 +203,46 @@ export default function PatientPublicPage() {
 
           {/* 1. Status Card */}
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md border border-gray-100 dark:border-zinc-800 transition-colors">
-            <h2 className="text-[#6B6560] dark:text-zinc-400 font-bold text-xs uppercase mb-4 tracking-wider">ผลการประเมินล่าสุด</h2>
+            <h2 className="text-muted-foreground dark:text-zinc-400 font-bold text-xs uppercase mb-4 tracking-wider">ผลการประเมินล่าสุด</h2>
             {lastVisit ? (
               <div className="text-center">
                 <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg ${getStatusColor(lastVisit.control_level)}`}>
                   {getStatusIcon(lastVisit.control_level)}
                 </div>
-                <h3 className="text-xl font-black text-[#2D2A26] dark:text-white mb-1">{getStatusText(lastVisit.control_level)}</h3>
-                <p className="text-[#6B6560] dark:text-zinc-400 text-sm">อัปเดต: {new Date(lastVisit.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</p>
+                <h3 className="text-xl font-black text-foreground dark:text-white mb-1">{getStatusText(lastVisit.control_level)}</h3>
+                <p className="text-muted-foreground dark:text-zinc-400 text-sm">อัปเดต: {new Date(lastVisit.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</p>
               </div>
+
             ) : (
               <div className="text-center py-4 text-gray-400">ยังไม่มีประวัติการตรวจ</div>
             )}
           </div>
 
-          {/* 2. Action Plan */}
+          {/* 2. Action Plan (Collapsible) */}
           {lastVisit && (
-            <div>
-              <div className="flex items-center gap-2 mb-2 mt-4 opacity-60 dark:opacity-40">
-                <div className="h-[1px] bg-black dark:bg-white flex-1"></div>
-                <span className="text-xs font-bold uppercase tracking-wider dark:text-white">Asthma Action Plan</span>
-                <div className="h-[1px] bg-black dark:bg-white flex-1"></div>
-              </div>
-              {renderActionPlan(lastVisit)}
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md transition-colors">
+              <button
+                onClick={() => setShowFullPlan(!showFullPlan)}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-foreground dark:text-white flex items-center gap-2">
+                    <FileText size={18} className="text-primary" /> แผนการปฏิบัติตัว (Action Plan)
+                  </h3>
+                </div>
+                <div className={`transition-transform duration-300 ${showFullPlan ? 'rotate-180' : ''}`}>
+                  <ChevronDown size={20} className="text-gray-400" />
+                </div>
+              </button>
+
+              {showFullPlan && renderFullActionPlan(lastVisit)}
             </div>
           )}
 
           {/* 3. Next Appointment */}
           {lastVisit?.next_appt && (
-            <div className="bg-[#D97736] dark:bg-[#b05d28] text-white rounded-2xl p-6 shadow-lg flex items-center justify-between transition-colors">
+            <div className="bg-primary dark:bg-[#b05d28] text-white rounded-2xl p-6 shadow-lg flex items-center justify-between transition-colors">
+
               <div>
                 <p className="text-white/80 text-xs font-bold uppercase mb-1">นัดหมายครั้งต่อไป</p>
                 <h3 className="text-2xl font-black">{new Date(lastVisit.next_appt).toLocaleDateString('th-TH', { dateStyle: 'long' })}</h3>
@@ -217,7 +254,8 @@ export default function PatientPublicPage() {
           {/* 4. Medications */}
           {lastVisit && (
             <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md transition-colors">
-              <h3 className="font-bold flex items-center gap-2 mb-4 text-[#2D2A26] dark:text-white"><Pill size={18} /> รายการยาปัจจุบัน</h3>
+              <h3 className="font-bold flex items-center gap-2 mb-4 text-foreground dark:text-white"><Pill size={18} /> รายการยาปัจจุบัน</h3>
+
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
                   <span className="text-gray-600 dark:text-gray-300">ยาควบคุม</span>
@@ -234,7 +272,8 @@ export default function PatientPublicPage() {
           {/* 5. Mini Chart */}
           {visitHistory.length > 0 && (
             <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md transition-colors">
-              <h3 className="font-bold flex items-center gap-2 mb-4 text-[#D97736]"><Activity size={18} /> แนวโน้มค่าปอด (PEFR)</h3>
+              <h3 className="font-bold flex items-center gap-2 mb-4 text-primary"><Activity size={18} /> แนวโน้มค่าปอด (PEFR)</h3>
+
               <div className="h-[200px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={visitHistory}>
@@ -249,13 +288,25 @@ export default function PatientPublicPage() {
             </div>
           )}
 
-          {/* Print Button */}
-          <button
-            onClick={handlePrint}
-            className="w-full bg-[#2D2A26] dark:bg-white dark:text-black text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform mb-8"
-          >
-            <Printer size={20} /> พิมพ์บัตรประจำตัว Asthma ID
-          </button>
+          {/* Print Buttons Group */}
+          <div className="space-y-3 mb-8">
+            <Button
+              onClick={handlePrintCard}
+              className="w-full bg-foreground dark:bg-white dark:text-black text-background font-bold h-14 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            >
+              <div className="bg-white/20 p-1 rounded"><Activity size={16} /></div>
+              พิมพ์บัตรประจำตัว (Wallet Card)
+            </Button>
+
+            <Button
+              onClick={handlePrintPlan}
+              variant="outline"
+              className="w-full h-14 rounded-xl border-2 border-primary text-primary font-bold flex items-center justify-center gap-2 hover:bg-primary hover:text-white"
+            >
+              <FileText size={20} /> พิมพ์แผนการรักษา (A4)
+            </Button>
+          </div>
+
 
         </div>
 
@@ -268,56 +319,64 @@ export default function PatientPublicPage() {
         ส่วนที่ 2: หน้าตาบัตร (Print View - ไม่ต้อง Dark Mode)
         ========================================
       */}
-      <div className="hidden print:flex print:items-center print:justify-center print:min-h-screen bg-white">
-        <div className="w-[85.6mm] h-[54mm] border border-gray-300 rounded-lg overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col text-black">
-          <div className="bg-[#D97736] text-white p-2 flex items-center justify-between h-[12mm]">
-            <div className="flex items-center gap-2">
-              <div className="bg-white p-1 rounded-full text-[#D97736]">
-                <Activity size={12} />
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-wider">Asthma Alert Card</span>
-            </div>
-            <span className="text-[8px] font-bold opacity-80">โรงพยาบาลสวรรคโลก</span>
-          </div>
-          <div className="flex-1 p-3 flex gap-3 items-center">
-            <div className="w-[28mm] flex flex-col items-center justify-center">
-              <div className="border-2 border-[#2D2A26] p-1 bg-white">
-                <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient?.public_token}`} size={80} />
-              </div>
-              <span className="text-[6px] font-bold text-center mt-1 text-gray-600">สแกนเพื่อดูแผนฉุกเฉิน</span>
-            </div>
-            <div className="flex-1 space-y-1">
-              <div>
-                <p className="text-[7px] text-gray-500 uppercase font-bold">Name</p>
-                <p className="text-[12px] font-black text-[#2D2A26] leading-none truncate">
-                  {patient?.prefix}{patient?.first_name} {patient?.last_name}
-                </p>
-              </div>
-              <div className="flex gap-4">
-                <div>
-                  <p className="text-[7px] text-gray-500 uppercase font-bold">HN</p>
-                  <p className="text-[10px] font-bold font-mono text-[#D97736]">{patient?.hn}</p>
+      {/* 1. Wallet Card View */}
+      {printMode === 'card' && (
+        <div className="hidden print:flex print:items-center print:justify-center print:min-h-screen bg-white">
+          <div className="w-[85.6mm] h-[54mm] border border-gray-300 rounded-lg overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col text-black">
+            <div className="bg-[#D97736] text-white p-2 flex items-center justify-between h-[12mm]">
+              <div className="flex items-center gap-2">
+                <div className="bg-white p-1 rounded-full text-[#D97736]">
+                  <Activity size={12} />
                 </div>
-                <div>
-                  <p className="text-[7px] text-gray-500 uppercase font-bold">DOB</p>
-                  <p className="text-[10px] font-bold">{new Date(patient?.dob || '').toLocaleDateString('th-TH')}</p>
-                </div>
+                <span className="text-[10px] font-black uppercase tracking-wider">Asthma Alert Card</span>
               </div>
-              <div className="pt-1">
-                <div className="bg-red-50 border border-red-100 p-1 rounded">
-                  <p className="text-[6px] text-red-600 font-bold flex items-center gap-1">
-                    <AlertTriangle size={6} /> ในกรณีฉุกเฉิน (Emergency)
-                  </p>
-                  <p className="text-[8px] font-bold text-red-700">
-                    โทร 1669 หรือ นำส่งโรงพยาบาลทันที
+              <span className="text-[8px] font-bold opacity-80">โรงพยาบาลสวรรคโลก</span>
+            </div>
+            <div className="flex-1 p-3 flex gap-3 items-center">
+              <div className="w-[28mm] flex flex-col items-center justify-center">
+                <div className="border-2 border-[#2D2A26] p-1 bg-white">
+                  <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient?.public_token}`} size={80} />
+                </div>
+                <span className="text-[6px] font-bold text-center mt-1 text-gray-600">สแกนเพื่อดูแผนฉุกเฉิน</span>
+              </div>
+              <div className="flex-1 space-y-1">
+                <div>
+                  <p className="text-[7px] text-gray-500 uppercase font-bold">Name</p>
+                  <p className="text-[12px] font-black text-[#2D2A26] leading-none truncate">
+                    {patient?.prefix}{patient?.first_name} {patient?.last_name}
                   </p>
                 </div>
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-[7px] text-gray-500 uppercase font-bold">HN</p>
+                    <p className="text-[10px] font-bold font-mono text-[#D97736]">{patient?.hn}</p>
+                  </div>
+                  <div>
+                    <p className="text-[7px] text-gray-500 uppercase font-bold">DOB</p>
+                    <p className="text-[10px] font-bold">{new Date(patient?.dob || '').toLocaleDateString('th-TH')}</p>
+                  </div>
+                </div>
+                <div className="pt-1">
+                  <div className="bg-red-50 border border-red-100 p-1 rounded">
+                    <p className="text-[6px] text-red-600 font-bold flex items-center gap-1">
+                      <AlertTriangle size={6} /> ในกรณีฉุกเฉิน (Emergency)
+                    </p>
+                    <p className="text-[8px] font-bold text-red-700">
+                      โทร 1669 หรือ นำส่งโรงพยาบาลทันที
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
+            <div className="bg-[#2D2A26] h-[3mm] w-full mt-auto"></div>
           </div>
-          <div className="bg-[#2D2A26] h-[3mm] w-full mt-auto"></div>
         </div>
-      </div>
+      )}
+
+      {/* 2. Action Plan A4 View */}
+      {printMode === 'plan' && lastVisit && (
+        <ActionPlanPrint patient={patient} visit={lastVisit} />
+      )}
 
     </div>
   );

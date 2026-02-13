@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSheetData } from '@/lib/sheets';
 import { normalizeHN } from '@/lib/helpers';
+import { Patient, Visit } from '@/lib/types';
+
 
 
 const SHEET_CONFIG = {
@@ -22,7 +24,8 @@ export async function GET(request: Request) {
 
         // 1. ค้นหาผู้ป่วยจาก token
         const patients = await getSheetData(SHEET_CONFIG.PATIENTS_TAB) as any[];
-        const patient = patients.find((p: any) => p.public_token === token);
+        const patient = patients.find((p: Patient) => p.public_token === token);
+
 
         if (!patient) {
             return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
@@ -31,9 +34,11 @@ export async function GET(request: Request) {
         // 2. ดึง visits เฉพาะของผู้ป่วยคนนี้
         const allVisits = await getSheetData(SHEET_CONFIG.VISITS_TAB) as any[];
         const patientVisits = allVisits
-            .filter((v: any) => normalizeHN(v.hn) === normalizeHN(patient.hn))
+            .filter((v: Visit) => normalizeHN(v.hn) === normalizeHN(patient.hn))
 
-            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            .sort((a: Visit, b: Visit) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
 
         // 3. ส่งคืนเฉพาะข้อมูลที่จำเป็น (ไม่ส่ง phone, public_token)
         const safePatient = {

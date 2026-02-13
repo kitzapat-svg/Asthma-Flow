@@ -9,6 +9,8 @@ import {
 
 import { Patient } from '@/lib/types';
 import { getAge } from '@/lib/helpers';
+import { Button } from '@/components/ui/button';
+
 
 
 export default function StatsPage() {
@@ -66,20 +68,21 @@ export default function StatsPage() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h2 className="text-3xl font-black text-[#2D2A26] dark:text-white">ภาพรวมระบบ (Dashboard)</h2>
-          <p className="text-[#6B6560] dark:text-zinc-400">สถิติผู้ป่วยทั้งหมด {patients.length} คน</p>
+          <h2 className="text-3xl font-black text-foreground dark:text-white">ภาพรวมระบบ (Dashboard)</h2>
+          <p className="text-muted-foreground dark:text-zinc-400">สถิติผู้ป่วยทั้งหมด {patients.length} คน</p>
         </div>
-        <button onClick={fetchPatients} className="p-2 bg-gray-100 dark:bg-zinc-800 rounded-full hover:rotate-180 transition-all duration-500">
+        <Button variant="ghost" size="icon" onClick={fetchPatients} className="rounded-full hover:rotate-180 transition-all duration-500">
           <RefreshCw size={20} />
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Status Pie Chart */}
-        <div className="bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none p-6 rounded-lg">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-[#D97736]">
+        <div className="bg-white dark:bg-zinc-900 border-2 border-border dark:border-zinc-800 shadow-[6px_6px_0px_0px_var(--border)] dark:shadow-none p-6 rounded-lg">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-primary">
             <PieChartIcon size={20} /> สัดส่วนสถานะ (Status)
           </h3>
+
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -104,10 +107,11 @@ export default function StatsPage() {
         </div>
 
         {/* Age Bar Chart */}
-        <div className="bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none p-6 rounded-lg">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-[#D97736]">
+        <div className="bg-white dark:bg-zinc-900 border-2 border-border dark:border-zinc-800 shadow-[6px_6px_0px_0px_var(--border)] dark:shadow-none p-6 rounded-lg">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-primary">
             <BarChart3 size={20} /> ช่วงอายุผู้ป่วย (Age Groups)
           </h3>
+
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ageData}>
@@ -115,8 +119,9 @@ export default function StatsPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                 <YAxis axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', color: '#000' }} />
-                <Bar dataKey="value" fill="#D97736" radius={[4, 4, 0, 0]} barSize={50} />
+                <Bar dataKey="value" fill="var(--primary)" radius={[4, 4, 0, 0]} barSize={50} />
               </BarChart>
+
             </ResponsiveContainer>
           </div>
         </div>
