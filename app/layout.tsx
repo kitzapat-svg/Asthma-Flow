@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Brand - Modern Business Solutions",
-  description: "Empower your business with cutting-edge solutions. Build faster, scale smarter, grow bigger.",
+  title: "Asthma Flow - ระบบจัดการข้อมูลผู้ป่วยหอบหืด",
+  description: "ระบบจัดการข้อมูลผู้ป่วยโรคหอบหืดแบบครบวงจร ติดตาม PEFR ประเมินเทคนิคการใช้ยาพ่น และวิเคราะห์แนวโน้มสุขภาพ",
 };
 
 export default function RootLayout({
