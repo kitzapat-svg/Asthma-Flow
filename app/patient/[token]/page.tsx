@@ -10,27 +10,8 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { ThemeToggle } from '@/components/theme-toggle'; // <--- เรียกใช้ปุ่มปรับธีม
 
-// --- Types ---
-interface Patient {
-  hn: string;
-  prefix: string;
-  first_name: string;
-  last_name: string;
-  dob: string;
-  height: string;
-  public_token: string;
-}
+import { Patient, Visit } from '@/lib/types';
 
-interface Visit {
-  hn: string;
-  date: string;
-  pefr: string;
-  control_level: string;
-  next_appt: string;
-  advice: string;
-  controller: string;
-  reliever: string;
-}
 
 export default function PatientPublicPage() {
   const params = useParams();

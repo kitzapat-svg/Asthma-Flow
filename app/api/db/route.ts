@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { getSheetData, appendData, updatePatientStatus, updatePatientData, deleteRow } from '@/lib/sheets';
+import { normalizeHN } from '@/lib/helpers';
+
 
 const SHEET_CONFIG = {
   PATIENTS_TAB: 'patients',
@@ -9,7 +11,7 @@ const SHEET_CONFIG = {
   TECHNIQUE_TAB: 'technique_checks',
 };
 
-const normalize = (val: any) => String(val).trim().replace(/^0+/, '');
+
 
 // --- GET ---
 export async function GET(request: Request) {
@@ -31,10 +33,11 @@ export async function GET(request: Request) {
     if (!data) return NextResponse.json([]);
 
     if (hn) {
-        const filteredData = Array.isArray(data) 
-            ? data.filter((item: any) => normalize(item.hn || item[0]) === normalize(hn))
-            : data;
-        return NextResponse.json(filteredData);
+      const filteredData = Array.isArray(data)
+        ? data.filter((item: any) => normalizeHN(item.hn || item[0]) === normalizeHN(hn))
+
+        : data;
+      return NextResponse.json(filteredData);
     }
 
     return NextResponse.json(data);
@@ -91,15 +94,15 @@ export async function PUT(request: Request) {
 
     let result;
     if (data) {
-        // กรณีมี data เข้ามา แปลว่าเป็น Full Edit
-        result = await updatePatientData(tabName, hn, data);
+      // กรณีมี data เข้ามา แปลว่าเป็น Full Edit
+      result = await updatePatientData(tabName, hn, data);
     } else if (status) {
-        // กรณีมีแค่ status แปลว่าเป็น Quick Update Status
-        result = await updatePatientStatus(tabName, hn, status);
+      // กรณีมีแค่ status แปลว่าเป็น Quick Update Status
+      result = await updatePatientStatus(tabName, hn, status);
     } else {
-        return NextResponse.json({ error: "No update data provided" }, { status: 400 });
+      return NextResponse.json({ error: "No update data provided" }, { status: 400 });
     }
-    
+
     if (result.success) {
       return NextResponse.json({ message: "Update success" });
     } else {
@@ -113,29 +116,29 @@ export async function PUT(request: Request) {
 
 // --- DELETE ---
 export async function DELETE(request: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    try {
-        const { searchParams } = new URL(request.url);
-        const type = searchParams.get('type');
-        const hn = searchParams.get('hn');
+  try {
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get('type');
+    const hn = searchParams.get('hn');
 
-        if (!type || !hn) return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+    if (!type || !hn) return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
 
-        let tabName = "";
-        if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
-        else return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+    let tabName = "";
+    if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
+    else return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
-        const result = await deleteRow(tabName, hn);
+    const result = await deleteRow(tabName, hn);
 
-        if (result.success) {
-            return NextResponse.json({ message: "Delete success" });
-        } else {
-            return NextResponse.json({ error: result.error }, { status: 500 });
-        }
-
-    } catch (error) {
-        return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
+    if (result.success) {
+      return NextResponse.json({ message: "Delete success" });
+    } else {
+      return NextResponse.json({ error: result.error }, { status: 500 });
     }
+
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
+  }
 }

@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getSheetData } from '@/lib/sheets';
+import { normalizeHN } from '@/lib/helpers';
+
 
 const SHEET_CONFIG = {
     PATIENTS_TAB: 'patients',
     VISITS_TAB: 'visits',
 };
 
-const normalize = (val: any) => String(val).trim().replace(/^0+/, '');
+
 
 // --- PUBLIC Patient API (ไม่ต้อง auth — ผู้ป่วยเข้าผ่าน QR Code) ---
 export async function GET(request: Request) {
@@ -29,7 +31,8 @@ export async function GET(request: Request) {
         // 2. ดึง visits เฉพาะของผู้ป่วยคนนี้
         const allVisits = await getSheetData(SHEET_CONFIG.VISITS_TAB) as any[];
         const patientVisits = allVisits
-            .filter((v: any) => normalize(v.hn) === normalize(patient.hn))
+            .filter((v: any) => normalizeHN(v.hn) === normalizeHN(patient.hn))
+
             .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         // 3. ส่งคืนเฉพาะข้อมูลที่จำเป็น (ไม่ส่ง phone, public_token)
