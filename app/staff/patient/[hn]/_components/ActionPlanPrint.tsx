@@ -1,140 +1,171 @@
-import { Patient, Visit } from "@/lib/types";
-import { CheckCircle, AlertTriangle, XCircle, Phone, Calendar } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
+import React from 'react';
+import { Patient, Visit, Medication } from '@/lib/types'; // Import Medication
+import { QRCodeSVG } from 'qrcode.react';
+import { Activity, CheckCircle, AlertTriangle, XCircle, FileText, Phone } from 'lucide-react';
 
 interface ActionPlanPrintProps {
-    patient: Patient;
-    visit: Visit;
+    patient: Patient | null;
+    visit: Visit | null;
+    medication: Medication | null; // Add prop
 }
 
-export function ActionPlanPrint({ patient, visit }: ActionPlanPrintProps) {
-    const controller = visit.controller || "ยาควบคุม";
-    const reliever = visit.reliever || "ยาฉุกเฉิน";
+export const ActionPlanPrint: React.FC<ActionPlanPrintProps> = ({ patient, visit, medication }) => {
+    if (!patient || !visit) return null;
+
+    const mapFreqToThai = (freq: string) => {
+        if (!freq) return "";
+        if (freq === "OD") return "วันละ 1 ครั้ง"; // User requested: no time specific
+        if (freq === "BID") return "วันละ 2 ครั้ง (เช้า-เย็น)";
+        if (freq === "PRN") return "เมื่อมีอาการ";
+        return freq;
+    };
+
+    // Controller String
+    let controllerText = "ตามแพทย์สั่ง";
+    if (medication) {
+        if (medication.c1_name) {
+            controllerText = `${medication.c1_name} ${medication.c1_puffs} puffs ${mapFreqToThai(medication.c1_freq)}`;
+            if (medication.c2_name) {
+                controllerText += ` และ ${medication.c2_name} ${medication.c2_puffs} puffs ${mapFreqToThai(medication.c2_freq)}`;
+            }
+        }
+    } else if (visit.controller) {
+        // Fallback to visit controller if no meds sheet record
+        controllerText = `${visit.controller} (ใช้ต่อเนื่อง)`;
+    }
+
+    // Reliever String
+    let relieverText = "ตามแพทย์สั่ง";
+    if (medication && medication.reliever_name) {
+        relieverText = `${medication.reliever_name} ${medication.reliever_label}`;
+    } else if (visit.reliever) {
+        relieverText = `${visit.reliever} (เมื่อมีอาการ)`;
+    }
+
 
     return (
-        <div className="hidden print:block w-full max-w-[210mm] h-auto bg-white text-black p-4 font-sans relative">
-            {/* Header */}
-            <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-4">
-                <div>
-                    <h1 className="text-xl font-black uppercase text-[#D97736] leading-none">Asthma Action Plan</h1>
-                    <p className="text-xs font-bold text-gray-500">แผนการดูแลรักษาโรคหืดเบื้องต้น</p>
-                    <div className="mt-2 space-y-0.5">
-                        <p className="text-base">ชื่อ-นามสกุล: <span className="font-bold border-b border-dotted border-black px-2">{patient.prefix}{patient.first_name} {patient.last_name}</span></p>
-                        <p className="text-sm">HN: <span className="font-mono font-bold">{patient.hn}</span> อายุ: <span className="font-bold">{new Date().getFullYear() - new Date(patient.dob).getFullYear()}</span> ปี</p>
-                    </div>
+        <div className="w-[210mm] h-[297mm] bg-white text-black p-8 font-sans relative">
+            {/* Header Area */}
+            <div className="flex justify-between items-start border-b-2 border-[#2D2A26] pb-4 mb-6">
+                <div className="bg-[#2D2A26] text-white p-3 rounded-lg">
+                    <Activity size={32} />
                 </div>
-                <div className="text-right flex flex-col items-end">
-                    <div className="border p-1 mb-1">
-                        <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient.public_token}`} size={56} />
-                    </div>
-                    <p className="text-[10px] text-gray-400">Scan for Digital Card</p>
-                    <p className="text-xs font-bold mt-1">วันที่: {new Date(visit.date).toLocaleDateString('th-TH')}</p>
-                </div>
-            </div>
-
-            {/* Zones */}
-            <div className="space-y-3">
-
-                {/* GREEN ZONE */}
-                <div className="border-2 border-green-500 rounded-lg overflow-hidden">
-                    <div className="bg-green-500 text-white p-3 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <CheckCircle size={32} />
-                            <div>
-                                <h2 className="text-xl font-black">สบายดี (Green Zone)</h2>
-                                <p className="text-xs">ไม่มีอาการหอบเหนื่อย, ทำกิจวัตรได้ปกติ, นอนหลับได้ดี</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-sm font-bold">PEFR มากกว่า 80%</p>
-                            <p className="text-xs opacity-80">(ค่าเป้าหมาย: {patient.best_pefr})</p>
-                        </div>
-                    </div>
-                    <div className="p-4 bg-green-50 space-y-2">
-                        <p className="font-bold underline mb-2">การปฏิบัติ:</p>
-                        <div className="flex items-start gap-2">
-                            <span className="bg-green-200 px-2 rounded font-bold text-sm min-w-[20px] text-center">1</span>
-                            <p>ใช้ยาควบคุมอาการ <span className="font-bold text-green-700">{controller}</span></p>
-                        </div>
-                        <p className="pl-8 text-sm text-gray-600">พ่นวันละ 2 ครั้ง เช้า-เย็น (ห้ามหยุดยาเองแม้ไม่มีอาการ)</p>
-                        <div className="flex items-start gap-2 mt-2">
-                            <span className="bg-green-200 px-2 rounded font-bold text-sm min-w-[20px] text-center">2</span>
-                            <p>ใช้ยาฉุกเฉิน <span className="font-bold text-green-700">{reliever}</span></p>
-                        </div>
-                        <p className="pl-8 text-sm text-gray-600">พ่น 2 พัฟ ก่อนออกกำลังกาย 15 นาที (ถ้ามีอาการเหนื่อยง่าย)</p>
-                    </div>
-                </div>
-
-                {/* YELLOW ZONE */}
-                <div className="border-2 border-yellow-500 rounded-lg overflow-hidden">
-                    <div className="bg-yellow-500 text-white p-3 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <AlertTriangle size={32} />
-                            <div>
-                                <h2 className="text-xl font-black">เริ่มมีอาการ (Yellow Zone)</h2>
-                                <p className="text-xs text-black/60 font-bold">มีอาการไอ, เหนื่อย, แน่นหน้าอก, หรือตื่นมาไอตอนกลางคืน</p>
-                            </div>
-                        </div>
-                        <div className="text-right text-black/60">
-                            <p className="text-sm font-bold">PEFR 60-80%</p>
-                        </div>
-                    </div>
-                    <div className="p-4 bg-yellow-50 space-y-2">
-                        <p className="font-bold underline mb-2 text-yellow-800">การปฏิบัติ:</p>
-                        <ul className="list-disc pl-5 space-y-1 text-sm font-medium">
-                            <li>ใช้ยาควบคุมอาการ <span className="font-bold">{controller}</span> ต่อเนื่องตามปกติ</li>
-                            <li>
-                                เริ่มใช้ยาฉุกเฉิน <span className="font-bold text-red-600">{reliever}</span>
-                                <p className="text-gray-700">พ่น 2 พัฟ ทุก 4-6 ชั่วโมง</p>
-                            </li>
-                            <li className="text-red-600 font-bold">ถ้าอาการไม่ดีขึ้นภายใน 24 ชั่วโมง ให้รีบมาพบแพทย์</li>
-                        </ul>
-                    </div>
-                </div>
-
-                {/* RED ZONE */}
-                <div className="border-2 border-red-500 rounded-lg overflow-hidden">
-                    <div className="bg-red-500 text-white p-3 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <XCircle size={32} />
-                            <div>
-                                <h2 className="text-xl font-black">อันตราย (Red Zone)</h2>
-                                <p className="text-xs">หอบเหนื่อยมาก, พูดได้ทีละคำ, ปีกจมูกบาน, ซึมลง</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-sm font-bold">PEFR ต่ำกว่า 60%</p>
-                        </div>
-                    </div>
-                    <div className="p-4 bg-red-50 space-y-2">
-                        <p className="font-bold underline mb-2 text-red-600">การปฏิบัติทันที (Emergency):</p>
-                        <div className="bg-white border-2 border-red-500 p-4 rounded text-center">
-                            <p className="text-xl font-black text-red-600 animate-pulse">ไปโรงพยาบาลทันที!</p>
-                            <p className="text-sm">หรือโทร 1669</p>
-                        </div>
-                        <ul className="list-decimal pl-5 space-y-2 text-sm font-medium mt-2">
-                            <li>ใช้ยาฉุกเฉิน <span className="font-bold text-red-600">{reliever}</span> พ่น 2-4 พัฟ ทันที</li>
-                            <li>ถ้าอาการไม่ดีขึ้น ให้พ่นซ้ำได้ทุก 15 นาที (ไม่เกิน 3 ครั้ง) ระหว่างเดินทางไปโรงพยาบาล</li>
-                        </ul>
-                    </div>
-                </div>
-
-            </div>
-
-            {/* Footer */}
-            <div className="mt-8 pt-4 border-t border-gray-300 flex justify-between items-end">
-                <div>
-                    <p className="font-bold text-sm">คลินิกโรคหืด โรงพยาบาลสวรรคโลก</p>
-                    <p className="text-xs text-gray-500">โทร. 055-641-333</p>
+                <div className="flex-1 ml-4">
+                    <h1 className="text-2xl font-black uppercase tracking-wider text-[#2D2A26]">Asthma Action Plan</h1>
+                    <p className="text-sm font-bold text-gray-500">แผนปฏิบัติการสำหรับผู้ป่วยหอบหืด</p>
                 </div>
                 <div className="text-right">
-                    <div className="h-10 border-b border-black w-40 mb-1"></div>
-                    <p className="text-xs text-center">ลายเซ็นแพทย์/พยาบาล</p>
+                    <h2 className="text-lg font-bold">{patient.prefix}{patient.first_name} {patient.last_name}</h2>
+                    <p className="text-sm font-mono text-[#D97736] font-bold">HN: {patient.hn}</p>
+                    <p className="text-xs text-gray-400">Date: {new Date().toLocaleDateString('th-TH')}</p>
                 </div>
             </div>
 
-            <div className="absolute bottom-4 right-4 text-[10px] text-gray-300">
-                Generated by AsthmaFlow
+            {/* Zones Grid */}
+            <div className="grid grid-rows-3 gap-4 h-[75%]">
+
+                {/* 1. GREEN ZONE - WELL */}
+                <div className="flex border-2 border-green-500 rounded-xl overflow-hidden relative">
+                    <div className="w-16 bg-green-100 flex flex-col items-center justify-center border-r border-green-200">
+                        <CheckCircle size={32} className="text-green-600 mb-2" />
+                        <div className="vertical-text font-black text-green-700 tracking-widest uppercase rotate-180" style={{ writingMode: 'vertical-rl' }}>Green Zone</div>
+                    </div>
+                    <div className="flex-1 p-4 bg-green-50/30">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-xl font-black text-green-800">สบายดี (ควบคุมได้)</h3>
+                            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-bold">ทำกิจวัตรได้ปกติ</span>
+                        </div>
+                        <ul className="list-disc pl-5 space-y-2 text-sm text-gray-800 mb-4">
+                            <li>ไม่มีอาการไอ ไม่หอบเหนื่อย</li>
+                            <li>นอนหลับได้ดี ไม่ตื่นกลางดึก</li>
+                            <li>ค่า PEFR มากกว่า 80% ของค่าที่ดีที่สุด</li>
+                        </ul>
+
+                        <div className="bg-white border border-green-200 rounded-lg p-3 shadow-sm">
+                            <p className="font-bold text-green-800 underline mb-2 text-sm">การใช้ยา:</p>
+                            <div className="grid grid-cols-1 gap-2 text-sm">
+                                <div className="flex items-start gap-2">
+                                    <span className="min-w-[80px] font-bold text-gray-600">ยาควบคุม:</span>
+                                    <span className="font-bold text-[#2D2A26] flex-1">{controllerText}</span>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="min-w-[80px] font-bold text-gray-600">ยาฉุกเฉิน:</span>
+                                    <span className="font-bold text-[#2D2A26] flex-1">{relieverText} (เมื่อมีอาการ)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. YELLOW ZONE - CAUTION */}
+                <div className="flex border-2 border-yellow-500 rounded-xl overflow-hidden relative">
+                    <div className="w-16 bg-yellow-100 flex flex-col items-center justify-center border-r border-yellow-200">
+                        <AlertTriangle size={32} className="text-yellow-600 mb-2" />
+                        <div className="vertical-text font-black text-yellow-700 tracking-widest uppercase rotate-180" style={{ writingMode: 'vertical-rl' }}>Yellow Zone</div>
+                    </div>
+                    <div className="flex-1 p-4 bg-yellow-50/30">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-xl font-black text-yellow-800">เริ่มมีอาการ (ระวัง)</h3>
+                            <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-bold">เหนื่อยง่ายขึ้น</span>
+                        </div>
+                        <ul className="list-disc pl-5 space-y-2 text-sm text-gray-800 mb-4">
+                            <li>มีอาการไอ เหนื่อย แน่นหน้าอก</li>
+                            <li>ตื่นกลางดึกเพราะไอ</li>
+                            <li>ค่า PEFR อยู่ระหว่าง 50-80%</li>
+                        </ul>
+
+                        <div className="bg-white border border-yellow-200 rounded-lg p-3 shadow-sm">
+                            <p className="font-bold text-yellow-800 underline mb-2 text-sm">การปฏิบัติตัว:</p>
+                            <ul className="list-decimal pl-5 space-y-1 text-sm text-gray-800">
+                                <li>ใช้ยาควบคุม <span className="font-bold">{controllerText}</span> ต่อเนื่อง</li>
+                                <li>พ่นยาฉุกเฉิน <span className="font-bold">{medication?.reliever_name || visit.reliever || "Salbutamol"}</span> 2 พัฟ ทุก 4-6 ชั่วโมง</li>
+                                <li>ถ้าอาการไม่ดีขึ้นใน 1 วัน ให้ไปพบแพทย์</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3. RED ZONE - EMERGENCY */}
+                <div className="flex border-2 border-red-500 rounded-xl overflow-hidden relative">
+                    <div className="w-16 bg-red-100 flex flex-col items-center justify-center border-r border-red-200">
+                        <XCircle size={32} className="text-red-600 mb-2" />
+                        <div className="vertical-text font-black text-red-700 tracking-widest uppercase rotate-180" style={{ writingMode: 'vertical-rl' }}>Red Zone</div>
+                    </div>
+                    <div className="flex-1 p-4 bg-red-50/30">
+                        <div className="flex justify-between items-center mb-2">
+                            <h3 className="text-xl font-black text-red-800">อันตราย (ฉุกเฉิน)</h3>
+                            <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-bold animate-pulse">รีบพบแพทย์!</span>
+                        </div>
+                        <ul className="list-disc pl-5 space-y-2 text-sm text-gray-800 mb-4">
+                            <li>หอบเหนื่อยมาก พูดไม่เป็นประโยค</li>
+                            <li>ริมฝีปากเขียว ซึมลง</li>
+                            <li>ค่า PEFR ต่ำกว่า 50%</li>
+                        </ul>
+
+                        <div className="bg-white border border-red-200 rounded-lg p-3 shadow-sm">
+                            <p className="font-bold text-red-800 underline mb-2 text-sm">การปฏิบัติตัว:</p>
+                            <div className="flex items-center gap-3">
+                                <Phone className="text-red-600 animate-bounce" />
+                                <span className="text-lg font-black text-red-600">โทร 1669 หรือไปโรงพยาบาลทันที</span>
+                            </div>
+                            <ul className="list-decimal pl-5 space-y-1 text-sm text-gray-800 mt-2">
+                                <li>พ่นยาฉุกเฉิน 2-4 พัฟ ทันที</li>
+                                <li>พ่นซ้ำได้ทุก 15-20 นาที ระหว่างเดินทาง</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Footer / QR */}
+            <div className="absolute bottom-6 right-8 flex items-end gap-3 opacity-80">
+                <div className="text-right">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Scan for Digital Plan</p>
+                    <p className="text-[10px] text-gray-400">asthsawan.vercel.app</p>
+                </div>
+                <div className="border border-black p-1">
+                    <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient.public_token}`} size={50} />
+                </div>
             </div>
         </div>
     );

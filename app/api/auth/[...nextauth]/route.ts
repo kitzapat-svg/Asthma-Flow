@@ -7,22 +7,62 @@ import { logActivity } from "@/lib/sheets";
 // 1. Export authOptions เพื่อให้ API อื่น (เช่น api/db) เรียกใช้ตรวจสอบสิทธิ์ได้
 export const authOptions: AuthOptions = {
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
+    // GoogleProvider({
+    //   clientId: process.env.GOOGLE_CLIENT_ID!,
+    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    // }),
     CredentialsProvider({
       name: "Staff Login",
       credentials: {
+        username: { label: "Username", type: "text", placeholder: "admin" },
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        const username = credentials?.username || "admin"; // Admin login uses just password usually, but we might migrate to username
         const password = credentials?.password;
 
-        // 2. ความปลอดภัย: ตรวจสอบกับ Environment Variable เท่านั้น
-        if (password === process.env.ADMIN_PASSWORD) {
-          return { id: "1", name: "Staff Admin", email: "staff@hospital.com" };
+        if (!password) return null;
+
+        // 1. Check vs Sheet (New System)
+        try {
+          const { getUserByUsername } = await import('@/lib/sheets');
+          const { verifyPassword } = await import('@/lib/auth');
+
+          // If the form provides a username (we need to update the form to ask for it, or assume 'admin' if likely?)
+          // Wait, current form ONLY asks for password.
+          // To fallback, we need to ask for Username if we want multi-user.
+          // For now, let's look for a user with username "admin" OR loop through all users?
+          // Better: Update the Sign In form to ask for Username first. 
+          // BUT, to keep it backward compatible, if only password is provided:
+          // We can't really guess.
+          // So, STEP 1 is actually updating the Sign In Form to accept Username.
+          // However, for the `authorize` function, let's assume `credentials` will have `username`.
+
+          if (credentials?.username) {
+            const user = await getUserByUsername(credentials.username);
+            if (user && user.password_hash) {
+              const isValid = await verifyPassword(password, user.password_hash);
+              if (isValid) {
+                return {
+                  id: user.username,
+                  name: user.name || user.username,
+                  email: user.email || `${user.username}@hospital.com`,
+                  role: user.role // We need to add this to the session type later
+                };
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Sheet Auth Error:", error);
         }
+
+        // 2. Fallback: Environment Variable (Old System / Super Admin)
+        // Check if username is 'admin' AND password matches env
+        if (credentials?.username === 'admin' && password === process.env.ADMIN_PASSWORD) {
+          return { id: "1", name: "Staff Admin", email: "staff@hospital.com", role: 'Admin' };
+        }
+
+        // Return null if all checks fail
         return null;
       },
     })
@@ -55,10 +95,19 @@ export const authOptions: AuthOptions = {
         return false; // Access Denied
       }
     },
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as any).role;
+      }
+      return token;
+    },
     async session({ session, token }) {
       if (session.user) {
         session.user.email = token.email || session.user.email;
         session.user.name = token.name || session.user.name;
+        session.user.id = token.id;
+        session.user.role = token.role;
       }
       return session;
     }

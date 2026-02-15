@@ -34,6 +34,7 @@ export default function PatientListPage() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [isFocused, setIsFocused] = useState(false);
 
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/auth/signin");
@@ -283,6 +284,8 @@ export default function PatientListPage() {
             )}
           </AnimatePresence>
         </div>
+
+
       </div>
 
     </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, Printer, ChevronDown } from 'lucide-react';
+import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, Printer, ChevronDown, Phone } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -11,17 +11,16 @@ import { QRCodeSVG } from 'qrcode.react';
 import { ThemeToggle } from '@/components/theme-toggle'; // <--- เรียกใช้ปุ่มปรับธีม
 
 import { ActionPlanPrint } from './_components/ActionPlanPrint';
-import { Patient, Visit } from '@/lib/types';
+import { Patient, Visit, Medication } from '@/lib/types';
 import { blindName } from '@/lib/helpers';
 import { Button } from '@/components/ui/button';
-
-
 
 export default function PatientPublicPage() {
   const params = useParams();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [lastVisit, setLastVisit] = useState<Visit | null>(null);
   const [visitHistory, setVisitHistory] = useState<any[]>([]);
+  const [medication, setMedication] = useState<Medication | null>(null); // New State
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,12 +36,15 @@ export default function PatientPublicPage() {
         const data = await res.json();
         const foundPatient = data.patient;
         const visits: Visit[] = data.visits;
+        const medData: Medication | null = data.medication; // New Data
 
         if (foundPatient) {
           setPatient(foundPatient);
+          if (medData) setMedication(medData); // Set Med
 
           if (visits.length > 0) {
             setLastVisit(visits[0]);
+            //...
 
             const graphData = [...visits]
               .reverse()
@@ -93,8 +95,35 @@ export default function PatientPublicPage() {
   // Let's create a new function for the 3 zones
 
   const renderFullActionPlan = (visit: Visit) => {
-    const controller = visit.controller || "ยาควบคุม";
-    const reliever = visit.reliever || "ยาฉุกเฉิน";
+    // Helper to map English freq to Thai
+    const mapFreqToThai = (freq: string) => {
+      if (!freq) return "";
+      if (freq === "OD") return "วันละ 1 ครั้ง";
+      if (freq === "BID") return "วันละ 2 ครั้ง (เช้า-เย็น)";
+      if (freq === "PRN") return "เมื่อมีอาการ";
+      return freq;
+    };
+
+    // Controller String
+    let controllerText = "ตามแพทย์สั่ง";
+    if (medication) {
+      if (medication.c1_name) {
+        controllerText = `${medication.c1_name} ${medication.c1_puffs} puffs ${mapFreqToThai(medication.c1_freq)}`;
+        if (medication.c2_name) {
+          controllerText += ` และ ${medication.c2_name} ${medication.c2_puffs} puffs ${mapFreqToThai(medication.c2_freq)}`;
+        }
+      }
+    } else if (visit.controller) {
+      controllerText = `${visit.controller} (ใช้ต่อเนื่อง)`;
+    }
+
+    // Reliever String
+    let relieverText = "ตามแพทย์สั่ง";
+    if (medication && medication.reliever_name) {
+      relieverText = `${medication.reliever_name} ${medication.reliever_label}`;
+    } else if (visit.reliever) {
+      relieverText = `${visit.reliever} (เมื่อมีอาการ)`;
+    }
 
     return (
       <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -107,9 +136,10 @@ export default function PatientPublicPage() {
           <div className="p-4 bg-white dark:bg-zinc-900 text-sm">
             <ul className="space-y-2 list-disc pl-5">
               <li>ไม่มีอาการหอบเหนื่อย</li>
-              <li>ใช้ยาควบคุม <span className="font-bold">{controller}</span> เช้า-เย็น</li>
-              <li>ใช้ยาฉุกเฉิน <span className="font-bold">{reliever}</span> เมื่อมีอาการ</li>
+              <li>ใช้ยาควบคุม <span className="font-bold">{controllerText}</span></li>
+              <li>ใช้ยาฉุกเฉิน <span className="font-bold">{relieverText}</span> (ถ้ามีอาการ)</li>
             </ul>
+            <p className="mt-2 text-xs text-gray-500">* ใช้ยาอย่างต่อเนื่องแม้ไม่มีอาการ</p>
           </div>
         </div>
 
@@ -122,8 +152,8 @@ export default function PatientPublicPage() {
           <div className="p-4 bg-white dark:bg-zinc-900 text-sm">
             <ul className="space-y-2 list-disc pl-5">
               <li>มีอาการไอ เหนื่อย แน่นหน้าอก</li>
-              <li>ใช้ยาควบคุม <span className="font-bold">{controller}</span> ต่อเนื่อง</li>
-              <li>เพิ่มยาฉุกเฉิน <span className="font-bold">{reliever}</span> 2 พัฟ ทุก 4-6 ชม.</li>
+              <li>ใช้ยาควบคุม <span className="font-bold">{controllerText}</span> ต่อเนื่อง</li>
+              <li>เพิ่มยาฉุกเฉิน <span className="font-bold">{medication?.reliever_name || visit.reliever || "Salbutamol"}</span> 2 พัฟ ทุก 4-6 ชม.</li>
             </ul>
           </div>
         </div>
@@ -135,10 +165,13 @@ export default function PatientPublicPage() {
             <h3 className="font-black text-red-800 dark:text-red-300">อันตราย (Red)</h3>
           </div>
           <div className="p-4 bg-white dark:bg-zinc-900 text-sm">
+            <div className="flex items-center gap-2 mb-2 text-red-600 font-bold animate-pulse">
+              <Phone size={16} /> <span>โทร 1669 หรือไป รพ. ทันที</span>
+            </div>
             <ul className="space-y-2 list-disc pl-5">
               <li>หอบมาก พูดไม่เป็นประโยค</li>
-              <li><span className="font-bold text-red-600">ไปโรงพยาบาลทันที!</span></li>
-              <li>พ่นยาฉุกเฉิน <span className="font-bold">{reliever}</span> 2-4 พัฟ ระหว่างเดินทาง</li>
+              <li>พ่นยาฉุกเฉิน <span className="font-bold">{medication?.reliever_name || visit.reliever || "Salbutamol"}</span> 2-4 พัฟ ระหว่างเดินทาง</li>
+              <li>พ่นซ้ำได้ทุก 15 นาที</li>
             </ul>
           </div>
         </div>

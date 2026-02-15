@@ -40,7 +40,11 @@ export async function GET(request: Request) {
             .sort((a: Visit, b: Visit) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
 
-        // 3. ส่งคืนเฉพาะข้อมูลที่จำเป็น (ไม่ส่ง phone, public_token)
+        // 3. ดึงข้อมูลยา (Medication) ล่าสุด
+        const { getLatestMedication } = await import('@/lib/sheets');
+        const medication = await getLatestMedication(patient.hn);
+
+        // 4. ส่งคืนข้อมูล
         const safePatient = {
             hn: patient.hn,
             prefix: patient.prefix,
@@ -53,6 +57,7 @@ export async function GET(request: Request) {
         return NextResponse.json({
             patient: safePatient,
             visits: patientVisits,
+            medication: medication, // Add medication
         });
     } catch (error) {
         console.error('Public Patient API Error:', error);

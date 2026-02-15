@@ -181,15 +181,179 @@ export async function deleteRow(tabName: string, hn: string) {
 }
 
 // --- ฟังก์ชันใหม่: บันทึก Activity Log ---
-export async function logActivity(email: string, action: string, status: string) {
+// --- ฟังก์ชันใหม่: ลบ Logs เก่าเกิน 60 วัน ---
+export async function cleanOldLogs(retentionDays: number = 60) {
   try {
-    const timestamp = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
-    // Logs columns: [Timestamp, Email, Action, Status]
-    await appendData('logs', [timestamp, email, action, status]);
+    // 1. หา SheetId ของ Tab 'logs'
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === 'logs');
+    const sheetId = sheet?.properties?.sheetId;
+
+    if (sheetId === undefined) return;
+
+    // 2. ดึงข้อมูล Timestamp (Column A)
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'logs!A:A',
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return; // ไม่มีข้อมูล หรือมีแค่หัวตาราง
+
+    const now = new Date();
+    const cutoffDate = new Date(now.getTime() - (retentionDays * 24 * 60 * 60 * 1000));
+
+    // 3. หาว่าต้องลบถึงแถวไหน (สมมติว่า logs เรียงตามเวลา: เก่า -> ใหม่)
+    // แต่ปกติ append จะต่อท้าย แปลว่า เก่าสุดอยู่บนสุด (แถว 2 ถ้านับหัวตาราง)
+    let deleteCount = 0;
+
+    // เริ่มเช็คจากแถวที่ 2 (index 1)
+    for (let i = 1; i < rows.length; i++) {
+      const timestampStr = rows[i][0];
+      // แปลง Timestamp กลับเป็น Date object
+      // รูปแบบที่บันทึก: "YYYY-MM-DD HH:mm:ss" (เพื่อความชัวร์ในการ parse)
+      const logDate = new Date(timestampStr);
+
+      if (!isNaN(logDate.getTime()) && logDate < cutoffDate) {
+        deleteCount++;
+      } else {
+        // ถ้าเจอแถวที่ไม่เกินกำหนดแล้ว หยุดเช็ค (เพราะแถวต่อๆ ไปก็น่าจะใหม่กว่า)
+        break;
+      }
+    }
+
+    if (deleteCount > 0) {
+      console.log(`Cleaning up ${deleteCount} old log entries...`);
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          requests: [{
+            deleteDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: 'ROWS',
+                startIndex: 1, // เริ่มที่แถว 2 (0-indexed คือ 1)
+                endIndex: 1 + deleteCount
+              }
+            }
+          }]
+        }
+      });
+    }
+
+  } catch (error) {
+    console.error("Clean Logs Error:", error);
+  }
+}
+
+// --- ฟังก์ชันใหม่: บันทึก Activity Log ---
+export async function logActivity(email: string, action: string, details: string) {
+  try {
+    // ใช้ format มาตรฐานที่ parse ง่าย: YYYY-MM-DD HH:mm:ss
+    // ใช้ Intl.DateTimeFormat เพื่อให้ได้ Christian Year แน่นอน
+    const now = new Date();
+    const timestamp = now.toISOString().replace('T', ' ').split('.')[0];
+
+    // Logs columns: [Timestamp, Email, Action, Details]
+    await appendData('logs', [timestamp, email, action, details]);
+
+    // Cleanup: สุ่มทำ 10% ของครั้งที่มีการเขียน Log เพื่อไม่ให้หน่วงทุกครั้ง
+    if (Math.random() < 0.1) {
+      // ทำแบบ Fire-and-forget (ไม่ต้องรอ await) แต่ใน Serverless อาจต้องระวัง
+      // ในที่นี้ใส่ await ไว้ก่อนเพื่อความชัวร์ หรือจะปล่อยลอยก็ได้ถ้า host รองรับ
+      await cleanOldLogs(60);
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Log Activity Error:", error);
     // ไม่ throw error เพื่อไม่ให้กระทบ flow หลัก
     return { success: false, error };
   }
+}
+
+// --- User Management Functions ---
+
+export async function getUsers() {
+  return await getSheetData('users');
+}
+
+export async function getUserByUsername(username: string) {
+  const users = await getUsers();
+  if (!Array.isArray(users)) return null;
+  return users.find((u: any) => u.username === username);
+}
+
+export async function createUser(user: any) {
+  // user: [username, password_hash, role, name, email]
+  return await appendData('users', user);
+}
+
+export async function updateUser(username: string, data: any[]) {
+  // data: Full row [username, password_hash, role, name, email]
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'users!A:A',
+    });
+    const rows = response.data.values;
+    if (!rows) return { success: false, error: "No data found" };
+
+    const rowIndex = rows.findIndex((row) => row[0] === username) + 1; // 1-based index
+
+    if (rowIndex <= 0) return { success: false, error: "User not found" };
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `users!A${rowIndex}:F${rowIndex}`, // Expanded to F (6 columns)
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [data] }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Update User Error:", error);
+    return { success: false, error };
+  }
+}
+
+export async function deleteUser(username: string) {
+  return await deleteRow('users', username); // Reusing generic deleteRow since it searches by Column A (username)
+}
+
+// --- Medication Functions ---
+
+import { Medication } from '@/lib/types';
+
+export async function getLatestMedication(hn: string): Promise<Medication | null> {
+  // Medications Tab Structure: [HN, Date, C1_Name, C1_Puffs, C1_Freq, C2_Name, C2_Puffs, C2_Freq, R_Name, R_Label, Note]
+  const rows = await getSheetData('medications');
+  if (!Array.isArray(rows)) return null;
+
+  // Filter by HN
+  const patientMeds = rows.filter((row: any) => normalizeHN(row[0]) === normalizeHN(hn));
+
+  if (patientMeds.length === 0) return null;
+
+  // Sort by Date (Column B / Index 1) Descending
+  patientMeds.sort((a: any, b: any) => new Date(b[1]).getTime() - new Date(a[1]).getTime());
+
+  const latest = patientMeds[0];
+  return {
+    hn: latest[0],
+    date: latest[1],
+    c1_name: latest[2],
+    c1_puffs: latest[3],
+    c1_freq: latest[4],
+    c2_name: latest[5],
+    c2_puffs: latest[6],
+    c2_freq: latest[7],
+    reliever_name: latest[8],
+    reliever_label: latest[9],
+    note: latest[10]
+  };
+}
+
+export async function saveMedication(data: string[]) {
+  return await appendData('medications', data);
 }

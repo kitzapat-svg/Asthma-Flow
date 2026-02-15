@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Activity, FileText, AlertTriangle } from 'lucide-react';
 
-import { Patient, Visit, TechniqueCheck, VisitDisplay } from './_components/types';
+import { Patient, Visit, TechniqueCheck, VisitDisplay, Medication } from './_components/types';
 import { normalizeHN, getAge, calculatePredictedPEFR, getStatusStyle, getInhalerStatus } from './_components/utils';
 import { PatientInfoCard } from './_components/PatientInfoCard';
 import { QRCodeCard } from './_components/QRCodeCard';
@@ -24,6 +24,7 @@ export default function PatientDetailPage() {
     const [patient, setPatient] = useState<Patient | null>(null);
     const [visitHistory, setVisitHistory] = useState<VisitDisplay[]>([]);
     const [techniqueHistory, setTechniqueHistory] = useState<TechniqueCheck[]>([]);
+    const [medication, setMedication] = useState<Medication | null>(null); // State for Med
     const [loading, setLoading] = useState(true);
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const [showTechniqueModal, setShowTechniqueModal] = useState(false);
@@ -61,6 +62,11 @@ export default function PatientDetailPage() {
 
                 const resTechniques = await fetch(`/api/db?type=technique_checks&hn=${params.hn}`);
                 const rawTechniqueData = await resTechniques.json();
+
+                // Medication
+                const resMed = await fetch(`/api/db?type=medications&hn=${params.hn}`);
+                const medData = await resMed.json();
+                if (medData.date) setMedication(medData);
 
                 const history: VisitDisplay[] = dataVisits
                     .filter(v => normalizeHN(v.hn) === normalizeHN(params.hn))
@@ -264,7 +270,7 @@ export default function PatientDetailPage() {
             {/* 2. Action Plan A4 View */}
             {printMode === 'plan' && visitHistory.length > 0 && (
                 <div className="hidden print:block print:absolute print:top-0 print:left-0 print:w-full print:h-auto print:bg-white print:z-[9999]">
-                    <ActionPlanPrint patient={patient} visit={visitHistory[visitHistory.length - 1]} />
+                    <ActionPlanPrint patient={patient} visit={visitHistory[visitHistory.length - 1] as unknown as Visit} medication={medication} />
                 </div>
             )}
         </div>

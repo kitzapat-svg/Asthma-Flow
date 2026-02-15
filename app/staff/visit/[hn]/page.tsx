@@ -17,7 +17,17 @@ import { visitSchema } from '@/lib/schemas';
 
 // 1. Schema Validation - MOVED TO lib/schemas.ts
 
-type VisitFormValues = z.infer<typeof visitSchema>;
+type VisitFormValues = z.infer<typeof visitSchema> & {
+  c1_name: string;
+  c1_puffs: string;
+  c1_freq: string;
+  c2_name: string;
+  c2_puffs: string;
+  c2_freq: string;
+  reliever_name: string;
+  reliever_label: string;
+  show_c2: boolean;
+};
 
 export default function RecordVisitPage() {
   const params = useParams();
@@ -44,6 +54,10 @@ export default function RecordVisitPage() {
       is_new_case: false,
       is_relative_pickup: false,
       no_pefr: false,
+      c1_name: 'Seretide', c1_puffs: '1', c1_freq: 'BID',
+      c2_name: '', c2_puffs: '', c2_freq: 'OD',
+      reliever_name: 'Salbutamol', reliever_label: '1 puff prn',
+      show_c2: false,
     }
   });
 
@@ -51,6 +65,7 @@ export default function RecordVisitPage() {
   const isRelative = useWatch({ control, name: 'is_relative_pickup' });
   const noPefr = useWatch({ control, name: 'no_pefr' });
   const techniqueCheck = useWatch({ control, name: 'technique_check' });
+  const showC2 = useWatch({ control, name: 'show_c2' });
 
   // Logic 1: ถ้าญาติมาแทน -> เทคนิคพ่นยาต้องเป็น "ไม่"
   useEffect(() => {
@@ -62,21 +77,50 @@ export default function RecordVisitPage() {
     if (noPefr) setValue('pefr', '');
   }, [noPefr, setValue]);
 
-  // Fetch History
+  // Fetch History & Latest Meds
   useEffect(() => {
-    const fetchHistory = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`/api/db?type=visits&hn=${params.hn}`);
-        const data = await res.json();
-        const history = data.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        if (history.length > 0) {
-          setValue('controller', history[0].controller || 'Seretide');
-          setValue('reliever', history[0].reliever || 'Salbutamol');
+        setFetchingHistory(true);
+        // 1. Visits History
+        const resVisit = await fetch(`/api/db?type=visits&hn=${params.hn}`);
+        const visitData = await resVisit.json();
+
+        // 2. Latest Meds
+        const resMed = await fetch(`/api/db?type=medications&hn=${params.hn}`);
+        const medData = await resMed.json();
+
+        if (medData && medData.date) {
+          // Found existing meds
+          setValue('c1_name', medData.c1_name || 'Seretide');
+          setValue('c1_puffs', medData.c1_puffs || '1');
+          setValue('c1_freq', medData.c1_freq || 'BID');
+
+          if (medData.c2_name) {
+            setValue('show_c2', true);
+            setValue('c2_name', medData.c2_name);
+            setValue('c2_puffs', medData.c2_puffs || '1');
+            setValue('c2_freq', medData.c2_freq || 'OD');
+          }
+
+          setValue('reliever_name', medData.reliever_name || 'Salbutamol');
+          setValue('reliever_label', medData.reliever_label || '1 puff prn');
+        } else {
+          // Fallback to "Visit History" for Controller/Reliever names if Meds sheet empty
+          if (Array.isArray(visitData) && visitData.length > 0) {
+            // sort desc
+            const history = visitData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            if (history[0]) {
+              setValue('c1_name', history[0].controller || 'Seretide');
+              setValue('reliever_name', history[0].reliever || 'Salbutamol');
+            }
+          }
         }
+
       } catch (err) { console.error(err); }
       finally { setFetchingHistory(false); }
     };
-    fetchHistory();
+    fetchData();
   }, [params.hn, setValue]);
 
   const toggleCheck = (index: number) => {
@@ -99,7 +143,7 @@ export default function RecordVisitPage() {
       }
 
       const visitData = [
-        params.hn, today, finalPefr, data.control_level, data.controller, data.reliever,
+        params.hn, today, finalPefr, data.control_level, data.c1_name, data.reliever_name,
         data.adherence + '%', data.drp, data.advice, data.technique_check, data.next_appt || '',
         finalNote, data.is_new_case ? 'TRUE' : 'FALSE', inhalerScore
       ];
@@ -112,6 +156,17 @@ export default function RecordVisitPage() {
         const checklistData = [params.hn, today, ...checklist.map(c => c ? "1" : "0"), totalScore.toString(), data.technique_note || '-'];
         promises.push(fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'technique_checks', data: checklistData }) }));
       }
+
+      // Save Medications
+      const medData = [
+        params.hn,
+        today,
+        data.c1_name, data.c1_puffs, data.c1_freq,
+        data.show_c2 ? data.c2_name : "", data.show_c2 ? data.c2_puffs : "", data.show_c2 ? data.c2_freq : "",
+        data.reliever_name, data.reliever_label,
+        finalNote
+      ];
+      promises.push(fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'medications', data: medData }) }));
 
       await Promise.all(promises);
       toast.success("บันทึกเรียบร้อย!");
@@ -193,9 +248,58 @@ export default function RecordVisitPage() {
 
               {fetchingHistory && <span className="text-xs text-gray-400 animate-pulse flex gap-1"><RefreshCw size={12} className="animate-spin" /> กำลังดึงข้อมูล...</span>}
             </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div><label className="text-sm font-bold mb-2 block">Controller</label><select {...register("controller")} className={inputClass()}><option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option></select></div>
-              <div><label className="text-sm font-bold mb-2 block">Reliever</label><select {...register("reliever")} className={inputClass()}><option value="Salbutamol">Salbutamol</option><option value="Berodual">Berodual</option><option value="Ventolin">Ventolin</option></select></div>
+            <div className="grid gap-6">
+              {/* Controller 1 */}
+              <div className="bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+                <label className="text-sm font-bold mb-2 block text-blue-800 dark:text-blue-300">Controller 1 (ยาควบคุมหลัก)</label>
+                <div className="grid grid-cols-12 gap-3">
+                  <div className="col-span-6 md:col-span-6">
+                    <select {...register("c1_name")} className={inputClass()}><option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option><option value="Foster">Foster</option></select>
+                  </div>
+                  <div className="col-span-3 md:col-span-3 relative">
+                    <input type="number" {...register("c1_puffs")} placeholder="#" className={inputClass()} />
+                    <span className="absolute right-3 top-3 text-sm text-gray-400">puffs</span>
+                  </div>
+                  <div className="col-span-3 md:col-span-3">
+                    <select {...register("c1_freq")} className={inputClass()}><option value="OD">OD</option><option value="BID">BID</option></select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Controller 2 (Optional) */}
+              {showC2 ? (
+                <div className="bg-indigo-50/50 dark:bg-indigo-900/10 p-4 rounded-lg border border-indigo-100 dark:border-indigo-800 relative animate-in slide-in-from-top-2">
+                  <button type="button" onClick={() => setValue('show_c2', false)} className="absolute top-2 right-2 text-xs text-red-500 hover:text-red-700 font-bold">❌ ลบ</button>
+                  <label className="text-sm font-bold mb-2 block text-indigo-800 dark:text-indigo-300">Controller 2 (ยาควบคุมเสริม)</label>
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-6 md:col-span-6">
+                      <select {...register("c2_name")} className={inputClass()}><option value="">- เลือกยา -</option><option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option><option value="Foster">Foster</option><option value="Spiriva">Spiriva</option></select>
+                    </div>
+                    <div className="col-span-3 md:col-span-3 relative">
+                      <input type="number" {...register("c2_puffs")} placeholder="#" className={inputClass()} />
+                      <span className="absolute right-3 top-3 text-sm text-gray-400">puffs</span>
+                    </div>
+                    <div className="col-span-3 md:col-span-3">
+                      <select {...register("c2_freq")} className={inputClass()}><option value="OD">OD</option><option value="BID">BID</option></select>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setValue('show_c2', true)} className="text-sm text-primary font-bold hover:underline text-left">+ เพิ่ม Controller ตัวที่ 2</button>
+              )}
+
+              {/* Reliever */}
+              <div className="bg-green-50/50 dark:bg-green-900/10 p-4 rounded-lg border border-green-100 dark:border-green-800">
+                <label className="text-sm font-bold mb-2 block text-green-800 dark:text-green-300">Reliever (ยาบรรเทาอาการ)</label>
+                <div className="grid grid-cols-12 gap-3">
+                  <div className="col-span-6 md:col-span-6">
+                    <select {...register("reliever_name")} className={inputClass()}><option value="Salbutamol">Salbutamol</option><option value="Berodual">Berodual</option><option value="Ventolin">Ventolin</option><option value="Meptin">Meptin</option></select>
+                  </div>
+                  <div className="col-span-6 md:col-span-6">
+                    <input type="text" {...register("reliever_label")} placeholder="วิธีใช้ (Ex. 1 puff prn)" className={inputClass()} />
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
               <div><label className="text-sm font-bold mb-2 block">ความสม่ำเสมอ</label><input type="range" {...register("adherence")} min="0" max="100" step="10" className="w-full accent-[#D97736]" /></div>
@@ -206,7 +310,14 @@ export default function RecordVisitPage() {
           {/* 3. Technique */}
           <div className="border-t pt-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold flex gap-2 text-primary"><ClipboardList size={18} /> 3. เทคนิคพ่นยา</h3>
+              <div className="flex items-center gap-4">
+                <h3 className="font-bold flex gap-2 text-primary"><ClipboardList size={18} /> 3. เทคนิคพ่นยา</h3>
+                {techniqueCheck === 'ทำ' && (
+                  <span className={`text-sm font-bold px-3 py-0.5 rounded-full border ${checklist.filter(Boolean).length >= 7 ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                    คะแนน: {checklist.filter(Boolean).length} / 8
+                  </span>
+                )}
+              </div>
 
               <select {...register("technique_check")} disabled={isRelative} className="px-3 py-1 border rounded bg-white dark:bg-zinc-800 disabled:opacity-50">
                 <option value="ไม่">❌ ไม่ประเมิน</option><option value="ทำ">✅ ประเมิน</option>
