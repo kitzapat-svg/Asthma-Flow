@@ -12,6 +12,7 @@ import { ThemeToggle } from '@/components/theme-toggle'; // <--- เรียก
 
 import { ActionPlanPrint } from './_components/ActionPlanPrint';
 import { Patient, Visit } from '@/lib/types';
+import { blindName } from '@/lib/helpers';
 import { Button } from '@/components/ui/button';
 
 
@@ -65,19 +66,6 @@ export default function PatientPublicPage() {
 
     fetchData();
   }, [params.token]);
-
-  // --- Print Logic ---
-  const [printMode, setPrintMode] = useState<'card' | 'plan'>('card');
-
-  const handlePrintCard = () => {
-    setPrintMode('card');
-    setTimeout(() => window.print(), 100);
-  };
-
-  const handlePrintPlan = () => {
-    setPrintMode('plan');
-    setTimeout(() => window.print(), 100);
-  };
 
   // --- Helpers ---
   const getStatusColor = (level: string) => {
@@ -192,7 +180,7 @@ export default function PatientPublicPage() {
           <div className="absolute top-0 right-0 p-4 opacity-10"><Activity size={120} /></div>
           <div className="relative z-10 pt-4">
             <p className="text-white/60 text-sm font-bold mb-1">สวัสดีคุณ</p>
-            <h1 className="text-3xl font-black">{patient.first_name} {patient.last_name}</h1>
+            <h1 className="text-3xl font-black">{blindName(patient.first_name)} {blindName(patient.last_name)}</h1>
             <div className="flex items-center gap-2 mt-2 text-white/80 text-sm">
               <FileText size={14} /> HN: {patient.hn}
             </div>
@@ -288,24 +276,7 @@ export default function PatientPublicPage() {
             </div>
           )}
 
-          {/* Print Buttons Group */}
-          <div className="space-y-3 mb-8">
-            <Button
-              onClick={handlePrintCard}
-              className="w-full bg-foreground dark:bg-white dark:text-black text-background font-bold h-14 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform"
-            >
-              <div className="bg-white/20 p-1 rounded"><Activity size={16} /></div>
-              พิมพ์บัตรประจำตัว (Wallet Card)
-            </Button>
 
-            <Button
-              onClick={handlePrintPlan}
-              variant="outline"
-              className="w-full h-14 rounded-xl border-2 border-primary text-primary font-bold flex items-center justify-center gap-2 hover:bg-primary hover:text-white"
-            >
-              <FileText size={20} /> พิมพ์แผนการรักษา (A4)
-            </Button>
-          </div>
 
 
         </div>
@@ -315,68 +286,7 @@ export default function PatientPublicPage() {
         </div>
       </div>
 
-      {/* ========================================
-        ส่วนที่ 2: หน้าตาบัตร (Print View - ไม่ต้อง Dark Mode)
-        ========================================
-      */}
-      {/* 1. Wallet Card View */}
-      {printMode === 'card' && (
-        <div className="hidden print:flex print:items-center print:justify-center print:min-h-screen bg-white">
-          <div className="w-[85.6mm] h-[54mm] border border-gray-300 rounded-lg overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col text-black">
-            <div className="bg-[#D97736] text-white p-2 flex items-center justify-between h-[12mm]">
-              <div className="flex items-center gap-2">
-                <div className="bg-white p-1 rounded-full text-[#D97736]">
-                  <Activity size={12} />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-wider">Asthma Alert Card</span>
-              </div>
-              <span className="text-[8px] font-bold opacity-80">โรงพยาบาลสวรรคโลก</span>
-            </div>
-            <div className="flex-1 p-3 flex gap-3 items-center">
-              <div className="w-[28mm] flex flex-col items-center justify-center">
-                <div className="border-2 border-[#2D2A26] p-1 bg-white">
-                  <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient?.public_token}`} size={80} />
-                </div>
-                <span className="text-[6px] font-bold text-center mt-1 text-gray-600">สแกนเพื่อดูแผนฉุกเฉิน</span>
-              </div>
-              <div className="flex-1 space-y-1">
-                <div>
-                  <p className="text-[7px] text-gray-500 uppercase font-bold">Name</p>
-                  <p className="text-[12px] font-black text-[#2D2A26] leading-none truncate">
-                    {patient?.prefix}{patient?.first_name} {patient?.last_name}
-                  </p>
-                </div>
-                <div className="flex gap-4">
-                  <div>
-                    <p className="text-[7px] text-gray-500 uppercase font-bold">HN</p>
-                    <p className="text-[10px] font-bold font-mono text-[#D97736]">{patient?.hn}</p>
-                  </div>
-                  <div>
-                    <p className="text-[7px] text-gray-500 uppercase font-bold">DOB</p>
-                    <p className="text-[10px] font-bold">{new Date(patient?.dob || '').toLocaleDateString('th-TH')}</p>
-                  </div>
-                </div>
-                <div className="pt-1">
-                  <div className="bg-red-50 border border-red-100 p-1 rounded">
-                    <p className="text-[6px] text-red-600 font-bold flex items-center gap-1">
-                      <AlertTriangle size={6} /> ในกรณีฉุกเฉิน (Emergency)
-                    </p>
-                    <p className="text-[8px] font-bold text-red-700">
-                      โทร 1669 หรือ นำส่งโรงพยาบาลทันที
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-[#2D2A26] h-[3mm] w-full mt-auto"></div>
-          </div>
-        </div>
-      )}
 
-      {/* 2. Action Plan A4 View */}
-      {printMode === 'plan' && lastVisit && (
-        <ActionPlanPrint patient={patient} visit={lastVisit} />
-      )}
 
     </div>
   );

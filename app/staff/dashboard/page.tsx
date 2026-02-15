@@ -175,7 +175,7 @@ export default function PatientListPage() {
             <p className="text-muted-foreground mt-1">ภาพรวมผู้ป่วยคลินิกโรคหืด</p>
           </div>
           <Link href="/staff/register">
-            <Button className="glass-card hover:bg-primary hover:text-white dark:hover:text-black transition-all font-bold gap-2">
+            <Button className="bg-primary text-white hover:bg-primary/90 dark:text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all font-bold gap-2 px-6">
               <UserPlus size={18} /> ลงทะเบียนใหม่
             </Button>
           </Link>

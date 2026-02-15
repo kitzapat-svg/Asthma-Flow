@@ -52,3 +52,11 @@ export const getInhalerStatus = (visitHistory: VisitDisplay[]): InhalerStatus =>
     if (diffDays < 0) return { status: 'overdue', days: Math.abs(diffDays), lastDate };
     return { status: 'ok', days: diffDays, lastDate };
 };
+
+export const blindName = (name: string): string => {
+    if (!name) return "";
+    // Show first character, then mask the rest with ***
+    // Example: "Somchai" -> "S******"
+    const firstChar = name.charAt(0);
+    return `${firstChar}******`;
+};

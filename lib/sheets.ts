@@ -179,3 +179,17 @@ export async function deleteRow(tabName: string, hn: string) {
     return { success: false, error };
   }
 }
+
+// --- ฟังก์ชันใหม่: บันทึก Activity Log ---
+export async function logActivity(email: string, action: string, status: string) {
+  try {
+    const timestamp = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+    // Logs columns: [Timestamp, Email, Action, Status]
+    await appendData('logs', [timestamp, email, action, status]);
+    return { success: true };
+  } catch (error) {
+    console.error("Log Activity Error:", error);
+    // ไม่ throw error เพื่อไม่ให้กระทบ flow หลัก
+    return { success: false, error };
+  }
+}

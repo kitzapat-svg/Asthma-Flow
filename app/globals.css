@@ -287,3 +287,21 @@ html {
 .animate-pulse-glow {
   animation: pulse-glow 2s infinite;
 }
+
+@media print {
+  @page {
+    size: auto;
+    margin: 0mm;
+  }
+  body {
+    margin: 0mm;
+    padding: 0mm;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Ensure no scrollbars in print */
+  html, body {
+    height: auto;
+    overflow: visible;
+  }
+}
