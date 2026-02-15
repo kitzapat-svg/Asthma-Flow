@@ -108,9 +108,9 @@ export default function PatientPublicPage() {
     let controllerText = "ตามแพทย์สั่ง";
     if (medication) {
       if (medication.c1_name) {
-        controllerText = `${medication.c1_name} ${medication.c1_puffs} puffs ${mapFreqToThai(medication.c1_freq)}`;
+        controllerText = `${medication.c1_name} ${medication.c1_puffs} puffs ${mapFreqToThai(medication.c1_freq)} (ใช้ต่อเนื่อง)`;
         if (medication.c2_name) {
-          controllerText += ` และ ${medication.c2_name} ${medication.c2_puffs} puffs ${mapFreqToThai(medication.c2_freq)}`;
+          controllerText += ` และ ${medication.c2_name} ${medication.c2_puffs} puffs ${mapFreqToThai(medication.c2_freq)} (ใช้ต่อเนื่อง)`;
         }
       }
     } else if (visit.controller) {
@@ -122,7 +122,7 @@ export default function PatientPublicPage() {
     if (medication && medication.reliever_name) {
       relieverText = `${medication.reliever_name} ${medication.reliever_label}`;
     } else if (visit.reliever) {
-      relieverText = `${visit.reliever} (เมื่อมีอาการ)`;
+      relieverText = `${visit.reliever}`;
     }
 
     return (

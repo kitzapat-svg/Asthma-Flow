@@ -28,6 +28,16 @@ export const visitSchema = z.object({
     is_new_case: z.boolean(),
     is_relative_pickup: z.boolean(),
     no_pefr: z.boolean(),
+    // Medication Fields
+    c1_name: z.string().optional(),
+    c1_puffs: z.string().optional(),
+    c1_freq: z.string().optional(),
+    c2_name: z.string().optional(),
+    c2_puffs: z.string().optional(),
+    c2_freq: z.string().optional(),
+    reliever_name: z.string().optional(),
+    reliever_label: z.string().optional(),
+    show_c2: z.boolean().optional(),
 }).superRefine((data, ctx) => {
     if (!data.no_pefr) {
         if (!data.pefr || data.pefr.trim() === '') {

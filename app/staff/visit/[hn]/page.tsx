@@ -254,7 +254,10 @@ export default function RecordVisitPage() {
                 <label className="text-sm font-bold mb-2 block text-blue-800 dark:text-blue-300">Controller 1 (ยาควบคุมหลัก)</label>
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-6 md:col-span-6">
-                    <select {...register("c1_name")} className={inputClass()}><option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option><option value="Foster">Foster</option></select>
+                    <select {...register("c1_name")} className={inputClass()}>
+                      <option value="-">- (No Medication)</option>
+                      <option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option><option value="Foster">Foster</option>
+                    </select>
                   </div>
                   <div className="col-span-3 md:col-span-3 relative">
                     <input type="number" {...register("c1_puffs")} placeholder="#" className={inputClass()} />
@@ -273,7 +276,10 @@ export default function RecordVisitPage() {
                   <label className="text-sm font-bold mb-2 block text-indigo-800 dark:text-indigo-300">Controller 2 (ยาควบคุมเสริม)</label>
                   <div className="grid grid-cols-12 gap-3">
                     <div className="col-span-6 md:col-span-6">
-                      <select {...register("c2_name")} className={inputClass()}><option value="">- เลือกยา -</option><option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option><option value="Foster">Foster</option><option value="Spiriva">Spiriva</option></select>
+                      <select {...register("c2_name")} className={inputClass()}>
+                        <option value="-">- (No Medication)</option>
+                        <option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option><option value="Foster">Foster</option><option value="Spiriva">Spiriva</option>
+                      </select>
                     </div>
                     <div className="col-span-3 md:col-span-3 relative">
                       <input type="number" {...register("c2_puffs")} placeholder="#" className={inputClass()} />
@@ -293,7 +299,10 @@ export default function RecordVisitPage() {
                 <label className="text-sm font-bold mb-2 block text-green-800 dark:text-green-300">Reliever (ยาบรรเทาอาการ)</label>
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-6 md:col-span-6">
-                    <select {...register("reliever_name")} className={inputClass()}><option value="Salbutamol">Salbutamol</option><option value="Berodual">Berodual</option><option value="Ventolin">Ventolin</option><option value="Meptin">Meptin</option></select>
+                    <select {...register("reliever_name")} className={inputClass()}>
+                      <option value="-">- (No Medication)</option>
+                      <option value="Salbutamol">Salbutamol</option><option value="Berodual">Berodual</option><option value="Ventolin">Ventolin</option><option value="Meptin">Meptin</option>
+                    </select>
                   </div>
                   <div className="col-span-6 md:col-span-6">
                     <input type="text" {...register("reliever_label")} placeholder="วิธีใช้ (Ex. 1 puff prn)" className={inputClass()} />
