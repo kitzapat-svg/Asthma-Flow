@@ -35,6 +35,10 @@ export default function RecordVisitPage() {
   const [loading, setLoading] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(true);
   const [checklist, setChecklist] = useState<boolean[]>(new Array(8).fill(false));
+  const [medOptions, setMedOptions] = useState<{ controllers: string[], relievers: string[] }>({
+    controllers: ['Seretide', 'Budesonide', 'Symbicort', 'Flixotide', 'Spiromax', 'Spiriva'],
+    relievers: ['Salbutamol', 'Berodual']
+  });
 
 
 
@@ -67,6 +71,11 @@ export default function RecordVisitPage() {
   const techniqueCheck = useWatch({ control, name: 'technique_check' });
   const showC2 = useWatch({ control, name: 'show_c2' });
 
+  // Watchers for Med Names (to hide usage if '-')
+  const c1Name = useWatch({ control, name: 'c1_name' });
+  const c2Name = useWatch({ control, name: 'c2_name' });
+  const relieverName = useWatch({ control, name: 'reliever_name' });
+
   // Logic 1: ถ้าญาติมาแทน -> เทคนิคพ่นยาต้องเป็น "ไม่"
   useEffect(() => {
     if (isRelative) setValue('technique_check', 'ไม่');
@@ -89,6 +98,16 @@ export default function RecordVisitPage() {
         // 2. Latest Meds
         const resMed = await fetch(`/api/db?type=medications&hn=${params.hn}`);
         const medData = await resMed.json();
+
+        // 3. Med List Options
+        const resList = await fetch('/api/medication-list');
+        const listData = await resList.json();
+        if (listData.controllers && listData.controllers.length > 0) {
+          setMedOptions(prev => ({ ...prev, controllers: listData.controllers }));
+        }
+        if (listData.relievers && listData.relievers.length > 0) {
+          setMedOptions(prev => ({ ...prev, relievers: listData.relievers }));
+        }
 
         if (medData && medData.date) {
           // Found existing meds
@@ -256,16 +275,20 @@ export default function RecordVisitPage() {
                   <div className="col-span-6 md:col-span-6">
                     <select {...register("c1_name")} className={inputClass()}>
                       <option value="-">- (No Medication)</option>
-                      <option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option><option value="Foster">Foster</option>
+                      {medOptions.controllers.map((m, i) => <option key={i} value={m}>{m}</option>)}
                     </select>
                   </div>
-                  <div className="col-span-3 md:col-span-3 relative">
-                    <input type="number" {...register("c1_puffs")} placeholder="#" className={inputClass()} />
-                    <span className="absolute right-3 top-3 text-sm text-gray-400">puffs</span>
-                  </div>
-                  <div className="col-span-3 md:col-span-3">
-                    <select {...register("c1_freq")} className={inputClass()}><option value="OD">OD</option><option value="BID">BID</option></select>
-                  </div>
+                  {c1Name !== '-' && (
+                    <>
+                      <div className="col-span-3 md:col-span-3 relative">
+                        <input type="number" {...register("c1_puffs")} placeholder="#" className={inputClass()} />
+                        <span className="absolute right-3 top-3 text-sm text-gray-400">puffs</span>
+                      </div>
+                      <div className="col-span-3 md:col-span-3">
+                        <select {...register("c1_freq")} className={inputClass()}><option value="OD">OD</option><option value="BID">BID</option></select>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -278,16 +301,20 @@ export default function RecordVisitPage() {
                     <div className="col-span-6 md:col-span-6">
                       <select {...register("c2_name")} className={inputClass()}>
                         <option value="-">- (No Medication)</option>
-                        <option value="Seretide">Seretide</option><option value="Budesonide">Budesonide</option><option value="Symbicort">Symbicort</option><option value="Flixotide">Flixotide</option><option value="Foster">Foster</option><option value="Spiriva">Spiriva</option>
+                        {medOptions.controllers.map((m, i) => <option key={i} value={m}>{m}</option>)}
                       </select>
                     </div>
-                    <div className="col-span-3 md:col-span-3 relative">
-                      <input type="number" {...register("c2_puffs")} placeholder="#" className={inputClass()} />
-                      <span className="absolute right-3 top-3 text-sm text-gray-400">puffs</span>
-                    </div>
-                    <div className="col-span-3 md:col-span-3">
-                      <select {...register("c2_freq")} className={inputClass()}><option value="OD">OD</option><option value="BID">BID</option></select>
-                    </div>
+                    {c2Name !== '-' && (
+                      <>
+                        <div className="col-span-3 md:col-span-3 relative">
+                          <input type="number" {...register("c2_puffs")} placeholder="#" className={inputClass()} />
+                          <span className="absolute right-3 top-3 text-sm text-gray-400">puffs</span>
+                        </div>
+                        <div className="col-span-3 md:col-span-3">
+                          <select {...register("c2_freq")} className={inputClass()}><option value="OD">OD</option><option value="BID">BID</option></select>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -301,12 +328,14 @@ export default function RecordVisitPage() {
                   <div className="col-span-6 md:col-span-6">
                     <select {...register("reliever_name")} className={inputClass()}>
                       <option value="-">- (No Medication)</option>
-                      <option value="Salbutamol">Salbutamol</option><option value="Berodual">Berodual</option><option value="Ventolin">Ventolin</option><option value="Meptin">Meptin</option>
+                      {medOptions.relievers.map((m, i) => <option key={i} value={m}>{m}</option>)}
                     </select>
                   </div>
-                  <div className="col-span-6 md:col-span-6">
-                    <input type="text" {...register("reliever_label")} placeholder="วิธีใช้ (Ex. 1 puff prn)" className={inputClass()} />
-                  </div>
+                  {relieverName !== '-' && (
+                    <div className="col-span-6 md:col-span-6">
+                      <input type="text" {...register("reliever_label")} placeholder="วิธีใช้ (Ex. 1 puff prn)" className={inputClass()} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -314,10 +343,10 @@ export default function RecordVisitPage() {
               <div><label className="text-sm font-bold mb-2 block">ความสม่ำเสมอ</label><input type="range" {...register("adherence")} min="0" max="100" step="10" className="w-full accent-[#D97736]" /></div>
               <div><label className="text-sm font-bold mb-2 block">DRP</label><input type="text" {...register("drp")} className={inputClass()} /></div>
             </div>
-          </div>
+          </div >
 
           {/* 3. Technique */}
-          <div className="border-t pt-6 space-y-4">
+          < div className="border-t pt-6 space-y-4" >
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-4">
                 <h3 className="font-bold flex gap-2 text-primary"><ClipboardList size={18} /> 3. เทคนิคพ่นยา</h3>
@@ -332,39 +361,41 @@ export default function RecordVisitPage() {
                 <option value="ไม่">❌ ไม่ประเมิน</option><option value="ทำ">✅ ประเมิน</option>
               </select>
             </div>
-            {techniqueCheck === 'ทำ' && (
-              <div className="bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-700 p-4 rounded-lg space-y-3 animate-in fade-in">
-                {MDI_STEPS.map((step, index) => (
+            {
+              techniqueCheck === 'ทำ' && (
+                <div className="bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-700 p-4 rounded-lg space-y-3 animate-in fade-in">
+                  {MDI_STEPS.map((step, index) => (
 
-                  <label key={index} className="flex gap-3 cursor-pointer group p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded">
-                    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 ${checklist[index] ? 'bg-primary border-primary' : 'border-gray-300'}`}>
-                      <input type="checkbox" className="hidden" checked={checklist[index]} onChange={() => toggleCheck(index)} />
-                      {checklist[index] && <CheckCircle size={16} className="text-white" />}
-                    </div>
-                    <span className={`text-sm ${checklist[index] ? 'text-primary font-bold' : 'text-muted-foreground dark:text-zinc-400'}`}>{step}</span>
+                    <label key={index} className="flex gap-3 cursor-pointer group p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded">
+                      <div className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 ${checklist[index] ? 'bg-primary border-primary' : 'border-gray-300'}`}>
+                        <input type="checkbox" className="hidden" checked={checklist[index]} onChange={() => toggleCheck(index)} />
+                        {checklist[index] && <CheckCircle size={16} className="text-white" />}
+                      </div>
+                      <span className={`text-sm ${checklist[index] ? 'text-primary font-bold' : 'text-muted-foreground dark:text-zinc-400'}`}>{step}</span>
 
-                  </label>
-                ))}
-                <textarea {...register("technique_note")} rows={2} placeholder="บันทึกเพิ่มเติม..." className="w-full mt-2 p-2 border rounded dark:bg-zinc-800 dark:text-white" />
-              </div>
-            )}
-          </div>
+                    </label>
+                  ))}
+                  <textarea {...register("technique_note")} rows={2} placeholder="บันทึกเพิ่มเติม..." className="w-full mt-2 p-2 border rounded dark:bg-zinc-800 dark:text-white" />
+                </div>
+              )
+            }
+          </div >
 
           {/* 4. Plan */}
-          <div className="bg-orange-50 dark:bg-orange-900/10 p-6 border border-primary/30 rounded-lg space-y-4">
+          < div className="bg-orange-50 dark:bg-orange-900/10 p-6 border border-primary/30 rounded-lg space-y-4" >
             <h3 className="font-bold flex gap-2 text-primary"><FileText size={18} /> 4. แผนการรักษา</h3>
 
             <div><label className="text-sm font-bold mb-2 block">คำแนะนำ</label><input type="text" {...register("advice")} className={inputClass()} /></div>
             <div><label className="text-sm font-bold mb-2 block">Note</label><textarea {...register("note")} rows={2} className={inputClass()} /></div>
             <div><label className="text-sm font-bold mb-2 block">วันนัดถัดไป</label><input type="date" {...register("next_appt")} className={inputClass()} /></div>
-          </div>
+          </div >
 
           <Button type="submit" disabled={loading} className="w-full bg-foreground text-background font-bold text-lg h-14 border-2 border-border shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5 transition-all flex justify-center gap-2">
             {loading ? "กำลังบันทึก..." : <><Save size={20} /> บันทึกผล</>}
           </Button>
 
-        </form>
-      </div>
-    </div>
+        </form >
+      </div >
+    </div >
   );
 }

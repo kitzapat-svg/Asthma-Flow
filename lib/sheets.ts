@@ -357,3 +357,70 @@ export async function getLatestMedication(hn: string): Promise<Medication | null
 export async function saveMedication(data: string[]) {
   return await appendData('medications', data);
 }
+
+// --- Medication List Management (Admin) ---
+
+// Generic Delete Row by Value in Specific Column (0-indexed)
+export async function deleteRowByValue(tabName: string, value: string, columnIndex: number = 0) {
+  try {
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === tabName);
+    const sheetId = sheet?.properties?.sheetId;
+
+    if (sheetId === undefined) return { success: false, error: "Sheet not found" };
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tabName}!A:B`, // Read enough columns
+    });
+    const rows = response.data.values;
+    if (!rows) return { success: false, error: "No data found" };
+
+    const rowIndex = rows.findIndex((row) => row[columnIndex] === value);
+
+    if (rowIndex === -1) return { success: false, error: "Value not found" };
+    // Prevent deleting header if index is 0, but for list it might be okay if no header? assume header exists.
+    if (rowIndex === 0) return { success: false, error: "Cannot delete header" };
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheetId,
+              dimension: 'ROWS',
+              startIndex: rowIndex,
+              endIndex: rowIndex + 1
+            }
+          }
+        }]
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Delete Row Error:", error);
+    return { success: false, error };
+  }
+}
+
+export async function getMedicationList() {
+  // Tab 'medication_list': Column A = Type, Column B = Name
+  const rows = await getSheetData('medication_list');
+  if (!Array.isArray(rows)) return { controllers: [], relievers: [] };
+
+  const controllers = rows.filter((r: any) => r.Type === 'Controller').map((r: any) => r.Name);
+  const relievers = rows.filter((r: any) => r.Type === 'Reliever').map((r: any) => r.Name);
+
+  return { controllers, relievers };
+}
+
+export async function addMedicationItem(type: 'Controller' | 'Reliever', name: string) {
+  return await appendData('medication_list', [type, name]);
+}
+
+export async function deleteMedicationItem(name: string) {
+  // Delete by Name (Column B -> Index 1)
+  return await deleteRowByValue('medication_list', name, 1);
+}
