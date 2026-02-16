@@ -180,7 +180,7 @@ export const ActionPlanPrint: React.FC<ActionPlanPrintProps> = ({ patient, visit
             {/* Footer / Signature */}
             <div className="mt-4 flex justify-between items-end border-t border-gray-300 pt-4">
                 <div className="text-left">
-                    <p className="text-[10px] text-gray-400">Scan for Digital Plan: asthsawan.vercel.app</p>
+                    <p className="text-[10px] text-gray-400">Scan for Digital Plan: asthma-flow.vercel.app</p>
                 </div>
                 <div className="text-center">
                     <div className="w-64 border-b border-black mb-2"></div>

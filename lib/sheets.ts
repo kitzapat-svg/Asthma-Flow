@@ -326,32 +326,45 @@ export async function deleteUser(username: string) {
 import { Medication } from '@/lib/types';
 
 export async function getLatestMedication(hn: string): Promise<Medication | null> {
-  // Medications Tab Structure: [HN, Date, C1_Name, C1_Puffs, C1_Freq, C2_Name, C2_Puffs, C2_Freq, R_Name, R_Label, Note]
-  const rows = await getSheetData('medications');
-  if (!Array.isArray(rows)) return null;
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'medications!A:Z',
+    });
 
-  // Filter by HN
-  const patientMeds = rows.filter((row: any) => normalizeHN(row[0]) === normalizeHN(hn));
+    // Medications Tab Structure: [HN, Date, C1_Name, C1_Puffs, C1_Freq, C2_Name, C2_Puffs, C2_Freq, R_Name, R_Label, Note]
+    const rows = response.data.values;
+    if (!Array.isArray(rows) || rows.length < 2) return null; // Must have header + data
 
-  if (patientMeds.length === 0) return null;
+    // Skip Header (Row 0), Use Data Rows (Row 1+)
+    const dataRows = rows.slice(1);
 
-  // Sort by Date (Column B / Index 1) Descending
-  patientMeds.sort((a: any, b: any) => new Date(b[1]).getTime() - new Date(a[1]).getTime());
+    // Filter by HN (Index 0)
+    const patientMeds = dataRows.filter((row: any) => normalizeHN(row[0]) === normalizeHN(hn));
 
-  const latest = patientMeds[0];
-  return {
-    hn: latest[0],
-    date: latest[1],
-    c1_name: latest[2],
-    c1_puffs: latest[3],
-    c1_freq: latest[4],
-    c2_name: latest[5],
-    c2_puffs: latest[6],
-    c2_freq: latest[7],
-    reliever_name: latest[8],
-    reliever_label: latest[9],
-    note: latest[10]
-  };
+    if (patientMeds.length === 0) return null;
+
+    // Sort by Date (Column B / Index 1) Descending
+    patientMeds.sort((a: any, b: any) => new Date(b[1]).getTime() - new Date(a[1]).getTime());
+
+    const latest = patientMeds[0];
+    return {
+      hn: latest[0],
+      date: latest[1],
+      c1_name: latest[2],
+      c1_puffs: latest[3],
+      c1_freq: latest[4],
+      c2_name: latest[5],
+      c2_puffs: latest[6],
+      c2_freq: latest[7],
+      reliever_name: latest[8],
+      reliever_label: latest[9],
+      note: latest[10]
+    };
+  } catch (error) {
+    console.error("Get Latest Medication Error:", error);
+    return null;
+  }
 }
 
 export async function saveMedication(data: string[]) {

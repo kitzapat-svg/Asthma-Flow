@@ -65,6 +65,8 @@ export default function RecordVisitPage() {
     }
   });
 
+  const [autoFilled, setAutoFilled] = useState(false);
+
   // Watchers: เฝ้าดูค่าเพื่อทำ Logic อัตโนมัติ
   const isRelative = useWatch({ control, name: 'is_relative_pickup' });
   const noPefr = useWatch({ control, name: 'no_pefr' });
@@ -91,12 +93,13 @@ export default function RecordVisitPage() {
     const fetchData = async () => {
       try {
         setFetchingHistory(true);
+        setAutoFilled(false);
         // 1. Visits History
-        const resVisit = await fetch(`/api/db?type=visits&hn=${params.hn}`);
+        const resVisit = await fetch(`/api/db?type=visits&hn=${params.hn}&t=${Date.now()}`, { cache: 'no-store' });
         const visitData = await resVisit.json();
 
         // 2. Latest Meds
-        const resMed = await fetch(`/api/db?type=medications&hn=${params.hn}`);
+        const resMed = await fetch(`/api/db?type=medications&hn=${params.hn}&t=${Date.now()}`, { cache: 'no-store' });
         const medData = await resMed.json();
 
         // 3. Med List Options
@@ -120,10 +123,16 @@ export default function RecordVisitPage() {
             setValue('c2_name', medData.c2_name);
             setValue('c2_puffs', medData.c2_puffs || '1');
             setValue('c2_freq', medData.c2_freq || 'OD');
+          } else {
+            setValue('show_c2', false);
+            setValue('c2_name', '');
+            setValue('c2_puffs', '');
+            setValue('c2_freq', 'OD');
           }
 
           setValue('reliever_name', medData.reliever_name || 'Salbutamol');
           setValue('reliever_label', medData.reliever_label || '1 puff prn');
+          setAutoFilled(true);
         } else {
           // Fallback to "Visit History" for Controller/Reliever names if Meds sheet empty
           if (Array.isArray(visitData) && visitData.length > 0) {
@@ -132,6 +141,9 @@ export default function RecordVisitPage() {
             if (history[0]) {
               setValue('c1_name', history[0].controller || 'Seretide');
               setValue('reliever_name', history[0].reliever || 'Salbutamol');
+              // Note: Visits history doesn't have puffs/freq, so we don't set autoFilled here or maybe we do partially?
+              // The user request specifically mentioned "pulling latest items AND usage", which implies the Meds sheet data.
+              // So we'll strictly set autoFilled only when full med details are found.
             }
           }
         }
@@ -262,8 +274,15 @@ export default function RecordVisitPage() {
 
           {/* 2. Medication */}
           <div className="space-y-4">
-            <div className="flex justify-between">
-              <h3 className="font-bold flex gap-2 text-primary"><Stethoscope size={18} /> 2. การใช้ยา</h3>
+            <div className="flex justify-between items-end">
+              <div className="flex flex-col gap-1">
+                <h3 className="font-bold flex gap-2 text-primary"><Stethoscope size={18} /> 2. การใช้ยา</h3>
+                {autoFilled && !fetchingHistory && (
+                  <span className="text-xs text-green-600 font-bold flex gap-1 animate-in fade-in slide-in-from-left-2 ml-6">
+                    ✨ ระบบดึงรายการยาจากครั้งล่าสุดมาให้แล้ว
+                  </span>
+                )}
+              </div>
 
               {fetchingHistory && <span className="text-xs text-gray-400 animate-pulse flex gap-1"><RefreshCw size={12} className="animate-spin" /> กำลังดึงข้อมูล...</span>}
             </div>

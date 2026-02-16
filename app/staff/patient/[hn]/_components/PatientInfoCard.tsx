@@ -1,6 +1,6 @@
 "use client";
 
-import { User, FileText, Calendar, Ruler, Activity, Edit } from 'lucide-react';
+import { User, FileText, Calendar, Ruler, Activity, Edit, Baby } from 'lucide-react';
 import { Patient } from './types';
 
 interface PatientInfoCardProps {
@@ -21,9 +21,18 @@ export function PatientInfoCard({ patient, age, onEdit }: PatientInfoCardProps) 
             </button>
 
             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
-                <div className="w-12 h-12 bg-[#D97736] flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700">
-                    <User size={24} />
-                </div>
+                {(() => {
+                    const prefix = patient.prefix?.trim() || "";
+                    let Icon = User;
+                    if (prefix === 'ด.ช.' || prefix === 'ด.ญ.') {
+                        Icon = Baby;
+                    }
+                    return (
+                        <div className="w-12 h-12 bg-[#D97736] flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700">
+                            <Icon size={24} />
+                        </div>
+                    );
+                })()}
                 <div>
                     <h1 className="text-xl font-black">{patient.prefix}{patient.first_name}</h1>
                     <p className="text-[#6B6560] dark:text-zinc-400 font-medium">{patient.last_name}</p>

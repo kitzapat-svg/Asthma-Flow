@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   UserPlus, Users, Activity, FileText, Search, X, Filter,
-  Calendar, ChevronRight, Clock, AlertCircle
+  Calendar, ChevronRight, Clock, AlertCircle, Baby, User
 } from 'lucide-react';
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -350,9 +350,32 @@ function PatientRowItem({ patient, index }: { patient: PatientWithAppt, index: n
 
           <div className="flex items-center gap-4">
             {/* Avatar Placeholder */}
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-lg bg-gradient-to-br from-gray-100 to-gray-300 dark:from-zinc-800 dark:to-zinc-700 text-foreground shadow-inner`}>
-              {patient.first_name[0]}{patient.last_name[0]}
-            </div>
+            {/* Avatar Placeholder */}
+            {(() => {
+              const prefix = patient.prefix?.trim() || "";
+              let Icon = User;
+              let colorClass = "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400";
+
+              if (prefix === 'นาย') {
+                Icon = User;
+                colorClass = "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400";
+              } else if (prefix === 'นาง' || prefix === 'นางสาว' || prefix === 'น.ส.') {
+                Icon = User;
+                colorClass = "bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-400";
+              } else if (prefix === 'ด.ช.') {
+                Icon = Baby;
+                colorClass = "bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-400";
+              } else if (prefix === 'ด.ญ.') {
+                Icon = Baby;
+                colorClass = "bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400";
+              }
+
+              return (
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-lg ${colorClass} shadow-inner`}>
+                  <Icon size={24} />
+                </div>
+              );
+            })()}
 
             <div>
               <div className="flex items-center gap-2">
