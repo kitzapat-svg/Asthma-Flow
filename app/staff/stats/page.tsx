@@ -3,18 +3,19 @@
 import { useEffect, useState } from 'react';
 import {
   Activity, PieChart as PieChartIcon, BarChart3, RefreshCw,
-  CalendarDays, TrendingUp, Users, CalendarRange, LineChart
+  CalendarDays, TrendingUp, Users, CalendarRange, LineChart,
+  Stethoscope, AlertCircle, BookOpen, ChevronRight
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   ComposedChart, Line, Area
 } from 'recharts';
-import { format, subDays, startOfWeek, endOfWeek, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, subMonths, startOfMonth, endOfMonth, addDays, getDay, isSameDay, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 
-import { Patient, Visit } from '@/lib/types';
-import { getAge } from '@/lib/helpers';
+import { Patient, Visit, TechniqueCheck, MDI_STEPS } from '@/lib/types';
+import { getAge, normalizeHN } from '@/lib/helpers';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { CountUp } from '@/components/animated/count-up';
@@ -23,6 +24,7 @@ import { FadeContent } from '@/components/animated/fade-content';
 export default function StatsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
+  const [techniqueChecks, setTechniqueChecks] = useState<TechniqueCheck[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Stats
@@ -33,6 +35,14 @@ export default function StatsPage() {
   // Drill-down State
   const [selectedStat, setSelectedStat] = useState<'weekly' | 'monthly' | null>(null);
 
+  // New Features State
+  const [nextTuesdayDate, setNextTuesdayDate] = useState<Date | null>(null);
+  const [nextTuesdayAppts, setNextTuesdayAppts] = useState<{ hn: string, name: string, time: string }[]>([]);
+
+  const [fiscalYearStats, setFiscalYearStats] = useState<any[]>([]);
+  const [selectedFy, setSelectedFy] = useState<number>(new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0)); // Default to current FY (Oct starts new FY)
+
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -40,19 +50,23 @@ export default function StatsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [resPatients, resVisits] = await Promise.all([
+      const [resPatients, resVisits, resTech] = await Promise.all([
         fetch('/api/db?type=patients'),
-        fetch('/api/db?type=visits')
+        fetch('/api/db?type=visits'),
+        fetch('/api/db?type=technique_checks')
       ]);
 
       const dataPatients: Patient[] = await resPatients.json();
       const dataVisits: Visit[] = await resVisits.json();
+      const dataTech: TechniqueCheck[] = await resTech.json();
 
       const validPatients = Array.isArray(dataPatients) ? dataPatients : [];
       const validVisits = Array.isArray(dataVisits) ? dataVisits : [];
+      const validTech = Array.isArray(dataTech) ? dataTech : [];
 
       setPatients(validPatients);
       setVisits(validVisits);
+      setTechniqueChecks(validTech);
 
       // --- Calculate Snapshot Stats ---
       const now = new Date();
@@ -82,6 +96,13 @@ export default function StatsPage() {
       ).length;
       setNewPatients(newPatientsCount);
 
+      // --- 4. Next Tuesday Appointments ---
+      calculateNextTuesdayAppts(validVisits, validPatients);
+
+      // --- 5. Fiscal Year Stats ---
+      calculateFiscalYearStats(validTech);
+
+
     } catch (error) {
       console.error("Failed to fetch:", error);
     } finally {
@@ -99,6 +120,114 @@ export default function StatsPage() {
       }
     });
     return firstVisits;
+  };
+
+  const calculateNextTuesdayAppts = (visits: Visit[], patients: Patient[]) => {
+    const today = new Date();
+    const currentDay = getDay(today); // 0=Sun, 1=Mon, 2=Tue...
+
+    // Logic: Find next Tuesday. 
+    // If today is Tuesday (2), do we show today? Or next week? 
+    // Usually "Next Tuesday" implies upcoming. If today is Tue, let's show Today + Next Week? No, usually just upcoming.
+    // Let's assume: If today is Tue, show Today. If passed or not Tue, show next Tue.
+
+    let daysUntilTue = (2 - currentDay + 7) % 7;
+    // If daysUntilTue is 0 (Today is Tue), we keep it 0 to show today's appts.
+
+    const nextTue = addDays(today, daysUntilTue);
+    setNextTuesdayDate(nextTue);
+
+    const nextTueStr = format(nextTue, 'yyyy-MM-dd');
+
+    // Filter visits that have next_appt on this date
+    // We need to check all visits. If any visit has `next_appt` = `nextTueStr`, then that patient is coming.
+    // Ideally we should check if that appointment wasn't already fulfilled or simpler: just check unique patients with that appt date.
+
+    // Group by HN to ensure unique listing
+    const patientsWithAppt = new Set<string>();
+
+    visits.forEach(v => {
+      if (v.next_appt === nextTueStr) {
+        patientsWithAppt.add(v.hn);
+      }
+    });
+
+    const apptDetails = Array.from(patientsWithAppt).map(hn => {
+      const p = patients.find(pat => normalizeHN(pat.hn) === normalizeHN(hn));
+      return {
+        hn: hn,
+        name: p ? `${p.prefix}${p.first_name} ${p.last_name}` : 'Unknown',
+        time: '13:00 - 16:00' // Default Clinic Time
+      };
+    });
+
+    setNextTuesdayAppts(apptDetails);
+  };
+
+  const getFiscalYear = (date: Date) => {
+    // Fiscal Year: Oct 1 - Sep 30
+    // If Month >= 9 (Oct is 9 in JS 0-indexed), then FY = Year + 1
+    return date.getMonth() >= 9 ? date.getFullYear() + 1 : date.getFullYear();
+  };
+
+  const calculateFiscalYearStats = (techChecks: TechniqueCheck[]) => {
+    const groupedByFy: Record<number, TechniqueCheck[]> = {};
+
+    techChecks.forEach(t => {
+      const d = new Date(t.date);
+      const fy = getFiscalYear(d);
+      if (!groupedByFy[fy]) groupedByFy[fy] = [];
+      groupedByFy[fy].push(t);
+    });
+
+    const stats = Object.keys(groupedByFy).map(fyStr => {
+      const fy = parseInt(fyStr);
+      const checks = groupedByFy[fy];
+      const uniquePatients = new Set(checks.map(c => c.hn)).size;
+
+      // Common Mistakes
+      // Steps data: ["1", "0", "1"...] -> 1=Done/Correct, 0=Missed/Incorrect (Based on checkbox logic: checked=1)
+      // Usually "1" means checked (Done/Correct). So "0" means Mistake/Missed.
+      const mistakeCounts = new Array(MDI_STEPS.length).fill(0);
+
+      checks.forEach(c => {
+        // Steps might be undefined if old data, handle safely
+        if (Array.isArray(c.steps)) {
+          c.steps.forEach((val, idx) => {
+            // Form sends "1" for checked, "0" for unchecked.
+            // If unchecked (0) => Mistake
+            if (val === "0" || val === "false") {
+              mistakeCounts[idx]++;
+            }
+          });
+        }
+      });
+
+      // Map to { step: string, count: number }
+      const mistakesMapped = mistakeCounts.map((count, idx) => ({
+        step: MDI_STEPS[idx],
+        count
+      })).filter(m => m.count > 0);
+
+      // Sort desc
+      mistakesMapped.sort((a, b) => b.count - a.count);
+
+      return {
+        fy,
+        totalPatients: uniquePatients,
+        totalChecks: checks.length,
+        topMistakes: mistakesMapped.slice(0, 3) // Top 3
+      };
+    });
+
+    // Sort by FY desc
+    stats.sort((a, b) => b.fy - a.fy);
+    setFiscalYearStats(stats);
+
+    // Set default selected FY if not set or available
+    if (stats.length > 0 && !stats.find(s => s.fy === selectedFy)) {
+      setSelectedFy(stats[0].fy);
+    }
   };
 
   // --- Historical Data Generators ---
@@ -195,6 +324,9 @@ export default function StatsPage() {
     { name: 'สูงอายุ (60+)', value: ageGroups['60+'] },
   ];
 
+  // Current FY Data for Display
+  const currentFyData = fiscalYearStats.find(s => s.fy === selectedFy) || { totalPatients: 0, topMistakes: [] };
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh]">
       <Activity className="animate-spin text-primary mb-4" size={48} />
@@ -258,7 +390,107 @@ export default function StatsPage() {
         />
       </div>
 
-      {/* Charts Section */}
+      {/* NEW SECTION: Appointments & Teaching Stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        {/* 1. Next Tuesday Appointments */}
+        <FadeContent delay={0.3} className="stat-card bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800 lg:col-span-5">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-800 dark:text-orange-200">
+            <CalendarDays size={20} /> ผู้ป่วยนัดอังคารหน้า
+          </h3>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm font-bold text-orange-600 dark:text-orange-300 bg-white dark:bg-black/20 w-fit px-3 py-1 rounded-full border border-orange-100">
+              📅 {nextTuesdayDate ? format(nextTuesdayDate, 'd MMM yyyy', { locale: th }) : '-'}
+            </p>
+            <span className="text-sm font-bold bg-orange-200 text-orange-800 px-3 py-1 rounded-full">
+              {nextTuesdayAppts.length} คน
+            </span>
+          </div>
+
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            {nextTuesdayAppts.length > 0 ? (
+              nextTuesdayAppts.map((appt, i) => (
+                <div key={i} className="bg-white dark:bg-zinc-800 p-3 rounded-lg border border-orange-100 dark:border-zinc-700 flex justify-between items-center shadow-sm">
+                  <div>
+                    <p className="font-bold text-foreground">{appt.name}</p>
+                    <p className="text-xs text-muted-foreground">HN: {appt.hn}</p>
+                  </div>
+                  <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded">{appt.time}</span>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground bg-white/50 dark:bg-black/20 rounded-lg border-dashed border-2">
+                <Users size={32} className="mx-auto mb-2 opacity-50" />
+                <p>ไม่มีนัดหมาย</p>
+              </div>
+            )}
+          </div>
+        </FadeContent>
+
+        {/* 2. Fiscal Year Stats */}
+        <FadeContent delay={0.35} className="stat-card bg-[#eefcfc] dark:bg-cyan-900/10 border-cyan-200 dark:border-cyan-800 lg:col-span-7">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h3 className="font-bold text-lg flex items-center gap-2 text-cyan-800 dark:text-cyan-200">
+                <Stethoscope size={20} /> สรุปการสอนพ่นยา (รายปีงบ)
+              </h3>
+              <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
+                ปีงบ {selectedFy + 543} (1 ต.ค. {selectedFy - 1 + 543} - 30 ก.ย. {selectedFy + 543})
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {fiscalYearStats.map(s => (
+                <button
+                  key={s.fy}
+                  onClick={() => setSelectedFy(s.fy)}
+                  className={`px-3 py-1 rounded text-xs font-bold transition-all ${selectedFy === s.fy ? 'bg-cyan-600 text-white shadow-lg scale-105' : 'bg-white dark:bg-zinc-800 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50'}`}
+                >
+                  {s.fy + 543}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Count */}
+            <div className="bg-white dark:bg-zinc-800 p-5 rounded-xl border border-cyan-100 dark:border-cyan-900/50 flex flex-col justify-center items-center text-center shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center mb-2">
+                <BookOpen size={24} />
+              </div>
+              <h4 className="text-4xl font-black text-cyan-900 dark:text-cyan-100">
+                <CountUp target={currentFyData.totalPatients} />
+              </h4>
+              <p className="text-sm font-bold text-cyan-700/70 dark:text-cyan-300/70">ผู้ป่วยที่รับการสอน</p>
+            </div>
+
+            {/* Mistakes */}
+            <div className="space-y-3">
+              <h4 className="font-bold text-sm text-cyan-900 dark:text-cyan-100 flex items-center gap-2">
+                <AlertCircle size={14} className="text-red-500" /> ข้อที่ผิดบ่อย 3 อันดับแรก
+              </h4>
+              {currentFyData.topMistakes.length > 0 ? (
+                currentFyData.topMistakes.map((m: any, i: number) => (
+                  <div key={i} className="bg-white dark:bg-zinc-800 p-3 rounded-lg border border-red-100 dark:border-red-900/30 flex gap-3 items-start shadow-sm">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center mt-0.5">
+                      #{i + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-foreground line-clamp-2">{m.step}</p>
+                      <p className="text-xs text-red-500 font-bold mt-1">{m.count} ครั้ง</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-sm text-muted-foreground py-4">
+                  ไม่มีข้อมูลข้อผิดพลาด
+                </div>
+              )}
+            </div>
+          </div>
+        </FadeContent>
+      </div>
+
+      {/* Charts Section (Original) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* Status Pie Chart */}
