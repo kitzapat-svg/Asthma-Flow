@@ -38,6 +38,7 @@ export const visitSchema = z.object({
     reliever_name: z.string().optional(),
     reliever_label: z.string().optional(),
     show_c2: z.boolean().optional(),
+    medication_note: z.string().optional(),
 }).superRefine((data, ctx) => {
     if (!data.no_pefr) {
         if (!data.pefr || data.pefr.trim() === '') {

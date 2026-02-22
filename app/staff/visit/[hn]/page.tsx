@@ -27,6 +27,7 @@ type VisitFormValues = z.infer<typeof visitSchema> & {
   reliever_name: string;
   reliever_label: string;
   show_c2: boolean;
+  medication_note: string;
 };
 
 export default function RecordVisitPage() {
@@ -55,6 +56,7 @@ export default function RecordVisitPage() {
       technique_check: 'ไม่',
       technique_note: '-',
       note: '-',
+      medication_note: '-',
       is_new_case: false,
       is_relative_pickup: false,
       no_pefr: false,
@@ -72,6 +74,7 @@ export default function RecordVisitPage() {
   const noPefr = useWatch({ control, name: 'no_pefr' });
   const techniqueCheck = useWatch({ control, name: 'technique_check' });
   const showC2 = useWatch({ control, name: 'show_c2' });
+  const adherence = useWatch({ control, name: 'adherence' });
 
   // Watchers for Med Names (to hide usage if '-')
   const c1Name = useWatch({ control, name: 'c1_name' });
@@ -132,6 +135,7 @@ export default function RecordVisitPage() {
 
           setValue('reliever_name', medData.reliever_name || 'Salbutamol');
           setValue('reliever_label', medData.reliever_label || '1 puff prn');
+          setValue('medication_note', medData.note || '-');
           setAutoFilled(true);
         } else {
           // Fallback to "Visit History" for Controller/Reliever names if Meds sheet empty
@@ -195,7 +199,7 @@ export default function RecordVisitPage() {
         data.c1_name, data.c1_puffs, data.c1_freq,
         data.show_c2 ? data.c2_name : "", data.show_c2 ? data.c2_puffs : "", data.show_c2 ? data.c2_freq : "",
         data.reliever_name, data.reliever_label,
-        finalNote
+        data.medication_note || '-'
       ];
       promises.push(fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'medications', data: medData }) }));
 
@@ -359,8 +363,17 @@ export default function RecordVisitPage() {
               </div>
             </div>
             <div className="grid md:grid-cols-2 gap-6">
-              <div><label className="text-sm font-bold mb-2 block">ความสม่ำเสมอ</label><input type="range" {...register("adherence")} min="0" max="100" step="10" className="w-full accent-[#D97736]" /></div>
-              <div><label className="text-sm font-bold mb-2 block">DRP</label><input type="text" {...register("drp")} className={inputClass()} /></div>
+              <div>
+                <label className="text-sm font-bold mb-2 flex justify-between">
+                  ความสม่ำเสมอ
+                  <span className="text-primary">{adherence}%</span>
+                </label>
+                <input type="range" {...register("adherence")} min="0" max="100" step="10" className="w-full accent-[#D97736]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-sm font-bold mb-2 block">DRP</label><input type="text" {...register("drp")} className={inputClass()} /></div>
+                <div><label className="text-sm font-bold mb-2 block">Note (Medication)</label><input type="text" {...register("medication_note")} className={inputClass()} /></div>
+              </div>
             </div>
           </div >
 
