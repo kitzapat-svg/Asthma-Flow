@@ -9,6 +9,8 @@ import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, Clipboar
 import { MDI_STEPS } from '@/lib/types';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { PatientContextBar } from '@/components/staff/patient-context-bar';
+import { Patient } from '@/lib/types';
 
 
 
@@ -34,12 +36,15 @@ export default function RecordVisitPage() {
   const params = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(true);
   const [checklist, setChecklist] = useState<boolean[]>(new Array(8).fill(false));
   const [medOptions, setMedOptions] = useState<{ controllers: string[], relievers: string[] }>({
     controllers: ['Seretide', 'Budesonide', 'Symbicort', 'Flixotide', 'Spiromax', 'Spiriva'],
     relievers: ['Salbutamol', 'Berodual']
   });
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [latestControlLevel, setLatestControlLevel] = useState<string>('');
 
 
 
@@ -81,6 +86,9 @@ export default function RecordVisitPage() {
   const c2Name = useWatch({ control, name: 'c2_name' });
   const relieverName = useWatch({ control, name: 'reliever_name' });
 
+  const clinicianNote = useWatch({ control, name: 'note' });
+  const medNote = useWatch({ control, name: 'medication_note' });
+
   // Logic 1: ถ้าญาติมาแทน -> เทคนิคพ่นยาต้องเป็น "ไม่"
   useEffect(() => {
     if (isRelative) setValue('technique_check', 'ไม่');
@@ -100,6 +108,12 @@ export default function RecordVisitPage() {
         // 1. Visits History
         const resVisit = await fetch(`/api/db?type=visits&hn=${params.hn}&t=${Date.now()}`, { cache: 'no-store' });
         const visitData = await resVisit.json();
+
+        // Fetch Patient details for context bar
+        const resPatient = await fetch(`/api/db?type=patients&hn=${params.hn}`);
+        const patientData: Patient[] = await resPatient.json();
+        const foundPatient = patientData.find(p => p.hn.replace(/\D/g, '') === (params.hn as string).replace(/\D/g, ''));
+        if (foundPatient) setPatient(foundPatient);
 
         // 2. Latest Meds
         const resMed = await fetch(`/api/db?type=medications&hn=${params.hn}&t=${Date.now()}`, { cache: 'no-store' });
@@ -145,6 +159,8 @@ export default function RecordVisitPage() {
             if (history[0]) {
               setValue('c1_name', history[0].controller || 'Seretide');
               setValue('reliever_name', history[0].reliever || 'Salbutamol');
+              setLatestControlLevel(history[0].control_level || '');
+
               // Note: Visits history doesn't have puffs/freq, so we don't set autoFilled here or maybe we do partially?
               // The user request specifically mentioned "pulling latest items AND usage", which implies the Meds sheet data.
               // So we'll strictly set autoFilled only when full med details are found.
@@ -157,6 +173,69 @@ export default function RecordVisitPage() {
     };
     fetchData();
   }, [params.hn, setValue]);
+
+  // Autosave Draft Logic
+  useEffect(() => {
+    const draftKey = `asthma_draft_${params.hn}`;
+    // Save draft when notes change
+    if (clinicianNote !== '-' || medNote !== '-') {
+      const draftData = {
+        note: clinicianNote,
+        medication_note: medNote,
+        timestamp: new Date().getTime(),
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+    }
+  }, [clinicianNote, medNote, params.hn]);
+
+  // Load Draft Logic on Mount
+  useEffect(() => {
+    const draftKey = `asthma_draft_${params.hn}`;
+    const savedDraft = localStorage.getItem(draftKey);
+    if (savedDraft) {
+      try {
+        const draftData = JSON.parse(savedDraft);
+        // Only show toast if draft is younger than 24 hours and has content
+        if (Date.now() - draftData.timestamp < 24 * 60 * 60 * 1000) {
+          if ((draftData.note && draftData.note !== '-') || (draftData.medication_note && draftData.medication_note !== '-')) {
+            toast('พบข้อมูลร่างที่บันทึกไว้ค้างอยู่', {
+              duration: 10000,
+              action: {
+                label: 'กู้คืนข้อมูล',
+                onClick: () => {
+                  if (draftData.note && draftData.note !== '-') setValue('note', draftData.note);
+                  if (draftData.medication_note && draftData.medication_note !== '-') setValue('medication_note', draftData.medication_note);
+                  toast.success('กู้คืนข้อมูลร่างเรียบร้อยแล้ว');
+                }
+              },
+              cancel: {
+                label: 'ลบทิ้ง',
+                onClick: () => localStorage.removeItem(draftKey)
+              }
+            });
+          }
+        } else {
+          localStorage.removeItem(draftKey); // Clear old drafts
+        }
+      } catch (e) {
+        console.error("Failed to parse draft");
+      }
+    }
+  }, [params.hn, setValue]);
+
+  // Keyboard Shortcut (Ctrl+S / Cmd+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault(); // Prevent browser save dialog
+        if (!loading) {
+          handleSubmit(onSubmit)();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSubmit, loading]);
 
   const toggleCheck = (index: number) => {
     const newChecklist = [...checklist];
@@ -204,9 +283,18 @@ export default function RecordVisitPage() {
       promises.push(fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'medications', data: medData }) }));
 
       await Promise.all(promises);
+
+      // Optimistic success feedback
+      setSaveSuccess(true);
       toast.success("บันทึกเรียบร้อย!");
 
-      router.push(`/staff/patient/${params.hn}`);
+      // Clear draft on successful save
+      localStorage.removeItem(`asthma_draft_${params.hn}`);
+
+      // Brief delay to show success state before navigating
+      setTimeout(() => {
+        router.push(`/staff/patient/${params.hn}`);
+      }, 400);
     } catch (e) {
       toast.error("Error saving data");
 
@@ -230,10 +318,11 @@ export default function RecordVisitPage() {
       </nav>
 
       <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 border-2 border-border dark:border-zinc-800 shadow-[8px_8px_0px_0px_var(--border)] dark:shadow-none p-8">
+        <PatientContextBar patient={patient} latestControlLevel={latestControlLevel} />
+
         <div className="flex gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-zinc-800 items-center">
           <div className="w-12 h-12 bg-primary flex items-center justify-center text-white border-2 border-border dark:border-zinc-700"><Activity size={24} /></div>
           <div><h1 className="text-xl font-black">บันทึกการตรวจรักษา</h1><p className="text-muted-foreground font-medium">HN: {params.hn}</p></div>
-
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -422,8 +511,8 @@ export default function RecordVisitPage() {
             <div><label className="text-sm font-bold mb-2 block">วันนัดถัดไป</label><input type="date" {...register("next_appt")} className={inputClass()} /></div>
           </div >
 
-          <Button type="submit" disabled={loading} className="w-full bg-foreground text-background font-bold text-lg h-14 border-2 border-border shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5 transition-all flex justify-center gap-2">
-            {loading ? "กำลังบันทึก..." : <><Save size={20} /> บันทึกผล</>}
+          <Button type="submit" disabled={loading || saveSuccess} className={`w-full font-bold text-lg h-14 border-2 border-border transition-all flex justify-center gap-2 ${saveSuccess ? 'bg-green-600 text-white shadow-none border-green-700' : 'bg-foreground text-background shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5'}`}>
+            {saveSuccess ? <><CheckCircle size={20} className="animate-pulse" /> บันทึกสำเร็จ!</> : loading ? <><RefreshCw size={20} className="animate-spin" /> กำลังบันทึก...</> : <><Save size={20} /> บันทึกผล</>}
           </Button>
 
         </form >

@@ -328,9 +328,37 @@ export default function StatsPage() {
   const currentFyData = fiscalYearStats.find(s => s.fy === selectedFy) || { totalPatients: 0, topMistakes: [] };
 
   if (loading) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh]">
-      <Activity className="animate-spin text-primary mb-4" size={48} />
-      <p className="text-muted-foreground font-bold animate-pulse">กำลังคำนวณสถิติ...</p>
+    <div className="space-y-8 pb-20 animate-fade-up">
+      {/* Skeleton Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="h-8 w-36 skeleton-shimmer rounded-lg" />
+          <div className="h-4 w-52 skeleton-shimmer rounded mt-2" />
+        </div>
+        <div className="h-10 w-10 skeleton-shimmer rounded-full" />
+      </div>
+      {/* Skeleton Stat Tiles */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="glass-card p-5">
+            <div className="flex justify-between items-start mb-4">
+              <div className="h-9 w-9 skeleton-shimmer rounded-xl" />
+              <div className="h-5 w-12 skeleton-shimmer rounded-full" />
+            </div>
+            <div className="h-3 w-28 skeleton-shimmer rounded mb-2" />
+            <div className="h-8 w-16 skeleton-shimmer rounded" />
+          </div>
+        ))}
+      </div>
+      {/* Skeleton Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {[...Array(2)].map((_, i) => (
+          <div key={i} className="stat-card bg-white dark:bg-zinc-900 p-6">
+            <div className="h-5 w-44 skeleton-shimmer rounded mb-6" />
+            <div className="h-[280px] skeleton-shimmer rounded-xl" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 

@@ -19,6 +19,7 @@ import { FadeContent } from '@/components/animated/fade-content';
 interface PatientWithAppt extends Patient {
   nextAppt: Date | null;
   lastVisit: Date | null;
+  latestControlLevel: string | null;
 }
 
 export default function PatientListPage() {
@@ -32,6 +33,7 @@ export default function PatientListPage() {
   // UI State
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [quickFilter, setQuickFilter] = useState('All'); // 'All', 'Today', 'Missed', 'Warning'
   const [isFocused, setIsFocused] = useState(false);
 
 
@@ -70,12 +72,14 @@ export default function PatientListPage() {
 
         let nextAppt: Date | null = null;
         let lastVisit: Date | null = null;
+        let latestControlLevel: string | null = null;
 
         // Sort visits by date descending
         pVisits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         if (pVisits.length > 0) {
           lastVisit = new Date(pVisits[0].date);
+          latestControlLevel = pVisits[0].control_level || null;
 
           // Check for explicit next appointment fields
           // Filter valid future dates
@@ -93,7 +97,8 @@ export default function PatientListPage() {
         return {
           ...p,
           nextAppt,
-          lastVisit
+          lastVisit,
+          latestControlLevel
         };
       });
 
@@ -118,7 +123,22 @@ export default function PatientListPage() {
 
       const matchStatus = filterStatus === 'All' || p.status === filterStatus;
 
-      return matchSearch && matchStatus;
+      let matchQuick = true;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (quickFilter === 'Today') {
+        matchQuick = p.nextAppt !== null && p.nextAppt.getTime() === today.getTime();
+      } else if (quickFilter === 'Missed') {
+        // Needs a valid nextAppt that is past, but my logic above filters futureAppts only for nextAppt.
+        // If they missed it, nextAppt might be null. Let's redefine Missed based on exact logic or just skip if we don't have it.
+        // For now, let's say "Warning" = Partly/Uncontrolled
+        matchQuick = false; // We didn't keep past nextAppt in the variable
+      } else if (quickFilter === 'Warning') {
+        matchQuick = p.latestControlLevel === 'Partly Controlled' || p.latestControlLevel === 'Uncontrolled';
+      }
+
+      return matchSearch && matchStatus && matchQuick;
     });
 
     // 2. Sort Logic
@@ -158,9 +178,38 @@ export default function PatientListPage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <Activity className="animate-spin text-primary mb-4" size={48} />
-        <p className="text-muted-foreground font-bold animate-pulse">กำลังโหลดข้อมูล...</p>
+      <div className="space-y-8 pb-20 animate-fade-up">
+        {/* Skeleton Header */}
+        <div className="flex justify-between items-end">
+          <div>
+            <div className="h-8 w-40 skeleton-shimmer rounded-lg" />
+            <div className="h-4 w-56 skeleton-shimmer rounded mt-2" />
+          </div>
+          <div className="h-10 w-36 skeleton-shimmer rounded-lg" />
+        </div>
+        {/* Skeleton Stat Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="stat-card p-6">
+              <div className="h-5 w-5 skeleton-shimmer rounded mb-4" />
+              <div className="h-3 w-24 skeleton-shimmer rounded mb-2" />
+              <div className="h-9 w-16 skeleton-shimmer rounded" />
+            </div>
+          ))}
+        </div>
+        {/* Skeleton Patient Rows */}
+        <div className="space-y-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="glass-card p-4 rounded-2xl flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full skeleton-shimmer" />
+              <div className="flex-1 space-y-2">
+                <div className="h-5 w-48 skeleton-shimmer rounded" />
+                <div className="h-3 w-32 skeleton-shimmer rounded" />
+              </div>
+              <div className="h-4 w-20 skeleton-shimmer rounded hidden md:block" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -231,6 +280,22 @@ export default function PatientListPage() {
             </select>
             <Filter className="absolute right-4 top-1/2 -translate-y-1/2 text-primary pointer-events-none" size={16} />
           </div>
+        </div>
+
+        {/* Quick Filters */}
+        <div className="flex flex-wrap gap-2 mt-3 pl-2">
+          <button
+            onClick={() => setQuickFilter('All')}
+            className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors ${quickFilter === 'All' ? 'bg-primary text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-primary'}`}
+          >ทั้งหมด</button>
+          <button
+            onClick={() => setQuickFilter('Today')}
+            className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors ${quickFilter === 'Today' ? 'bg-primary text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-primary'}`}
+          >นัดหมายวันนี้</button>
+          <button
+            onClick={() => setQuickFilter('Warning')}
+            className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors flex items-center gap-1 ${quickFilter === 'Warning' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-orange-500 hover:text-orange-500'}`}
+          ><AlertCircle size={14} /> ต้องเฝ้าระวัง</button>
         </div>
       </div>
 

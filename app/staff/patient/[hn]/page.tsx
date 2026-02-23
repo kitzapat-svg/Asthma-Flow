@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Activity, FileText, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Patient, Visit, TechniqueCheck, VisitDisplay, Medication } from './_components/types';
 import { normalizeHN, getAge, calculatePredictedPEFR, getStatusStyle, getInhalerStatus } from './_components/utils';
@@ -107,16 +108,71 @@ export default function PatientDetailPage() {
         const confirmChange = window.confirm(`ยืนยันการเปลี่ยนสถานะเป็น "${newStatus}"?`);
         if (!confirmChange) return;
 
-        setUpdatingStatus(true);
-        await fetch('/api/db', {
-            method: 'PUT',
-            body: JSON.stringify({ type: 'patients', hn: patient.hn, status: newStatus })
-        });
+        // Optimistic: update UI immediately
+        const previousStatus = patient.status;
         setPatient({ ...patient, status: newStatus });
-        setUpdatingStatus(false);
+        setUpdatingStatus(true);
+
+        try {
+            const res = await fetch('/api/db', {
+                method: 'PUT',
+                body: JSON.stringify({ type: 'patients', hn: patient.hn, status: newStatus })
+            });
+            if (!res.ok) throw new Error('Failed to update');
+            toast.success(`เปลี่ยนสถานะเป็น "${newStatus}" เรียบร้อย`);
+        } catch (e) {
+            // Rollback on failure
+            setPatient({ ...patient, status: previousStatus });
+            toast.error('ไม่สามารถเปลี่ยนสถานะได้ กรุณาลองใหม่');
+        } finally {
+            setUpdatingStatus(false);
+        }
     };
 
-    if (loading) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#FEFCF8] dark:bg-black text-[#2D2A26] dark:text-white"><Activity className="animate-spin text-[#D97736]" size={48} /><p className="text-[#6B6560] dark:text-zinc-400 font-bold">กำลังโหลดข้อมูล...</p></div>;
+    if (loading) return (
+        <div className="min-h-screen bg-[#FEFCF8] dark:bg-background p-6 pb-20 font-sans transition-colors animate-fade-up">
+            <nav className="max-w-5xl mx-auto mb-8 flex items-center justify-between">
+                <div className="h-5 w-28 skeleton-shimmer rounded" />
+                <div className="h-8 w-24 skeleton-shimmer rounded-full" />
+            </nav>
+            <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Column Skeleton */}
+                <div className="space-y-6">
+                    <div className="bg-white dark:bg-card rounded-lg p-6 border border-border">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="w-16 h-16 rounded-full skeleton-shimmer" />
+                            <div className="flex-1 space-y-2">
+                                <div className="h-6 w-40 skeleton-shimmer rounded" />
+                                <div className="h-4 w-28 skeleton-shimmer rounded" />
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            <div className="h-4 w-full skeleton-shimmer rounded" />
+                            <div className="h-4 w-3/4 skeleton-shimmer rounded" />
+                        </div>
+                    </div>
+                    <div className="h-32 skeleton-shimmer rounded-lg" />
+                </div>
+                {/* Right Column Skeleton */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white dark:bg-card rounded-lg p-6 border border-border">
+                        <div className="h-5 w-36 skeleton-shimmer rounded mb-4" />
+                        <div className="h-[200px] skeleton-shimmer rounded-xl" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="h-14 skeleton-shimmer rounded" />
+                        <div className="h-14 skeleton-shimmer rounded" />
+                    </div>
+                    <div className="bg-white dark:bg-card rounded-lg p-6 border border-border space-y-3">
+                        <div className="h-5 w-32 skeleton-shimmer rounded" />
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className="h-10 skeleton-shimmer rounded" />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
     if (!patient) return <div className="p-10 text-center text-red-500 font-bold">ไม่พบข้อมูลผู้ป่วย HN: {params.hn}</div>;
 
     const predictedVal = calculatePredictedPEFR(patient);

@@ -37,12 +37,12 @@ export default function StaffLayout({
             {/* Navigation Links */}
             <div className="hidden md:flex items-center gap-2">
               <Link href="/staff/dashboard">
-                <button className={`px-4 py-2 rounded-md font-bold flex items-center gap-2 transition-all ${isActive('/staff/dashboard')}`}>
+                <button className={`px-5 py-3 min-h-[44px] rounded-md font-bold flex items-center gap-2 transition-all ${isActive('/staff/dashboard')}`}>
                   <Users size={18} /> รายชื่อผู้ป่วย
                 </button>
               </Link>
               <Link href="/staff/stats">
-                <button className={`px-4 py-2 rounded-md font-bold flex items-center gap-2 transition-all ${isActive('/staff/stats')}`}>
+                <button className={`px-5 py-3 min-h-[44px] rounded-md font-bold flex items-center gap-2 transition-all ${isActive('/staff/stats')}`}>
                   <PieChart size={18} /> แดชบอร์ด & สถิติ
                 </button>
               </Link>
@@ -58,9 +58,25 @@ export default function StaffLayout({
       </nav>
 
       {/* --- CONTENT AREA --- */}
-      <main className="max-w-6xl mx-auto p-6">
+      <main className="max-w-6xl mx-auto p-6 pb-24 md:pb-6">
         {children}
       </main>
+
+      {/* --- MOBILE BOTTOM NAV (visible on small screens) --- */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-900 border-t-2 border-border flex justify-around items-center py-2 shadow-lg">
+        <Link href="/staff/dashboard">
+          <button className={`flex flex-col items-center gap-1 px-4 py-2 min-h-[48px] rounded-lg text-xs font-bold transition-all ${isActive('/staff/dashboard')}`}>
+            <LayoutDashboard size={20} />
+            รายชื่อ
+          </button>
+        </Link>
+        <Link href="/staff/stats">
+          <button className={`flex flex-col items-center gap-1 px-4 py-2 min-h-[48px] rounded-lg text-xs font-bold transition-all ${isActive('/staff/stats')}`}>
+            <PieChart size={20} />
+            สถิติ
+          </button>
+        </Link>
+      </nav>
     </div>
   );
 }
