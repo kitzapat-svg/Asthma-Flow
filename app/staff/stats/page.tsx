@@ -6,6 +6,9 @@ import {
   CalendarDays, TrendingUp, Users, CalendarRange, LineChart,
   Stethoscope, AlertCircle, BookOpen, ChevronRight
 } from 'lucide-react';
+// NOTE: recharts uses `window` but this is a 'use client' file with a loading
+// guard — recharts components only render after client-side data fetch completes,
+// so they are never invoked during SSR.
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -644,7 +647,19 @@ export default function StatsPage() {
   );
 }
 
-function StatTile({ label, value, sub, icon, delay, trend, color, onClick, clickable }: any) {
+interface StatTileProps {
+  label: string;
+  value: number;
+  sub: string;
+  icon: React.ReactNode;
+  delay: number;
+  trend?: string;
+  color?: string;
+  onClick?: () => void;
+  clickable?: boolean;
+}
+
+function StatTile({ label, value, sub, icon, delay, trend, color, onClick, clickable }: StatTileProps) {
   return (
     <FadeContent delay={delay} className={`glass-card p-5 relative overflow-hidden group transition-all duration-300 ${clickable ? 'cursor-pointer hover:border-primary/50 hover:shadow-primary/10' : ''}`} >
       <div className="absolute inset-0 z-0 bg-transparent group-hover:bg-primary/5 transition-colors" onClick={onClick} />

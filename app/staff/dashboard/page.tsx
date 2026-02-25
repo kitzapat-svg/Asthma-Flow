@@ -128,7 +128,13 @@ export default function PatientListPage() {
       today.setHours(0, 0, 0, 0);
 
       if (quickFilter === 'Today') {
-        matchQuick = p.nextAppt !== null && p.nextAppt.getTime() === today.getTime();
+        if (p.nextAppt) {
+          const apptDate = new Date(p.nextAppt);
+          apptDate.setHours(0, 0, 0, 0);
+          matchQuick = apptDate.getTime() === today.getTime();
+        } else {
+          matchQuick = false;
+        }
       } else if (quickFilter === 'Missed') {
         // Needs a valid nextAppt that is past, but my logic above filters futureAppts only for nextAppt.
         // If they missed it, nextAppt might be null. Let's redefine Missed based on exact logic or just skip if we don't have it.
@@ -162,11 +168,11 @@ export default function PatientListPage() {
       // But only if we have patients with appointments or recent activity
       // If we have very few patients with appointments, we might want to show others too?
       // Requirement said: "Only show top 20-30... hide others"
-      return filtered.slice(0, 30);
+      return quickFilter === 'All' ? filtered.slice(0, 30) : filtered;
     }
 
     return filtered; // Return all matches when searching
-  }, [patients, searchTerm, filterStatus]);
+  }, [patients, searchTerm, filterStatus, quickFilter]);
 
   // Stats for Cards
   const stats = {
@@ -359,7 +365,15 @@ export default function PatientListPage() {
 
 // --- Components ---
 
-function StatCard({ label, value, icon, color, delay }: any) {
+interface StatCardProps {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  color: string;
+  delay: number;
+}
+
+function StatCard({ label, value, icon, color, delay }: StatCardProps) {
   return (
     <FadeContent delay={delay} className="stat-card group">
       <div className={`absolute top-0 right-0 w-20 h-20 ${color} opacity-10 blur-2xl rounded-full -mr-10 -mt-10 transition-all group-hover:scale-150 group-hover:opacity-20`} />
