@@ -1,16 +1,20 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useForm, FieldError, useWatch } from 'react-hook-form';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useForm, FieldError, useWatch, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList, RefreshCw, Users } from 'lucide-react';
+import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList, RefreshCw, Users, AlertTriangle } from 'lucide-react';
 import { MDI_STEPS } from '@/lib/types';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { PatientContextBar } from '@/components/staff/patient-context-bar';
 import { Patient } from '@/lib/types';
+import { DRP_DATA, INTERVENTION_OPTIONS, OUTCOME_OPTIONS } from '@/lib/drp-data';
+import { v4 as uuidv4 } from 'uuid';
+import { getUnresolvedDrps } from '@/lib/drp-helpers';
+import { DRP } from '@/lib/types';
 
 
 
@@ -30,6 +34,16 @@ type VisitFormValues = z.infer<typeof visitSchema> & {
   reliever_label: string;
   show_c2: boolean;
   medication_note: string;
+  drpList: {
+    category: string;
+    type: string;
+    cause: string;
+    customCause: string;
+    intervention: string;
+    customIntervention: string;
+    outcome: string;
+    customOutcome: string;
+  }[];
 };
 
 export default function RecordVisitPage() {
@@ -45,6 +59,11 @@ export default function RecordVisitPage() {
   });
   const [patient, setPatient] = useState<Patient | null>(null);
   const [latestControlLevel, setLatestControlLevel] = useState<string>('');
+  const [existingUnresolvedDrps, setExistingUnresolvedDrps] = useState<DRP[]>([]);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editDate, setEditDate] = useState<string | null>(null); // date being edited (null = today)
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get('date'); // e.g. ?date=2026-01-15
 
 
 
@@ -56,7 +75,8 @@ export default function RecordVisitPage() {
       controller: 'Seretide',
       reliever: 'Salbutamol',
       adherence: '100',
-      drp: '-',
+      drp: '-', // Keep the old one for backward compatibility or submit '-'
+      drpList: [],
       advice: '-',
       technique_check: 'ไม่',
       technique_note: '-',
@@ -70,6 +90,11 @@ export default function RecordVisitPage() {
       reliever_name: 'Salbutamol', reliever_label: '1 puff prn',
       show_c2: false,
     }
+  });
+
+  const { fields: drpFields, append: appendDrp, remove: removeDrp } = useFieldArray({
+    control,
+    name: "drpList"
   });
 
   const [autoFilled, setAutoFilled] = useState(false);
@@ -129,8 +154,82 @@ export default function RecordVisitPage() {
           setMedOptions(prev => ({ ...prev, relievers: listData.relievers }));
         }
 
+        // Determine which date to check for existing visit
+        const todayStr = new Date().toISOString().split('T')[0];
+        const targetDate = dateParam || todayStr;
+
+        // Check if there's already a visit for the target date
+        if (Array.isArray(visitData)) {
+          const targetVisit = visitData.find((v: any) => v.date === targetDate);
+          if (targetVisit) {
+            // Edit Mode — populate form with existing data
+            setIsEditMode(true);
+            setEditDate(targetDate);
+            setValue('pefr', targetVisit.pefr === '-' ? '' : (targetVisit.pefr || ''));
+            setValue('no_pefr', targetVisit.pefr === '-');
+            setValue('control_level', targetVisit.control_level || 'Well Controlled');
+            setValue('adherence', (targetVisit.adherence || '100%').replace('%', ''));
+            setValue('advice', targetVisit.advice || '-');
+            setValue('technique_check', targetVisit.technique_check || 'ไม่');
+            setValue('next_appt', targetVisit.next_appt || '');
+            setValue('note', targetVisit.note || '-');
+            setValue('is_new_case', targetVisit.is_new_case === 'TRUE');
+
+            // Parse inhaler score for technique checklist
+            if (targetVisit.technique_check === 'ทำ') {
+              // Fetch technique data for target date
+              try {
+                const resTech = await fetch(`/api/db?type=technique_checks&hn=${params.hn}`);
+                const techData = await resTech.json();
+                if (Array.isArray(techData)) {
+                  const matchedTech = techData.find((t: any) => t.date === targetDate);
+                  if (matchedTech) {
+                    const steps = matchedTech.steps || [];
+                    if (Array.isArray(steps) && steps.length === 8) {
+                      setChecklist(steps.map((s: string) => s === '1'));
+                    }
+                    setValue('technique_note', matchedTech.note || '');
+                  }
+                }
+              } catch { /* ignore */ }
+            }
+
+            if (dateParam) {
+              toast.info(`✏️ แก้ไข Visit วันที่ ${new Date(targetDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}`);
+            } else {
+              toast.info('📋 พบข้อมูลที่บันทึกไว้วันนี้ — โหมดแก้ไข');
+            }
+
+            // Load existing DRPs for this visit date
+            try {
+              const resDrps = await fetch(`/api/db?type=drps&hn=${params.hn}`);
+              const drpsData = await resDrps.json();
+              if (Array.isArray(drpsData)) {
+                const visitDrps = drpsData.filter((d: any) => {
+                  const dVisitDate = d.visit_date || d.VisitDate || '';
+                  return dVisitDate === targetDate;
+                });
+                if (visitDrps.length > 0) {
+                  // Clear existing drpList and populate with saved DRPs
+                  setValue('drpList', visitDrps.map((d: any) => ({
+                    category: d.category || d.Category || '',
+                    type: d.type || d.Type || '',
+                    cause: d.cause || d.Cause || '',
+                    customCause: '',
+                    intervention: d.intervention || d.Intervention || '',
+                    customIntervention: '',
+                    outcome: d.outcome || d.Outcome || '',
+                    customOutcome: '',
+                  })));
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        }
+
+        // Set medication data (same logic, but meds also come from today's edit)
         if (medData && medData.date) {
-          // Found existing meds
+          // Check if medData date is today — if yes, it's from today's visit
           setValue('c1_name', medData.c1_name || 'Seretide');
           setValue('c1_puffs', medData.c1_puffs || '1');
           setValue('c1_freq', medData.c1_freq || 'BID');
@@ -152,18 +251,13 @@ export default function RecordVisitPage() {
           setValue('medication_note', medData.note || '-');
           setAutoFilled(true);
         } else {
-          // Fallback to "Visit History" for Controller/Reliever names if Meds sheet empty
+          // Fallback to visit history
           if (Array.isArray(visitData) && visitData.length > 0) {
-            // sort desc
             const history = visitData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
             if (history[0]) {
               setValue('c1_name', history[0].controller || 'Seretide');
               setValue('reliever_name', history[0].reliever || 'Salbutamol');
               setLatestControlLevel(history[0].control_level || '');
-
-              // Note: Visits history doesn't have puffs/freq, so we don't set autoFilled here or maybe we do partially?
-              // The user request specifically mentioned "pulling latest items AND usage", which implies the Meds sheet data.
-              // So we'll strictly set autoFilled only when full med details are found.
             }
           }
         }
@@ -171,7 +265,21 @@ export default function RecordVisitPage() {
       } catch (err) { console.error(err); }
       finally { setFetchingHistory(false); }
     };
+
+    // Fetch existing DRPs for alert banner
+    const fetchExistingDrps = async () => {
+      try {
+        const res = await fetch(`/api/db?type=drps&hn=${params.hn}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const unresolved = getUnresolvedDrps(data);
+          setExistingUnresolvedDrps(unresolved);
+        }
+      } catch (err) { console.error('Failed to fetch DRPs:', err); }
+    };
+
     fetchData();
+    fetchExistingDrps();
   }, [params.hn, setValue]);
 
   // Autosave Draft Logic
@@ -243,10 +351,12 @@ export default function RecordVisitPage() {
     setChecklist(newChecklist);
   };
 
+  const currentDrpList = useWatch({ control, name: 'drpList' });
+
   const onSubmit = async (data: VisitFormValues) => {
     setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = editDate || new Date().toISOString().split('T')[0];
       const totalScore = checklist.filter(Boolean).length;
       const inhalerScore = data.technique_check === 'ทำ' ? totalScore.toString() : '-';
 
@@ -258,17 +368,27 @@ export default function RecordVisitPage() {
 
       const visitData = [
         params.hn, today, finalPefr, data.control_level, data.c1_name, data.reliever_name,
-        data.adherence + '%', data.drp, data.advice, data.technique_check, data.next_appt || '',
+        data.adherence + '%', data.drpList && data.drpList.length > 0 ? `${data.drpList.length} DRP(s)` : '-', data.advice, data.technique_check, data.next_appt || '',
         finalNote, data.is_new_case ? 'TRUE' : 'FALSE', inhalerScore
       ];
 
+      const httpMethod = isEditMode ? 'PUT' : 'POST';
+
       const promises = [
-        fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'visits', data: visitData }) })
+        fetch('/api/db', {
+          method: httpMethod,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'visits', hn: params.hn, date: today, data: visitData })
+        })
       ];
 
       if (data.technique_check === 'ทำ') {
         const checklistData = [params.hn, today, ...checklist.map(c => c ? "1" : "0"), totalScore.toString(), data.technique_note || '-'];
-        promises.push(fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'technique_checks', data: checklistData }) }));
+        promises.push(fetch('/api/db', {
+          method: httpMethod,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'technique_checks', hn: params.hn, date: today, data: checklistData })
+        }));
       }
 
       // Save Medications
@@ -280,13 +400,42 @@ export default function RecordVisitPage() {
         data.reliever_name, data.reliever_label,
         data.medication_note || '-'
       ];
-      promises.push(fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'medications', data: medData }) }));
+      promises.push(fetch('/api/db', {
+        method: httpMethod,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'medications', hn: params.hn, date: today, data: medData })
+      }));
+
+      // Save DRPs
+      if (data.drpList && data.drpList.length > 0) {
+        for (const drp of data.drpList) {
+          const drpId = uuidv4();
+          const finalCause = drp.cause === "อื่นๆ (ระบุ)..." ? `อื่นๆ: ${drp.customCause || '-'}` : (drp.cause || '-');
+          const finalIntervention = drp.intervention === "อื่นๆ (ระบุ)..." ? `อื่นๆ: ${drp.customIntervention || '-'}` : (drp.intervention || '-');
+          const finalOutcome = drp.outcome === "อื่นๆ (ระบุ)..." ? `อื่นๆ: ${drp.customOutcome || '-'}` : (drp.outcome || '-');
+
+          // [ID, HN, Date, Visit_Date, Category, Type, Cause, Intervention, Outcome, Note]
+          const drpRow = [
+            drpId,
+            params.hn,
+            new Date().toISOString(),
+            today,
+            drp.category || '-',
+            drp.type || '-',
+            finalCause,
+            finalIntervention,
+            finalOutcome,
+            '-' // Note field reserved for future use
+          ];
+          promises.push(fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'drps', data: drpRow }) }));
+        }
+      }
 
       await Promise.all(promises);
 
       // Optimistic success feedback
       setSaveSuccess(true);
-      toast.success("บันทึกเรียบร้อย!");
+      toast.success(isEditMode ? 'อัพเดตข้อมูลเรียบร้อย!' : 'บันทึกเรียบร้อย!');
 
       // Clear draft on successful save
       localStorage.removeItem(`asthma_draft_${params.hn}`);
@@ -319,6 +468,60 @@ export default function RecordVisitPage() {
 
       <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 border-2 border-border dark:border-zinc-800 shadow-[8px_8px_0px_0px_var(--border)] dark:shadow-none p-8">
         <PatientContextBar patient={patient} latestControlLevel={latestControlLevel} />
+
+        {/* Editing old visit info banner */}
+        {isEditMode && editDate && editDate !== new Date().toISOString().split('T')[0] && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-700 rounded-lg p-4 mb-6 flex items-center gap-3 animate-in fade-in">
+            <div className="bg-blue-500 text-white p-2 rounded-lg shrink-0">
+              <FileText size={18} />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">
+                ✏️ กำลังแก้ไข Visit วันที่ {new Date(editDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </h4>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">ข้อมูลจะถูกอัพเดตไปยังแถวเดิมในฐานข้อมูล</p>
+            </div>
+          </div>
+        )}
+
+        {/* Unresolved DRP Warning Banner */}
+        {existingUnresolvedDrps.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-lg p-4 mb-6 flex items-start gap-3 animate-in fade-in">
+            <div className="bg-amber-500 text-white p-2 rounded-lg shrink-0 mt-0.5">
+              <AlertTriangle size={18} />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm">
+                ⚠️ ผู้ป่วยรายนี้มี DRP ค้างอยู่ {existingUnresolvedDrps.length} รายการ
+              </h4>
+              <ul className="mt-2 space-y-2">
+                {existingUnresolvedDrps.slice(0, 5).map((drp: any, i) => {
+                  const drpType = drp.type || drp.Type || '-';
+                  const drpCause = drp.cause || drp.Cause || '-';
+                  const drpIntervention = drp.intervention || drp.Intervention || '-';
+                  const drpOutcome = drp.outcome || drp.Outcome || '';
+                  return (
+                    <li key={drp.id || drp.ID || i} className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/30 rounded-md p-2">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                        {drpType}
+                      </div>
+                      <div className="ml-3 mt-1 space-y-0.5 text-amber-600 dark:text-amber-500">
+                        <div>สาเหตุ: <span className="font-semibold">{drpCause}</span></div>
+                        <div>การจัดการ: <span className="font-semibold">{drpIntervention}</span></div>
+                        {drpOutcome && <div>ผลลัพธ์: <span className="font-semibold">{drpOutcome}</span></div>}
+                      </div>
+                    </li>
+                  );
+                })}
+                {existingUnresolvedDrps.length > 5 && (
+                  <li className="text-xs text-amber-600 font-bold ml-3">...และอีก {existingUnresolvedDrps.length - 5} รายการ</li>
+                )}
+              </ul>
+              <p className="text-xs text-amber-600 dark:text-amber-500 mt-2 font-medium">กรุณาตรวจสอบและติดตามผลในครั้งนี้</p>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-zinc-800 items-center">
           <div className="w-12 h-12 bg-primary flex items-center justify-center text-white border-2 border-border dark:border-zinc-700"><Activity size={24} /></div>
@@ -451,20 +654,105 @@ export default function RecordVisitPage() {
                 </div>
               </div>
             </div>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="text-sm font-bold mb-2 flex justify-between">
-                  ความสม่ำเสมอ
-                  <span className="text-primary">{adherence}%</span>
-                </label>
-                <input type="range" {...register("adherence")} min="0" max="100" step="10" className="w-full accent-[#D97736]" />
+            <div className="grid md:grid-cols-2 gap-x-8 gap-y-6 mt-6 items-start">
+              {/* Left Column: Adherence & Note */}
+              <div className="flex flex-col h-full">
+                <div className="mb-6">
+                  <label className="text-sm font-bold mb-2 flex justify-between">
+                    ความสม่ำเสมอ
+                    <span className="text-[#D97736]">{adherence}%</span>
+                  </label>
+                  <input type="range" {...register("adherence")} min="0" max="100" step="10" className="w-full accent-[#D97736]" />
+                </div>
+                <div className="mt-auto pt-8">
+                  <label className="text-sm font-bold mb-2 block">Note (Medication/DRP)</label>
+                  <input type="text" {...register("medication_note")} className={inputClass()} />
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-sm font-bold mb-2 block">DRP</label><input type="text" {...register("drp")} className={inputClass()} /></div>
-                <div><label className="text-sm font-bold mb-2 block">Note (Medication)</label><input type="text" {...register("medication_note")} className={inputClass()} /></div>
+
+              {/* Right Column: DRP */}
+              <div className="flex flex-col gap-3">
+                <div className="border-t border-[#3D3834]/30 dark:border-zinc-700 w-full mb-2"></div>
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-bold flex items-center gap-2 text-[#D97736]">DRP (Drug-Related Problems)</h4>
+                  <button type="button" onClick={() => appendDrp({ category: '', type: '', cause: '', customCause: '', intervention: '', customIntervention: '', outcome: '', customOutcome: '' })} className="text-xs font-bold px-3 py-1.5 border-2 border-[#3D3834] dark:border-zinc-600 bg-white dark:bg-zinc-800 text-[#2D2A26] dark:text-white shadow-[2px_2px_0px_0px_#3D3834] dark:shadow-none hover:bg-gray-50 transition-all active:translate-y-px active:shadow-none">
+                    + เพิ่ม DRP
+                  </button>
+                </div>
+
+                {drpFields.map((field, index) => {
+                  const selectedCategory = DRP_DATA.find(c => c.name === currentDrpList?.[index]?.category);
+                  const selectedType = selectedCategory?.types.find(t => t.name === currentDrpList?.[index]?.type);
+
+                  return (
+                    <div key={field.id} className="p-4 border-2 border-[#3D3834]/20 rounded-md bg-white dark:bg-zinc-900 relative space-y-3">
+                      <button type="button" onClick={() => removeDrp(index)} className="absolute top-2 right-2 text-xs text-red-500 hover:text-red-700 font-bold">❌ ลบ</button>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-bold mb-1 block">หมวดหมู่ (Category)</label>
+                          <select {...register(`drpList.${index}.category`)} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800">
+                            <option value="">-- เลือกหมวดหมู่ --</option>
+                            {DRP_DATA.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold mb-1 block">ปัญหา (Type)</label>
+                          <select {...register(`drpList.${index}.type`)} disabled={!selectedCategory} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800 disabled:opacity-50">
+                            <option value="">-- เลือกปัญหา --</option>
+                            {selectedCategory?.types.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <label className="text-xs font-bold mb-1 block">สาเหตุ (Cause)</label>
+                          <select {...register(`drpList.${index}.cause`)} disabled={!selectedType} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800 disabled:opacity-50">
+                            <option value="">-- เลือกสาเหตุ --</option>
+                            {selectedType?.causes.map((cause, i) => <option key={i} value={cause}>{cause}</option>)}
+                          </select>
+                          {currentDrpList?.[index]?.cause === "อื่นๆ (ระบุ)..." && (
+                            <input type="text" {...register(`drpList.${index}.customCause`)} placeholder="ระบุสาเหตุอื่นๆ..." className="w-full mt-2 px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800" />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-3 mt-3 border-t border-dashed border-[#3D3834]/20">
+                        <div>
+                          <label className="text-xs font-bold mb-1 block">การจัดการ (Intervention)</label>
+                          <select {...register(`drpList.${index}.intervention`)} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800">
+                            <option value="">-- เลือกการจัดการ --</option>
+                            {INTERVENTION_OPTIONS.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                          </select>
+                          {currentDrpList?.[index]?.intervention === "อื่นๆ (ระบุ)..." && (
+                            <input type="text" {...register(`drpList.${index}.customIntervention`)} placeholder="ระบุการจัดการอื่นๆ..." className="w-full mt-2 px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800" />
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold mb-1 block">ผลลัพธ์ (Outcome)</label>
+                          <select {...register(`drpList.${index}.outcome`)} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800">
+                            <option value="">-- เลือกผลลัพธ์ --</option>
+                            {OUTCOME_OPTIONS.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                          </select>
+                          {currentDrpList?.[index]?.outcome === "อื่นๆ (ระบุ)..." && (
+                            <input type="text" {...register(`drpList.${index}.customOutcome`)} placeholder="ระบุผลลัพธ์อื่นๆ..." className="w-full mt-2 px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {drpFields.length === 0 && (
+                  <div className="text-center p-4 border border-dashed border-[#3D3834]/30 rounded text-muted-foreground text-sm font-bold">
+                    ไม่มีปัญหา DRP ในครั้งนี้
+                  </div>
+                )}
               </div>
             </div>
-          </div >
+          </div>
 
           {/* 3. Technique */}
           < div className="border-t pt-6 space-y-4" >
@@ -511,8 +799,8 @@ export default function RecordVisitPage() {
             <div><label className="text-sm font-bold mb-2 block">วันนัดถัดไป</label><input type="date" {...register("next_appt")} className={inputClass()} /></div>
           </div >
 
-          <Button type="submit" disabled={loading || saveSuccess} className={`w-full font-bold text-lg h-14 border-2 border-border transition-all flex justify-center gap-2 ${saveSuccess ? 'bg-green-600 text-white shadow-none border-green-700' : 'bg-foreground text-background shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5'}`}>
-            {saveSuccess ? <><CheckCircle size={20} className="animate-pulse" /> บันทึกสำเร็จ!</> : loading ? <><RefreshCw size={20} className="animate-spin" /> กำลังบันทึก...</> : <><Save size={20} /> บันทึกผล</>}
+          <Button type="submit" disabled={loading || saveSuccess} className={`w-full font-bold text-lg h-14 border-2 border-border transition-all flex justify-center gap-2 ${saveSuccess ? 'bg-green-600 text-white shadow-none border-green-700' : isEditMode ? 'bg-amber-600 text-white shadow-[4px_4px_0px_0px_#888] hover:bg-amber-700 hover:shadow-none active:translate-y-0.5' : 'bg-foreground text-background shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5'}`}>
+            {saveSuccess ? <><CheckCircle size={20} className="animate-pulse" /> {isEditMode ? 'อัพเดตสำเร็จ!' : 'บันทึกสำเร็จ!'}</> : loading ? <><RefreshCw size={20} className="animate-spin" /> กำลังบันทึก...</> : isEditMode ? <><Save size={20} /> อัพเดตข้อมูลวันนี้</> : <><Save size={20} /> บันทึกผล</>}
           </Button>
 
         </form >

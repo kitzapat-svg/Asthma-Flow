@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   UserPlus, Users, Activity, FileText, Search, X, Filter,
-  Calendar, ChevronRight, Clock, AlertCircle, Baby, User
+  Calendar, ChevronRight, Clock, AlertCircle, Baby, User, CheckCircle
 } from 'lucide-react';
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -416,6 +416,15 @@ function PatientRowItem({ patient, index }: { patient: PatientWithAppt, index: n
 
   const nextApptInfo = patient.nextAppt ? getDayDiff(patient.nextAppt) : null;
 
+  const isVisitedToday = (() => {
+    if (!patient.lastVisit) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lastDate = new Date(patient.lastVisit);
+    lastDate.setHours(0, 0, 0, 0);
+    return lastDate.getTime() === today.getTime();
+  })();
+
   return (
     <motion.div
       layout
@@ -464,6 +473,11 @@ function PatientRowItem({ patient, index }: { patient: PatientWithAppt, index: n
                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide ${getStatusColor(patient.status)}`}>
                   {patient.status}
                 </span>
+                {isVisitedToday && (
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle size={10} /> มาตรวจวันนี้แล้ว
+                  </span>
+                )}
               </div>
               <div className="text-sm text-muted-foreground font-mono mt-0.5">
                 HN: {patient.hn}

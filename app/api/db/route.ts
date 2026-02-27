@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
-import { getSheetData, appendData, updatePatientStatus, updatePatientData, deleteRow, logActivity, getUsers, createUser, updateUser, deleteUser } from '@/lib/sheets';
+import { getSheetData, appendData, updatePatientStatus, updatePatientData, updateRowByHnAndDate, deleteRow, logActivity, getUsers, createUser, updateUser, deleteUser } from '@/lib/sheets';
 import { normalizeHN } from '@/lib/helpers';
 import { Patient } from '@/lib/types';
 import { hashPassword } from '@/lib/auth';
@@ -12,6 +12,7 @@ const SHEET_CONFIG = {
   TECHNIQUE_TAB: 'technique_checks',
   USERS_TAB: 'users',
   MEDICATIONS_TAB: 'medications',
+  DRP_TAB: 'drps',
 };
 
 
@@ -62,6 +63,7 @@ export async function GET(request: Request) {
     if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
     else if (type === 'visits') tabName = SHEET_CONFIG.VISITS_TAB;
     else if (type === 'technique_checks') tabName = SHEET_CONFIG.TECHNIQUE_TAB;
+    else if (type === 'drps') tabName = SHEET_CONFIG.DRP_TAB;
     else return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
     const data = await getSheetData(tabName);
@@ -69,7 +71,10 @@ export async function GET(request: Request) {
 
     if (hn) {
       const filteredData = Array.isArray(data)
-        ? data.filter((item: Patient) => normalizeHN(item.hn) === normalizeHN(hn))
+        ? data.filter((item: any) => {
+          const itemHn = item.hn || item.HN || '';
+          return normalizeHN(itemHn) === normalizeHN(hn);
+        })
         : data;
       return NextResponse.json(filteredData);
     }
@@ -81,7 +86,7 @@ export async function GET(request: Request) {
   }
 }
 
-import { patientRowSchema, visitRowSchema, strictTechniqueCheckRowSchema } from '@/lib/schemas';
+import { patientRowSchema, visitRowSchema, strictTechniqueCheckRowSchema, drpRowSchema } from '@/lib/schemas';
 
 // --- POST ---
 export async function POST(request: Request) {
@@ -141,6 +146,11 @@ export async function POST(request: Request) {
       tabName = SHEET_CONFIG.MEDICATIONS_TAB;
       // Validate array length or content if needed. For now allow any array.
       if (!Array.isArray(data)) return NextResponse.json({ error: "Invalid Data" }, { status: 400 });
+    }
+    else if (type === 'drps') {
+      tabName = SHEET_CONFIG.DRP_TAB;
+      const result = drpRowSchema.safeParse(data);
+      if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
     }
     else return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
@@ -236,6 +246,26 @@ export async function PUT(request: Request) {
     }
 
     if (!type || !hn) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+
+    // --- Update visits/medications/technique_checks by HN + Date ---
+    if (type === 'visits' || type === 'medications' || type === 'technique_checks') {
+      const { date } = body;
+      if (!date || !data) return NextResponse.json({ error: "Missing date or data" }, { status: 400 });
+
+      let tabName = '';
+      let numCols = 14; // default for visits
+      if (type === 'visits') { tabName = SHEET_CONFIG.VISITS_TAB; numCols = 14; }
+      else if (type === 'medications') { tabName = SHEET_CONFIG.MEDICATIONS_TAB; numCols = 11; }
+      else if (type === 'technique_checks') { tabName = SHEET_CONFIG.TECHNIQUE_TAB; numCols = 12; }
+
+      const result = await updateRowByHnAndDate(tabName, hn, date, data, numCols);
+      if (result.success) {
+        await logActivity(session.user?.email || "Unknown", `Update ${type}`, `Success (HN: ${hn}, Date: ${date})`);
+        return NextResponse.json({ message: "Update success" });
+      } else {
+        return NextResponse.json({ error: result.error }, { status: 404 });
+      }
+    }
 
     let tabName = "";
     if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;

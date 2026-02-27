@@ -39,6 +39,17 @@ export const visitSchema = z.object({
     reliever_label: z.string().optional(),
     show_c2: z.boolean().optional(),
     medication_note: z.string().optional(),
+    // DRP List (dynamic array managed by useFieldArray)
+    drpList: z.array(z.object({
+        category: z.string(),
+        type: z.string(),
+        cause: z.string(),
+        customCause: z.string(),
+        intervention: z.string(),
+        customIntervention: z.string(),
+        outcome: z.string(),
+        customOutcome: z.string(),
+    })).optional(),
 }).superRefine((data, ctx) => {
     if (!data.no_pefr) {
         if (!data.pefr || data.pefr.trim() === '') {
@@ -121,4 +132,17 @@ export const strictTechniqueCheckRowSchema = z.tuple([
     z.string(), // Step 8
     z.string(), // Score
     z.string(), // Note
+]);
+
+export const drpRowSchema = z.tuple([
+    z.string(), // 0: ID (UUID)
+    z.string(), // 1: HN
+    z.string(), // 2: Date (Created Date)
+    z.string(), // 3: Visit Date
+    z.string(), // 4: Category
+    z.string(), // 5: Type
+    z.string(), // 6: Cause
+    z.string(), // 7: Intervention
+    z.string(), // 8: Outcome
+    z.string(), // 9: Note
 ]);

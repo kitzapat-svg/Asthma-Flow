@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from 'react';
-import { Clock, ChevronDown, ChevronUp, Pill, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Clock, ChevronDown, ChevronUp, Pill, CheckCircle, Pencil } from 'lucide-react';
 import { VisitDisplay } from './types';
 
 interface VisitHistoryTableProps {
     visitHistory: VisitDisplay[];
     predictedVal: number;
+    patientHn?: string;
 }
 
-export function VisitHistoryTable({ visitHistory, predictedVal }: VisitHistoryTableProps) {
+export function VisitHistoryTable({ visitHistory, predictedVal, patientHn }: VisitHistoryTableProps) {
     const [showHistory, setShowHistory] = useState(false);
 
     return (
@@ -28,6 +30,7 @@ export function VisitHistoryTable({ visitHistory, predictedVal }: VisitHistoryTa
                                 <th className="p-3">อาการ</th>
                                 <th className="p-3">ยาที่ใช้</th>
                                 <th className="p-3">Inhaler Check</th>
+                                {patientHn && <th className="p-3 text-center">แก้ไข</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-zinc-700">
@@ -36,8 +39,8 @@ export function VisitHistoryTable({ visitHistory, predictedVal }: VisitHistoryTa
                                     <td className="p-3 font-mono font-bold whitespace-nowrap dark:text-zinc-300">{visit.dateDisplay}</td>
                                     <td className="p-3">
                                         <span className={`font-black ${!visit.pefr ? 'text-gray-400' :
-                                                visit.pefr > predictedVal * 0.8 ? 'text-green-600' :
-                                                    visit.pefr > predictedVal * 0.6 ? 'text-yellow-600' : 'text-red-600'
+                                            visit.pefr > predictedVal * 0.8 ? 'text-green-600' :
+                                                visit.pefr > predictedVal * 0.6 ? 'text-yellow-600' : 'text-red-600'
                                             }`}>
                                             {visit.pefr || "-"}
                                         </span>
@@ -45,9 +48,18 @@ export function VisitHistoryTable({ visitHistory, predictedVal }: VisitHistoryTa
                                     <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs border ${visit.control_level === 'Well-controlled' ? 'bg-green-50 text-green-700 border-green-200' : visit.control_level === 'Partly Controlled' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{visit.control_level}</span></td>
                                     <td className="p-3 text-xs dark:text-zinc-400"><div className="flex flex-col gap-1"><span className="flex items-center gap-1"><Pill size={10} className="text-blue-500" /> {visit.controller}</span><span className="flex items-center gap-1"><Pill size={10} className="text-orange-500" /> {visit.reliever}</span></div></td>
                                     <td className="p-3 text-xs">{visit.technique_check === 'ทำ' ? <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={12} /> สอนแล้ว</span> : <span className="text-gray-400">-</span>}</td>
+                                    {patientHn && (
+                                        <td className="p-3 text-center">
+                                            <Link href={`/staff/visit/${patientHn}?date=${visit.fullDate}`}>
+                                                <button className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-md transition-colors" title="แก้ไข Visit นี้">
+                                                    <Pencil size={14} />
+                                                </button>
+                                            </Link>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
-                            {visitHistory.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-gray-400">ไม่มีประวัติการตรวจ</td></tr>}
+                            {visitHistory.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-gray-400">ไม่มีประวัติการตรวจ</td></tr>}
                         </tbody>
                     </table>
                 </div>

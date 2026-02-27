@@ -5,12 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Activity, FileText, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { getUnresolvedDrps } from '@/lib/drp-helpers';
 
 import { Patient, Visit, TechniqueCheck, VisitDisplay, Medication } from './_components/types';
 import { normalizeHN, getAge, calculatePredictedPEFR, getStatusStyle, getInhalerStatus } from './_components/utils';
 import { PatientInfoCard } from './_components/PatientInfoCard';
 import { QRCodeCard } from './_components/QRCodeCard';
 import { InhalerReviewCard } from './_components/InhalerReviewCard';
+import { DrpListCard } from './_components/DrpListCard';
 import { PEFRChart } from './_components/PEFRChart';
 import { VisitHistoryTable } from './_components/VisitHistoryTable';
 import { TechniqueModal } from './_components/TechniqueModal';
@@ -25,6 +27,7 @@ export default function PatientDetailPage() {
     const [patient, setPatient] = useState<Patient | null>(null);
     const [visitHistory, setVisitHistory] = useState<VisitDisplay[]>([]);
     const [techniqueHistory, setTechniqueHistory] = useState<TechniqueCheck[]>([]);
+    const [drpHistory, setDrpHistory] = useState<any[]>([]); // Added for DRPs
     const [medication, setMedication] = useState<Medication | null>(null); // State for Med
     const [loading, setLoading] = useState(true);
     const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -68,6 +71,17 @@ export default function PatientDetailPage() {
                 const resMed = await fetch(`/api/db?type=medications&hn=${params.hn}`);
                 const medData = await resMed.json();
                 if (medData.date) setMedication(medData);
+
+                // DRPs
+                const resDrps = await fetch(`/api/db?type=drps&hn=${params.hn}`);
+                const dataDrps = await resDrps.json();
+
+                if (Array.isArray(dataDrps)) {
+                    const drpList = dataDrps
+                        .filter(d => normalizeHN(d.hn) === normalizeHN(params.hn))
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                    setDrpHistory(drpList);
+                }
 
                 const history: VisitDisplay[] = dataVisits
                     .filter(v => normalizeHN(v.hn) === normalizeHN(params.hn))
@@ -178,6 +192,7 @@ export default function PatientDetailPage() {
     const predictedVal = calculatePredictedPEFR(patient);
     const age = getAge(patient.dob);
     const inhalerStatus = getInhalerStatus(visitHistory);
+    const unresolvedDrps = getUnresolvedDrps(drpHistory);
 
     return (
         <div className="min-h-screen bg-[#FEFCF8] dark:bg-black font-sans text-[#2D2A26] dark:text-white transition-colors duration-300 print:min-h-0 print:h-auto">
@@ -211,10 +226,38 @@ export default function PatientDetailPage() {
                         <PatientInfoCard patient={patient} age={age} onEdit={() => setShowEditModal(true)} />
                         <QRCodeCard publicToken={patient.public_token} />
                         <InhalerReviewCard inhalerStatus={inhalerStatus} onShowHistory={() => setShowTechniqueModal(true)} />
+                        {drpHistory.length > 0 && <DrpListCard drpHistory={drpHistory} />}
                     </div>
 
                     {/* Right Column */}
                     <div className="lg:col-span-2 space-y-6">
+                        {/* Unresolved DRP Alert Banner */}
+                        {unresolvedDrps.length > 0 && (
+                            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 flex items-start gap-3 animate-in fade-in">
+                                <div className="bg-red-500 text-white p-2 rounded-lg shrink-0 mt-0.5">
+                                    <AlertTriangle size={20} />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-red-700 dark:text-red-300 text-sm">
+                                        ⚠️ พบ DRP ที่ยังไม่ได้แก้ไข {unresolvedDrps.length} รายการ
+                                    </h4>
+                                    <ul className="mt-2 space-y-1">
+                                        {unresolvedDrps.slice(0, 3).map((drp, i) => (
+                                            <li key={drp.id || i} className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                                                <span className="font-bold">{drp.type}</span>
+                                                <span className="text-red-400">—</span>
+                                                <span>{drp.outcome || 'ยังไม่ระบุผลลัพธ์'}</span>
+                                            </li>
+                                        ))}
+                                        {unresolvedDrps.length > 3 && (
+                                            <li className="text-xs text-red-500 font-bold">...และอีก {unresolvedDrps.length - 3} รายการ</li>
+                                        )}
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
+
                         <PEFRChart visitHistory={visitHistory} predictedVal={predictedVal} />
 
                         <div className="grid grid-cols-2 gap-4">
@@ -228,7 +271,7 @@ export default function PatientDetailPage() {
                             </button>
                         </div>
 
-                        <VisitHistoryTable visitHistory={visitHistory} predictedVal={predictedVal} />
+                        <VisitHistoryTable visitHistory={visitHistory} predictedVal={predictedVal} patientHn={patient.hn} />
                     </div>
                 </div>
 

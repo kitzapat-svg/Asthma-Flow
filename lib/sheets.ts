@@ -133,6 +133,40 @@ export async function updatePatientData(tabName: string, hn: string, data: any[]
   }
 }
 
+// --- ฟังก์ชันใหม่: อัพเดตแถวตาม HN + Date (สำหรับ visits, technique_checks, medications) ---
+export async function updateRowByHnAndDate(tabName: string, hn: string, date: string, data: any[], numCols: number = 14) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tabName}!A:B`, // Col A = HN, Col B = Date
+    });
+    const rows = response.data.values;
+    if (!rows) return { success: false, error: "No data found" };
+
+    // Find row where HN matches AND date matches
+    const rowIndex = rows.findIndex((row) =>
+      normalizeHN(row[0]) === normalizeHN(hn) && row[1] === date
+    ) + 1; // +1 because sheets are 1-indexed
+
+    if (rowIndex === 0) return { success: false, error: "Row not found for this HN and Date" };
+
+    // Build column range letter from numCols (e.g. 14 -> N)
+    const endCol = String.fromCharCode(64 + numCols); // 65 = 'A'
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tabName}!A${rowIndex}:${endCol}${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [data] }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error(`Update ${tabName} Error:`, error);
+    return { success: false, error };
+  }
+}
+
 // --- ฟังก์ชันใหม่: ลบข้อมูล (Delete) ---
 export async function deleteRow(tabName: string, hn: string) {
   try {

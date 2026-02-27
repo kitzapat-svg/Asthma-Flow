@@ -73,3 +73,16 @@ export interface Medication {
     reliever_label: string;
     note: string;
 }
+
+export interface DRP {
+    id: string; // 0
+    hn: string; // 1
+    date: string; // 2
+    visit_date: string; // 3
+    category: string; // 4
+    type: string; // 5
+    cause: string; // 6
+    intervention: string; // 7
+    outcome: string; // 8
+    note: string; // 9
+}
