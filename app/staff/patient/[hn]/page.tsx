@@ -78,8 +78,15 @@ export default function PatientDetailPage() {
 
                 if (Array.isArray(dataDrps)) {
                     const drpList = dataDrps
-                        .filter(d => normalizeHN(d.hn) === normalizeHN(params.hn))
-                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                        .filter(d => {
+                            const dHn = d.hn || d.HN || '';
+                            return normalizeHN(dHn) === normalizeHN(params.hn);
+                        })
+                        .sort((a, b) => {
+                            const dateA = a.date || a.Date || '';
+                            const dateB = b.date || b.Date || '';
+                            return new Date(dateB).getTime() - new Date(dateA).getTime();
+                        });
                     setDrpHistory(drpList);
                 }
 
@@ -231,29 +238,44 @@ export default function PatientDetailPage() {
 
                     {/* Right Column */}
                     <div className="lg:col-span-2 space-y-6">
-                        {/* Unresolved DRP Alert Banner */}
                         {unresolvedDrps.length > 0 && (
-                            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 flex items-start gap-3 animate-in fade-in">
-                                <div className="bg-red-500 text-white p-2 rounded-lg shrink-0 mt-0.5">
-                                    <AlertTriangle size={20} />
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="font-bold text-red-700 dark:text-red-300 text-sm">
-                                        ⚠️ พบ DRP ที่ยังไม่ได้แก้ไข {unresolvedDrps.length} รายการ
+                            <div className="border-2 border-[#3D3834] dark:border-zinc-700 bg-[#FFF8F0] dark:bg-orange-950/20">
+                                <div className="flex items-center gap-3 p-4 bg-[#D97736]/10 dark:bg-orange-900/30 border-b-2 border-[#3D3834] dark:border-zinc-700">
+                                    <div className="bg-[#D97736] text-white p-2 border-2 border-[#3D3834] dark:border-zinc-600">
+                                        <AlertTriangle size={18} />
+                                    </div>
+                                    <h4 className="font-black text-[#2D2A26] dark:text-orange-300 text-sm">
+                                        ⚠️ DRP ที่ยังจัดการไม่เสร็จ ({unresolvedDrps.length} รายการ)
                                     </h4>
-                                    <ul className="mt-2 space-y-1">
-                                        {unresolvedDrps.slice(0, 3).map((drp, i) => (
-                                            <li key={drp.id || i} className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                                                <span className="font-bold">{drp.type}</span>
-                                                <span className="text-red-400">—</span>
-                                                <span>{drp.outcome || 'ยังไม่ระบุผลลัพธ์'}</span>
-                                            </li>
-                                        ))}
-                                        {unresolvedDrps.length > 3 && (
-                                            <li className="text-xs text-red-500 font-bold">...และอีก {unresolvedDrps.length - 3} รายการ</li>
-                                        )}
-                                    </ul>
+                                </div>
+                                <div className="p-4 space-y-3">
+                                    {unresolvedDrps.map((drp: any, i) => {
+                                        const drpType = drp.type || drp.Type || '-';
+                                        const drpCause = drp.cause || drp.Cause || '-';
+                                        const drpIntervention = drp.intervention || drp.Intervention || '-';
+                                        const drpOutcome = drp.outcome || drp.Outcome || '';
+                                        const drpVisitDate = drp.visit_date || drp.VisitDate || drp.date || drp.Date || '';
+                                        const dateDisplay = drpVisitDate ? new Date(drpVisitDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
+
+                                        return (
+                                            <div key={drp.id || drp.ID || i} className="border-2 border-[#3D3834]/20 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 rounded-sm">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="font-bold text-sm text-[#2D2A26] dark:text-white flex items-center gap-1.5">
+                                                        <span className="w-2 h-2 rounded-full bg-[#D97736] shrink-0" />
+                                                        {drpType}
+                                                    </div>
+                                                    <span className="text-[10px] font-bold bg-[#F7F3ED] dark:bg-zinc-800 text-[#D97736] px-2 py-0.5 border border-[#D97736]/30 shrink-0 whitespace-nowrap">
+                                                        📅 {dateDisplay}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-2 ml-3.5 space-y-1 text-xs text-gray-600 dark:text-zinc-400">
+                                                    <div><span className="font-bold text-[#3D3834] dark:text-zinc-300">สาเหตุ:</span> {drpCause}</div>
+                                                    <div><span className="font-bold text-[#3D3834] dark:text-zinc-300">การจัดการ:</span> {drpIntervention}</div>
+                                                    {drpOutcome && <div><span className="font-bold text-[#3D3834] dark:text-zinc-300">ผลลัพธ์:</span> {drpOutcome}</div>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

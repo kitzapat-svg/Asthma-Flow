@@ -1,91 +1,126 @@
+"use client";
+
+import { useState } from 'react';
 import { DRP } from './types';
-import { AlertCircle, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { isResolved, getUnresolvedDrps, getResolvedDrps } from '@/lib/drp-helpers';
 
-export function DrpListCard({ drpHistory }: { drpHistory: DRP[] }) {
+function safeDateDisplay(dateStr: string | undefined): string {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+}
+
+export function DrpListCard({ drpHistory }: { drpHistory: any[] }) {
+    const [expanded, setExpanded] = useState(false);
+
     if (!drpHistory || drpHistory.length === 0) return null;
 
     const unresolved = getUnresolvedDrps(drpHistory);
     const resolved = getResolvedDrps(drpHistory);
 
-    const getOutcomeIcon = (outcome: string) => {
-        if (isResolved(outcome)) return <CheckCircle size={14} className="text-green-500" />;
-        if (outcome.includes('Monitoring') || outcome.includes('ติดตามผล')) return <Clock size={14} className="text-yellow-500" />;
-        return <AlertCircle size={14} className="text-red-500" />;
+    const getOutcomeStyle = (outcome: string) => {
+        if (!outcome) return { icon: <AlertCircle size={12} className="text-gray-400" />, cls: 'bg-gray-100 text-gray-500 border-gray-200' };
+        if (isResolved(outcome)) return { icon: <CheckCircle size={12} className="text-green-600" />, cls: 'bg-green-50 text-green-700 border-green-200' };
+        if (outcome.includes('Monitoring') || outcome.includes('ติดตามผล')) return { icon: <Clock size={12} className="text-amber-600" />, cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+        return { icon: <AlertCircle size={12} className="text-red-500" />, cls: 'bg-red-50 text-red-700 border-red-200' };
     };
 
-    const getOutcomeBadge = (outcome: string) => {
-        if (isResolved(outcome)) return 'bg-green-100 text-green-700 border-green-200';
-        if (outcome.includes('Monitoring') || outcome.includes('ติดตามผล')) return 'bg-yellow-50 text-yellow-700 border-yellow-200';
-        return 'bg-red-50 text-red-700 border-red-200';
+    const renderDrpItem = (drp: any, index: number) => {
+        const drpType = drp.type || drp.Type || '-';
+        const drpCategory = drp.category || drp.Category || '-';
+        const drpCause = drp.cause || drp.Cause || '-';
+        const drpIntervention = drp.intervention || drp.Intervention || '-';
+        const drpOutcome = drp.outcome || drp.Outcome || '';
+        const drpVisitDate = drp.visit_date || drp.visitdate || drp.VisitDate || drp.date || drp.Date || '';
+        const outcomeStyle = getOutcomeStyle(drpOutcome);
+        const isUnresolved = !isResolved(drpOutcome);
+
+        return (
+            <div key={drp.id || drp.ID || index} className={`border-2 p-3 ${isUnresolved ? 'border-[#D97736]/40 bg-[#FFF8F0] dark:bg-orange-950/10 dark:border-orange-800' : 'border-[#3D3834]/10 bg-white dark:bg-zinc-900 dark:border-zinc-700'}`}>
+                <div className="flex items-start justify-between gap-2">
+                    <div>
+                        <span className="text-[10px] font-bold text-[#D97736]">{drpCategory}</span>
+                        <div className="font-bold text-sm text-[#2D2A26] dark:text-white">{drpType}</div>
+                    </div>
+                    <span className="text-[10px] font-bold bg-[#F7F3ED] dark:bg-zinc-800 text-[#D97736] px-2 py-0.5 border border-[#D97736]/30 shrink-0 whitespace-nowrap">
+                        📅 {safeDateDisplay(drpVisitDate)}
+                    </span>
+                </div>
+
+                <div className="mt-2 space-y-1.5 text-xs">
+                    <div className="flex gap-2">
+                        <span className="font-bold text-[#3D3834] dark:text-zinc-400 shrink-0 w-14">สาเหตุ:</span>
+                        <span className="text-gray-600 dark:text-zinc-400">{drpCause}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <span className="font-bold text-[#3D3834] dark:text-zinc-400 shrink-0 w-14">จัดการ:</span>
+                        <span className="text-gray-600 dark:text-zinc-400">{drpIntervention}</span>
+                    </div>
+                </div>
+
+                {drpOutcome && (
+                    <div className="mt-2 pt-2 border-t border-[#3D3834]/10 dark:border-zinc-700">
+                        <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border ${outcomeStyle.cls}`}>
+                            {outcomeStyle.icon}
+                            {drpOutcome}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
     };
-
-    const renderDrpItem = (drp: DRP, index: number) => (
-        <div key={drp.id || index} className={`p-4 rounded-lg border ${isResolved(drp.outcome) ? 'bg-zinc-50 dark:bg-zinc-900 border-border' : 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-800'}`}>
-            <div className="flex justify-between items-start mb-2">
-                <span className="text-xs font-bold text-muted-foreground bg-white dark:bg-black px-2 py-1 rounded">
-                    Visit: {new Date(drp.visit_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
-                </span>
-                <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border ${getOutcomeBadge(drp.outcome)}`}>
-                    {getOutcomeIcon(drp.outcome)}
-                    <span>{drp.outcome || '-'}</span>
-                </div>
-            </div>
-
-            <div className="space-y-2 text-sm">
-                <div>
-                    <span className="font-bold text-primary block text-xs">{drp.category}</span>
-                    <span className="font-bold">{drp.type}</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 border-t dark:border-zinc-800 pt-2">
-                    <div>
-                        <span className="text-xs text-muted-foreground block font-bold mb-1">สาเหตุ (Cause)</span>
-                        <p className="bg-white dark:bg-black p-2 rounded text-xs">{drp.cause}</p>
-                    </div>
-                    <div>
-                        <span className="text-xs text-muted-foreground block font-bold mb-1">การจัดการ (Intervention)</span>
-                        <p className="bg-white dark:bg-black p-2 rounded text-xs">{drp.intervention}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 
     return (
-        <div className="bg-white dark:bg-card rounded-lg p-6 border border-border mt-6">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                <AlertCircle className="text-red-500" />
-                ประวัติปัญหา DRPs ({drpHistory.length})
-            </h3>
-
-            {/* Unresolved Section */}
-            {unresolved.length > 0 && (
-                <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-red-200 dark:border-red-800">
-                        <AlertTriangle size={16} className="text-red-500" />
-                        <span className="text-sm font-bold text-red-600 dark:text-red-400">
-                            ยังไม่แก้ไข ({unresolved.length})
+        <div className="border-2 border-[#3D3834] dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-colors">
+            <button
+                onClick={() => setExpanded(!expanded)}
+                className="w-full flex items-center justify-between p-4 bg-[#F7F3ED] dark:bg-zinc-800 hover:bg-[#eae5dd] dark:hover:bg-zinc-700 transition-colors"
+            >
+                <div className="flex items-center gap-2 font-bold text-[#2D2A26] dark:text-white">
+                    <AlertCircle size={20} className="text-[#D97736]" />
+                    ประวัติ DRPs ({drpHistory.length})
+                    {unresolved.length > 0 && (
+                        <span className="text-[10px] font-black bg-[#D97736] text-white px-2 py-0.5 rounded-sm">
+                            ค้าง {unresolved.length}
                         </span>
-                    </div>
-                    <div className="space-y-3">
-                        {unresolved.map(renderDrpItem)}
-                    </div>
+                    )}
                 </div>
-            )}
+                {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </button>
 
-            {/* Resolved Section */}
-            {resolved.length > 0 && (
-                <div>
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-green-200 dark:border-green-800">
-                        <CheckCircle size={16} className="text-green-500" />
-                        <span className="text-sm font-bold text-green-600 dark:text-green-400">
-                            แก้ไขแล้ว ({resolved.length})
-                        </span>
-                    </div>
-                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                        {resolved.map(renderDrpItem)}
-                    </div>
+            {expanded && (
+                <div className="p-4 space-y-4 animate-in slide-in-from-top-2 duration-300">
+                    {/* Unresolved */}
+                    {unresolved.length > 0 && (
+                        <div>
+                            <div className="flex items-center gap-2 mb-3 pb-2 border-b-2 border-[#D97736]/30">
+                                <AlertTriangle size={14} className="text-[#D97736]" />
+                                <span className="text-xs font-black text-[#D97736]">
+                                    ยังไม่แก้ไข ({unresolved.length})
+                                </span>
+                            </div>
+                            <div className="space-y-2">
+                                {unresolved.map(renderDrpItem)}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Resolved */}
+                    {resolved.length > 0 && (
+                        <div>
+                            <div className="flex items-center gap-2 mb-3 pb-2 border-b-2 border-green-300/50">
+                                <CheckCircle size={14} className="text-green-500" />
+                                <span className="text-xs font-black text-green-600 dark:text-green-400">
+                                    แก้ไขแล้ว ({resolved.length})
+                                </span>
+                            </div>
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                {resolved.map(renderDrpItem)}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

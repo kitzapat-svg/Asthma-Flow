@@ -500,11 +500,18 @@ export default function RecordVisitPage() {
                   const drpCause = drp.cause || drp.Cause || '-';
                   const drpIntervention = drp.intervention || drp.Intervention || '-';
                   const drpOutcome = drp.outcome || drp.Outcome || '';
+                  const drpVisitDate = drp.visit_date || drp.visitdate || drp.VisitDate || drp.date || drp.Date || '';
+                  const dateDisplay = drpVisitDate ? new Date(drpVisitDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
                   return (
                     <li key={drp.id || drp.ID || i} className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/30 rounded-md p-2">
-                      <div className="font-bold flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                        {drpType}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-bold flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                          {drpType}
+                        </div>
+                        <span className="text-[10px] font-bold bg-amber-200/50 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+                          📅 {dateDisplay}
+                        </span>
                       </div>
                       <div className="ml-3 mt-1 space-y-0.5 text-amber-600 dark:text-amber-500">
                         <div>สาเหตุ: <span className="font-semibold">{drpCause}</span></div>
