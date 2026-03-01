@@ -14,12 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Patient, Visit } from '@/lib/types';
 import { CountUp } from '@/components/animated/count-up';
 import { FadeContent } from '@/components/animated/fade-content';
+import { getUnresolvedDrps } from '@/lib/drp-helpers';
 
 // Extended type for internal use
 interface PatientWithAppt extends Patient {
   nextAppt: Date | null;
   lastVisit: Date | null;
   latestControlLevel: string | null;
+  hasUnresolvedDRP?: boolean;
 }
 
 export default function PatientListPage() {
@@ -48,15 +50,20 @@ export default function PatientListPage() {
   const fetchData = async () => {
     try {
       // Parallel fetch for speed
-      const [resPatients, resVisits] = await Promise.all([
+      const [resPatients, resVisits, resDrps] = await Promise.all([
         fetch('/api/db?type=patients'),
-        fetch('/api/db?type=visits')
+        fetch('/api/db?type=visits'),
+        fetch('/api/db?type=drps')
       ]);
 
       const dataPatients: Patient[] = await resPatients.json();
       const dataVisits: Visit[] = await resVisits.json();
+      const dataDrps = await resDrps.json();
 
       if (!Array.isArray(dataPatients)) return;
+
+      const unresolvedDrps = Array.isArray(dataDrps) ? getUnresolvedDrps(dataDrps) : [];
+      const hnsWithUnresolvedDrps = new Set(unresolvedDrps.map((d: any) => String(d.hn || d.HN)));
 
       // Process Data: Join Patients with Visits to find Next Appointment
       const processed = dataPatients.map(p => {
@@ -94,11 +101,14 @@ export default function PatientListPage() {
           }
         }
 
+        const hasUnresolvedDRP = hnsWithUnresolvedDrps.has(String(p.hn));
+
         return {
           ...p,
           nextAppt,
           lastVisit,
-          latestControlLevel
+          latestControlLevel,
+          hasUnresolvedDRP
         };
       });
 
@@ -142,6 +152,8 @@ export default function PatientListPage() {
         matchQuick = false; // We didn't keep past nextAppt in the variable
       } else if (quickFilter === 'Warning') {
         matchQuick = p.latestControlLevel === 'Partly Controlled' || p.latestControlLevel === 'Uncontrolled';
+      } else if (quickFilter === 'UnresolvedDRP') {
+        matchQuick = !!p.hasUnresolvedDRP;
       }
 
       return matchSearch && matchStatus && matchQuick;
@@ -302,6 +314,10 @@ export default function PatientListPage() {
             onClick={() => setQuickFilter('Warning')}
             className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors flex items-center gap-1 ${quickFilter === 'Warning' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-orange-500 hover:text-orange-500'}`}
           ><AlertCircle size={14} /> ต้องเฝ้าระวัง</button>
+          <button
+            onClick={() => setQuickFilter('UnresolvedDRP')}
+            className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors flex items-center gap-1 ${quickFilter === 'UnresolvedDRP' ? 'bg-amber-600 text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-amber-600 hover:text-amber-600'}`}
+          ><AlertCircle size={14} /> ต้องติดตาม DRP</button>
         </div>
       </div>
 

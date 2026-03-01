@@ -49,6 +49,7 @@ export const visitSchema = z.object({
         customIntervention: z.string(),
         outcome: z.string(),
         customOutcome: z.string(),
+        note: z.string().optional(),
     })).optional(),
 }).superRefine((data, ctx) => {
     if (!data.no_pefr) {

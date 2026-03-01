@@ -194,15 +194,16 @@ export default function StatsPage() {
       const mistakeCounts = new Array(MDI_STEPS.length).fill(0);
 
       checks.forEach(c => {
-        // Steps might be undefined if old data, handle safely
-        if (Array.isArray(c.steps)) {
-          c.steps.forEach((val, idx) => {
-            // Form sends "1" for checked, "0" for unchecked.
-            // If unchecked (0) => Mistake
-            if (val === "0" || val === "false") {
-              mistakeCounts[idx]++;
-            }
-          });
+        // The data from Google Sheets API returns objects with headers as keys,
+        for (let idx = 0; idx < MDI_STEPS.length; idx++) {
+          const key = `step_${idx + 1}` as keyof TechniqueCheck;
+          const val = c[key] as any;
+
+          // Form sends "1" for checked, "0" for unchecked.
+          // If unchecked (0) => Mistake
+          if (String(val) === "0" || String(val) === "false") {
+            mistakeCounts[idx]++;
+          }
         }
       });
 

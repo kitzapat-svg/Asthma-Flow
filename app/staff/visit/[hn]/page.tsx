@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FieldError, useWatch, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList, RefreshCw, Users, AlertTriangle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, Send, CheckCircle, Activity, LayoutDashboard, Search, FileText, Pill, Plus, X, Trash2, CalendarDays, RefreshCw, Stethoscope, Users, RefreshCcw, ClipboardList, Save } from 'lucide-react';
 import { MDI_STEPS } from '@/lib/types';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,7 @@ type VisitFormValues = z.infer<typeof visitSchema> & {
     customIntervention: string;
     outcome: string;
     customOutcome: string;
+    note?: string;
   }[];
 };
 
@@ -98,6 +99,8 @@ export default function RecordVisitPage() {
   });
 
   const [autoFilled, setAutoFilled] = useState(false);
+  const [resolvingDrp, setResolvingDrp] = useState<any | null>(null);
+  const [resolveLoading, setResolveLoading] = useState(false);
 
   // Watchers: เฝ้าดูค่าเพื่อทำ Logic อัตโนมัติ
   const isRelative = useWatch({ control, name: 'is_relative_pickup' });
@@ -123,6 +126,60 @@ export default function RecordVisitPage() {
   useEffect(() => {
     if (noPefr) setValue('pefr', '');
   }, [noPefr, setValue]);
+
+  // Fetch existing DRPs for alert banner
+  const fetchExistingDrps = async () => {
+    try {
+      const res = await fetch(`/api/db?type=drps&hn=${params.hn}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const unresolved = getUnresolvedDrps(data);
+        setExistingUnresolvedDrps(unresolved);
+      }
+    } catch (err) { console.error('Failed to fetch DRPs:', err); }
+  };
+
+  // Handler for resolving past DRPs
+  const handleResolveDrp = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!resolvingDrp) return;
+    const formData = new FormData(e.currentTarget);
+    const intervention = formData.get('intervention') as string;
+    const outcome = formData.get('outcome') as string;
+    const note = formData.get('note') as string;
+
+    if (!intervention || !outcome) {
+      toast.error('กรุณาระบุการจัดการและผลลัพธ์');
+      return;
+    }
+
+    setResolveLoading(true);
+    try {
+      const drpId = resolvingDrp.id || resolvingDrp.ID;
+      const res = await fetch('/api/db', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'drp_update',
+          id: drpId,
+          data: { intervention, outcome, note }
+        })
+      });
+
+      if (res.ok) {
+        toast.success('อัพเดตสถานะ DRP สำเร็จ');
+        setResolvingDrp(null);
+        fetchExistingDrps();
+      } else {
+        toast.error('เกิดข้อผิดพลาดในการอัพเดต DRP');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setResolveLoading(false);
+    }
+  };
 
   // Fetch History & Latest Meds
   useEffect(() => {
@@ -248,7 +305,9 @@ export default function RecordVisitPage() {
 
           setValue('reliever_name', medData.reliever_name || 'Salbutamol');
           setValue('reliever_label', medData.reliever_label || '1 puff prn');
-          setValue('medication_note', medData.note || '-');
+          // Only pre-fill medication note if this is actually the data for the target date (Edit Mode)
+          const isSameDate = (medData.date === targetDate) || (medData.Date === targetDate);
+          setValue('medication_note', isSameDate ? (medData.note || '') : '');
           setAutoFilled(true);
         } else {
           // Fallback to visit history
@@ -264,18 +323,6 @@ export default function RecordVisitPage() {
 
       } catch (err) { console.error(err); }
       finally { setFetchingHistory(false); }
-    };
-
-    // Fetch existing DRPs for alert banner
-    const fetchExistingDrps = async () => {
-      try {
-        const res = await fetch(`/api/db?type=drps&hn=${params.hn}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          const unresolved = getUnresolvedDrps(data);
-          setExistingUnresolvedDrps(unresolved);
-        }
-      } catch (err) { console.error('Failed to fetch DRPs:', err); }
     };
 
     fetchData();
@@ -425,7 +472,7 @@ export default function RecordVisitPage() {
             finalCause,
             finalIntervention,
             finalOutcome,
-            '-' // Note field reserved for future use
+            drp.note || '-'
           ];
           promises.push(fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'drps', data: drpRow }) }));
         }
@@ -500,24 +547,39 @@ export default function RecordVisitPage() {
                   const drpCause = drp.cause || drp.Cause || '-';
                   const drpIntervention = drp.intervention || drp.Intervention || '-';
                   const drpOutcome = drp.outcome || drp.Outcome || '';
+                  const drpNote = drp.note || drp.Note || '';
                   const drpVisitDate = drp.visit_date || drp.visitdate || drp.VisitDate || drp.date || drp.Date || '';
                   const dateDisplay = drpVisitDate ? new Date(drpVisitDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
                   return (
-                    <li key={drp.id || drp.ID || i} className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/30 rounded-md p-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-bold flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                          {drpType}
+                    <li key={drp.id || drp.ID || i} className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/30 rounded-md p-2 flex flex-col md:flex-row md:items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-bold flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                            {drpType}
+                          </div>
+                          <span className="text-[10px] font-bold bg-amber-200/50 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
+                            📅 {dateDisplay}
+                          </span>
                         </div>
-                        <span className="text-[10px] font-bold bg-amber-200/50 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap">
-                          📅 {dateDisplay}
-                        </span>
+                        <div className="ml-3 mt-1 space-y-0.5 text-amber-600 dark:text-amber-500">
+                          <div>สาเหตุ: <span className="font-semibold">{drpCause}</span></div>
+                          <div>การจัดการ: <span className="font-semibold">{drpIntervention}</span></div>
+                          {drpOutcome && drpOutcome !== '-' && <div>ผลลัพธ์: <span className="font-semibold">{drpOutcome}</span></div>}
+                          {drpNote && drpNote !== '-' && (
+                            <div className="mt-1 pt-1 border-t border-amber-200/50 dark:border-amber-800/50 text-amber-700/80 dark:text-amber-400/80 italic">
+                              <span className="font-medium not-italic">Note:</span> {drpNote}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="ml-3 mt-1 space-y-0.5 text-amber-600 dark:text-amber-500">
-                        <div>สาเหตุ: <span className="font-semibold">{drpCause}</span></div>
-                        <div>การจัดการ: <span className="font-semibold">{drpIntervention}</span></div>
-                        {drpOutcome && <div>ผลลัพธ์: <span className="font-semibold">{drpOutcome}</span></div>}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setResolvingDrp(drp)}
+                        className="self-end md:self-stretch mt-2 md:mt-0 shrink-0 bg-white dark:bg-zinc-800 border-2 border-amber-300 dark:border-amber-700 hover:border-amber-500 text-amber-700 dark:text-amber-400 font-bold px-3 py-1.5 rounded text-xs flex items-center gap-1.5 transition-colors"
+                      >
+                        <AlertCircle size={14} className="text-amber-500" /> อัพเดตสถานะ
+                      </button>
                     </li>
                   );
                 })}
@@ -526,6 +588,86 @@ export default function RecordVisitPage() {
                 )}
               </ul>
               <p className="text-xs text-amber-600 dark:text-amber-500 mt-2 font-medium">กรุณาตรวจสอบและติดตามผลในครั้งนี้</p>
+            </div>
+          </div>
+        )}
+
+        {/* Resolve DRP Modal */}
+        {resolvingDrp && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-700 shadow-[8px_8px_0px_0px_#3D3834] dark:shadow-none w-full max-w-lg rounded-lg overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="bg-[#D97736] p-4 text-white flex justify-between items-center shrink-0 border-b-2 border-[#3D3834]">
+                <h3 className="font-black flex items-center gap-2">
+                  <AlertCircle size={20} /> อัพเดตสถานะ DRP
+                </h3>
+                <button type="button" onClick={() => setResolvingDrp(null)} className="hover:bg-white/20 p-1 rounded-md transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-5 overflow-y-auto">
+                <div className="bg-amber-50 dark:bg-amber-900/10 p-3 rounded border border-amber-200 dark:border-amber-800 mb-5 text-sm space-y-1">
+                  <div className="font-bold text-amber-800 dark:text-amber-600">{resolvingDrp.type || resolvingDrp.Type}</div>
+                  <div className="text-amber-700 dark:text-amber-500 text-xs">สาเหตุ: {resolvingDrp.cause || resolvingDrp.Cause}</div>
+                </div>
+
+                <form id="resolve-drp-form" onSubmit={handleResolveDrp} className="space-y-4">
+                  <div>
+                    <label className="text-sm font-bold text-[#3D3834] dark:text-white block mb-1">ผลลัพธ์ใหม่ (Outcome) <span className="text-red-500">*</span></label>
+                    <select
+                      name="outcome"
+                      defaultValue={resolvingDrp.outcome || resolvingDrp.Outcome || ''}
+                      className={inputClass()}
+                      required
+                    >
+                      <option value="">-- เลือกผลลัพธ์ --</option>
+                      {OUTCOME_OPTIONS.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-bold text-[#3D3834] dark:text-white block mb-1">การจัดการ (Intervention) <span className="text-red-500">*</span></label>
+                    <select
+                      name="intervention"
+                      defaultValue={resolvingDrp.intervention || resolvingDrp.Intervention || ''}
+                      className={inputClass()}
+                      required
+                    >
+                      <option value="">-- เลือกการจัดการ --</option>
+                      {INTERVENTION_OPTIONS.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-bold text-[#3D3834] dark:text-white block mb-1">บันทึกเพิ่มเติม (Note)</label>
+                    <textarea
+                      name="note"
+                      defaultValue={resolvingDrp.note || resolvingDrp.Note === '-' ? '' : resolvingDrp.note || resolvingDrp.Note || ''}
+                      placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)"
+                      className={`${inputClass()} resize-none h-20`}
+                    />
+                  </div>
+                </form>
+              </div>
+
+              <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 border-t-2 border-[#3D3834]/20 flex justify-end gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setResolvingDrp(null)}
+                  className="px-4 py-2 text-sm font-bold border-2 border-gray-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-700"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  form="resolve-drp-form"
+                  disabled={resolveLoading}
+                  className="px-4 py-2 text-sm font-bold border-2 border-[#3D3834] rounded bg-[#D97736] text-white hover:bg-[#c2652a] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {resolveLoading && <RefreshCw size={14} className="animate-spin" />}
+                  บันทึกการอัพเดต
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -682,7 +824,7 @@ export default function RecordVisitPage() {
                 <div className="border-t border-[#3D3834]/30 dark:border-zinc-700 w-full mb-2"></div>
                 <div className="flex justify-between items-center mb-2">
                   <h4 className="font-bold flex items-center gap-2 text-[#D97736]">DRP (Drug-Related Problems)</h4>
-                  <button type="button" onClick={() => appendDrp({ category: '', type: '', cause: '', customCause: '', intervention: '', customIntervention: '', outcome: '', customOutcome: '' })} className="text-xs font-bold px-3 py-1.5 border-2 border-[#3D3834] dark:border-zinc-600 bg-white dark:bg-zinc-800 text-[#2D2A26] dark:text-white shadow-[2px_2px_0px_0px_#3D3834] dark:shadow-none hover:bg-gray-50 transition-all active:translate-y-px active:shadow-none">
+                  <button type="button" onClick={() => appendDrp({ category: '', type: '', cause: '', customCause: '', intervention: '', customIntervention: '', outcome: '', customOutcome: '', note: '' })} className="text-xs font-bold px-3 py-1.5 border-2 border-[#3D3834] dark:border-zinc-600 bg-white dark:bg-zinc-800 text-[#2D2A26] dark:text-white shadow-[2px_2px_0px_0px_#3D3834] dark:shadow-none hover:bg-gray-50 transition-all active:translate-y-px active:shadow-none">
                     + เพิ่ม DRP
                   </button>
                 </div>
@@ -747,6 +889,11 @@ export default function RecordVisitPage() {
                           {currentDrpList?.[index]?.outcome === "อื่นๆ (ระบุ)..." && (
                             <input type="text" {...register(`drpList.${index}.customOutcome`)} placeholder="ระบุผลลัพธ์อื่นๆ..." className="w-full mt-2 px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800" />
                           )}
+                        </div>
+
+                        <div className="md:col-span-2 mt-2">
+                          <label className="text-xs font-bold mb-1 block">บันทึกเพิ่มเติม (Note)</label>
+                          <textarea {...register(`drpList.${index}.note`)} rows={2} placeholder="ระบุรายละเอียดเพิ่มเติม..." className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800 resize-none" />
                         </div>
                       </div>
                     </div>

@@ -167,6 +167,35 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
   }
 }
 
+export async function updateDrpById(id: string, updatedData: any) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `drps!A:A`, // Search by ID (Column A)
+    });
+    const rows = response.data.values;
+    if (!rows) return { success: false, error: "No data found" };
+
+    const rowIndex = rows.findIndex((row) => row[0] === id) + 1;
+
+    if (rowIndex <= 1) return { success: false, error: "DRP ID not found" }; // 1 is header
+
+    // Columns: A=ID, B=HN, C=Date, D=VisitDate, E=Category, F=Type, G=Cause, H=Intervention, I=Outcome, J=Note
+    // We update Intervention (H), Outcome (I), Note (J)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `drps!H${rowIndex}:J${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[updatedData.intervention, updatedData.outcome, updatedData.note || '-']] }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Update DRP Error:", error);
+    return { success: false, error };
+  }
+}
+
 // --- ฟังก์ชันใหม่: ลบข้อมูล (Delete) ---
 export async function deleteRow(tabName: string, hn: string) {
   try {

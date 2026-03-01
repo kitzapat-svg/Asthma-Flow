@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
-import { getSheetData, appendData, updatePatientStatus, updatePatientData, updateRowByHnAndDate, deleteRow, logActivity, getUsers, createUser, updateUser, deleteUser } from '@/lib/sheets';
+import { getSheetData, appendData, updatePatientStatus, updatePatientData, updateRowByHnAndDate, deleteRow, logActivity, getUsers, createUser, updateUser, deleteUser, updateDrpById } from '@/lib/sheets';
 import { normalizeHN } from '@/lib/helpers';
 import { Patient } from '@/lib/types';
 import { hashPassword } from '@/lib/auth';
@@ -262,6 +262,20 @@ export async function PUT(request: Request) {
       if (result.success) {
         await logActivity(session.user?.email || "Unknown", `Update ${type}`, `Success (HN: ${hn}, Date: ${date})`);
         return NextResponse.json({ message: "Update success" });
+      } else {
+        return NextResponse.json({ error: result.error }, { status: 404 });
+      }
+    }
+
+    // --- Update past DRP by ID ---
+    if (type === 'drp_update') {
+      const { id, data: drpData } = body;
+      if (!id || !drpData) return NextResponse.json({ error: "Missing DRP ID or data" }, { status: 400 });
+
+      const result = await updateDrpById(id, drpData);
+      if (result.success) {
+        await logActivity(session.user?.email || "Unknown", "Update DRP", `Success (ID: ${id})`);
+        return NextResponse.json({ message: "DRP Update success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 404 });
       }
