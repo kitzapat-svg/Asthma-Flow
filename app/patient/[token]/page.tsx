@@ -125,6 +125,8 @@ export default function PatientPublicPage() {
 
   // State for collapsible plan - auto-open if not Well-controlled
   const [showFullPlan, setShowFullPlan] = useState(false);
+  // State for inhaler guide
+  const [showInhalerGuide, setShowInhalerGuide] = useState(false);
 
   // Auto-open plan for Yellow/Red
   useEffect(() => {
@@ -201,7 +203,7 @@ export default function PatientPublicPage() {
           <div className="p-4 bg-white dark:bg-zinc-900 text-sm">
             <ul className="space-y-2 list-disc pl-5">
               <li>มีอาการไอ เหนื่อย แน่นหน้าอก</li>
-              <li>ใช้ยาควบคุม <span className="font-bold">{controllerText}</span> ต่อเนื่อง</li>
+              <li>ใช้ยาควบคุม <span className="font-bold">{controllerText}</span></li>
               <li>เพิ่มยาฉุกเฉิน <span className="font-bold">{medication?.reliever_name || visit.reliever || "Salbutamol"}</span> 2 พัฟ ทุก 4-6 ชม.</li>
               <li className="text-red-600 dark:text-red-400 font-bold">ถ้าอาการไม่ดีขึ้นภายใน 24 ชม. ให้รีบมาพบแพทย์</li>
             </ul>
@@ -418,7 +420,148 @@ export default function PatientPublicPage() {
             </div>
           )}
 
-          {/* 5. PEFR Chart with Zone Highlighting */}
+          {/* 5. Inhaler Technique Guide */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-md overflow-hidden transition-colors">
+            <button
+              onClick={() => setShowInhalerGuide(!showInhalerGuide)}
+              className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 dark:hover:bg-zinc-800/60 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                  {/* MDI inhaler mini icon */}
+                  <svg viewBox="0 0 24 24" fill="currentColor" width={22} height={22}>
+                    <rect x="9" y="2" width="6" height="3" rx="1" />
+                    <rect x="7" y="5" width="10" height="14" rx="3" />
+                    <rect x="10" y="19" width="4" height="3" rx="1" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground dark:text-white text-sm">วิธีใช้ยาพ่น (MDI) ที่ถูกต้อง</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">กดเพื่อดูขั้นตอน 6 ข้อ พร้อมภาพประกอบ</p>
+                </div>
+              </div>
+              <div className={`transition-transform duration-300 ${showInhalerGuide ? 'rotate-180' : ''}`}>
+                <ChevronDown size={20} className="text-gray-400" />
+              </div>
+            </button>
+
+            {showInhalerGuide && (
+              <div className="px-5 pb-6 space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+
+                {/* Intro */}
+                <p className="text-xs text-muted-foreground text-center bg-secondary/50 dark:bg-zinc-800 rounded-xl p-3">
+                  💨 การพ่นยาให้ถูกวิธี ช่วยให้ยาเข้าปอดได้มากขึ้น อาการดีขึ้นเร็วกว่า
+                </p>
+
+                {/* Steps 1-2 */}
+                <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-white">
+                  <img
+                    src="/inhaler-guide/step-1-2.png"
+                    alt="ขั้นตอนที่ 1-2: เขย่ายา และหายใจออกให้สุด"
+                    className="w-full max-w-[180px] mx-auto object-contain py-2"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 border border-blue-100 dark:border-blue-800">
+                    <span className="text-base font-black text-blue-600 dark:text-blue-400">①</span>
+                    <p className="font-bold text-blue-900 dark:text-blue-200 mt-1">จับหลอดยาตั้งตรง</p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">ถอดฝาออก แล้วเขย่า 3-4 ครั้งในแนวตั้ง</p>
+                  </div>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 border border-blue-100 dark:border-blue-800">
+                    <span className="text-base font-black text-blue-600 dark:text-blue-400">②</span>
+                    <p className="font-bold text-blue-900 dark:text-blue-200 mt-1">หายใจออกให้สุด</p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">ผ่อนลมออกทางปากให้มากที่สุดก่อนพ่นยา</p>
+                  </div>
+                </div>
+
+                {/* Steps 3-4 */}
+                <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-white">
+                  <img
+                    src="/inhaler-guide/step-3-4.png"
+                    alt="ขั้นตอนที่ 3-4: อมปากกระบอกยา และกดพร้อมสูด"
+                    className="w-full max-w-[180px] mx-auto object-contain py-2"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-100 dark:border-indigo-800">
+                    <span className="text-base font-black text-indigo-600 dark:text-indigo-400">③</span>
+                    <p className="font-bold text-indigo-900 dark:text-indigo-200 mt-1">อมปากกระบอกยาให้สนิท</p>
+                    <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">ริมฝีปากปิดสนิท ตั้งศีรษะตรงหรือเงยเล็กน้อย</p>
+                  </div>
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-100 dark:border-indigo-800">
+                    <span className="text-base font-black text-indigo-600 dark:text-indigo-400">④</span>
+                    <p className="font-bold text-indigo-900 dark:text-indigo-200 mt-1">กดพร้อมสูดช้าๆ ลึกๆ</p>
+                    <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">กดหลอดพร้อมหายใจเข้าทางปากช้าๆ ลึกๆ ทันที</p>
+                  </div>
+                </div>
+
+                {/* Step 5 */}
+                <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-white">
+                  <img
+                    src="/inhaler-guide/step-5-hold.png"
+                    alt="ขั้นตอนที่ 5: กลั้นลมหายใจ 10 วินาที"
+                    className="w-full max-w-[120px] mx-auto object-contain py-2"
+                  />
+                </div>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 border border-green-100 dark:border-green-800 text-sm">
+                  <span className="text-base font-black text-green-600 dark:text-green-400">⑤</span>
+                  <p className="font-bold text-green-900 dark:text-green-200 mt-1">กลั้นลมหายใจ ~10 วินาที</p>
+                  <p className="text-xs text-green-700 dark:text-green-300 mt-0.5">แล้วจึงหายใจออกช้าๆ เพื่อให้ยาซึมเข้าปอดได้เต็มที่</p>
+                </div>
+
+                {/* Step 6 */}
+                <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-3 border border-gray-200 dark:border-zinc-700 text-sm">
+                  <span className="text-base font-black text-gray-600 dark:text-gray-400">⑥</span>
+                  <p className="font-bold text-gray-900 dark:text-gray-100 mt-1">ถ้าต้องพ่นซ้ำให้รอ 1-3 นาที</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">แล้วจึงทำซ้ำตั้งแต่ขั้นตอนที่ ③</p>
+                </div>
+
+                {/* 🚨 MOUTH RINSE WARNING */}
+                <div className="rounded-xl overflow-hidden border-2 border-red-300 dark:border-red-700">
+                  <div className="bg-red-500 text-white px-4 py-2 flex items-center gap-2">
+                    <span className="text-lg">⚠️</span>
+                    <span className="font-black text-sm">สำคัญมาก! ต้องบ้วนปากทุกครั้ง</span>
+                  </div>
+                  <div className="bg-red-50 dark:bg-red-900/20 p-4">
+                    <div className="bg-white rounded-lg mb-3">
+                      <img
+                        src="/inhaler-guide/mouthrinse.png"
+                        alt="บ้วนปากและกลั้วคอหลังพ่นยาสเตียรอยด์"
+                        className="w-full max-w-[140px] mx-auto object-contain py-2 rounded-lg"
+                      />
+                    </div>
+                    <p className="text-sm font-bold text-red-800 dark:text-red-200 text-center">
+                      หลังพ่นยาที่มีสเตียรอยด์ (ICS)
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300 text-center mt-1">
+                      <span className="font-black">บ้วนปากและกลั้วคอด้วยน้ำทุกครั้ง</span>
+                    </p>
+                    <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
+                      <div className="flex items-start gap-2 bg-white dark:bg-zinc-900 rounded-lg p-2">
+                        <span className="text-red-500 font-bold shrink-0">✗</span>
+                        <span>ถ้าไม่บ้วนปาก → เกิดเชื้อราในปาก (ปากเป็นฝ้า เจ็บคอ เสียงแหบ)</span>
+                      </div>
+                      <div className="flex items-start gap-2 bg-white dark:bg-zinc-900 rounded-lg p-2">
+                        <span className="text-green-600 font-bold shrink-0">✓</span>
+                        <span>บ้วนปาก + กลั้วคอ แล้วบ้วนทิ้ง <span className="font-bold">ห้ามกลืน</span></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tips */}
+                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-100 dark:border-amber-800 text-xs space-y-1.5">
+                  <p className="font-bold text-amber-800 dark:text-amber-200 text-sm">💡 เคล็ดลับเพิ่มเติม</p>
+                  <p className="text-amber-700 dark:text-amber-300">• ถ้ามือสั่นหรือกดไม่ถนัด ให้ใช้ Spacer ช่วย</p>
+                  <p className="text-amber-700 dark:text-amber-300">• เช็ดปากหลอดพ่นยา แล้วปิดฝาหลังใช้ทุกครั้ง</p>
+                  <p className="text-amber-700 dark:text-amber-300">• ไม่แน่ใจให้สอบถามเภสัชกรหรือพยาบาลคลินิกได้เลย</p>
+                </div>
+
+              </div>
+            )}
+          </div>
+
+          {/* 6. PEFR Chart with Zone Highlighting */}
           {visitHistory.length > 0 && (
             <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md transition-colors">
               <h3 className="font-bold flex items-center gap-2 mb-2 text-primary"><Activity size={18} /> แนวโน้มค่าปอด (PEFR)</h3>

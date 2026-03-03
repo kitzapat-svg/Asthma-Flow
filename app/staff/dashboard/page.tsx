@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   UserPlus, Users, Activity, FileText, Search, X, Filter,
-  Calendar, ChevronRight, Clock, AlertCircle, Baby, User, CheckCircle
+  Calendar, ChevronRight, Clock, AlertCircle, CheckCircle
 } from 'lucide-react';
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -453,30 +453,33 @@ function PatientRowItem({ patient, index }: { patient: PatientWithAppt, index: n
         <div className="glass-card hover:bg-white dark:hover:bg-zinc-900 p-4 pl-6 rounded-2xl flex items-center justify-between group transition-all duration-300 border-l-4 border-l-transparent hover:border-l-primary hover:shadow-2xl hover:-translate-y-1">
 
           <div className="flex items-center gap-4">
-            {/* Avatar Placeholder */}
-            {/* Avatar Placeholder */}
+            {/* Gender Avatar */}
             {(() => {
               const prefix = patient.prefix?.trim() || "";
-              let Icon = User;
-              let colorClass = "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400";
 
-              if (prefix === 'นาย') {
-                Icon = User;
-                colorClass = "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400";
-              } else if (prefix === 'นาง' || prefix === 'นางสาว' || prefix === 'น.ส.') {
-                Icon = User;
-                colorClass = "bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-400";
-              } else if (prefix === 'ด.ช.') {
-                Icon = Baby;
-                colorClass = "bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-400";
-              } else if (prefix === 'ด.ญ.') {
-                Icon = Baby;
-                colorClass = "bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400";
-              }
+              // Same color for everyone — shape carries gender meaning
+              const colorClass = "bg-primary/10 text-primary dark:bg-primary/20";
+
+              const isFemale = prefix === 'นาง' || prefix === 'นางสาว' || prefix === 'น.ส.' || prefix === 'ด.ญ.';
+              const isChild = prefix === 'ด.ช.' || prefix === 'ด.ญ.';
+              const size = isChild ? 20 : 23;
 
               return (
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-lg ${colorClass} shadow-inner`}>
-                  <Icon size={24} />
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${colorClass} shadow-inner flex-shrink-0`}>
+                  {isFemale ? (
+                    /* Female — circular head + dress silhouette */
+                    <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="7" r="4" />
+                      <path d="M12 13 L7 22 H17 L12 13Z" />
+                      <path d="M9.5 13.5 Q12 15.5 14.5 13.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    /* Male — circular head + rectangular torso */
+                    <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="7" r="4" />
+                      <rect x="7" y="13" width="10" height="9" rx="2.5" />
+                    </svg>
+                  )}
                 </div>
               );
             })()}

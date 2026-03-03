@@ -11,23 +11,23 @@ interface CountUpProps {
   duration?: number;
 }
 
-export function CountUp({ 
-  target, 
-  suffix = "", 
+export function CountUp({
+  target,
+  suffix = "",
   prefix = "",
   className = "",
   duration = 2
 }: CountUpProps) {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-  
-  const spring = useSpring(0, { 
-    stiffness: 50, 
+  const isInView = useInView(ref, { once: true, margin: "0px" });
+
+  const spring = useSpring(0, {
+    stiffness: 50,
     damping: 20,
     duration: duration * 1000
   });
-  
-  const display = useTransform(spring, (current) => 
+
+  const display = useTransform(spring, (current) =>
     Math.floor(current).toLocaleString()
   );
 
@@ -54,7 +54,7 @@ interface FlipCounterProps {
 
 export function FlipCounter({ value, className = "" }: FlipCounterProps) {
   const digits = value.toString().split("");
-  
+
   return (
     <div className={`flex ${className}`}>
       {digits.map((digit, index) => (
@@ -62,7 +62,7 @@ export function FlipCounter({ value, className = "" }: FlipCounterProps) {
           key={`${index}-${digit}`}
           initial={{ rotateX: -90, opacity: 0 }}
           animate={{ rotateX: 0, opacity: 1 }}
-          transition={{ 
+          transition={{
             duration: 0.3,
             delay: index * 0.05,
             type: "spring",

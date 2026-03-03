@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import {
   Activity, PieChart as PieChartIcon, BarChart3, RefreshCw,
   CalendarDays, TrendingUp, Users, CalendarRange, LineChart,
-  Stethoscope, AlertCircle, BookOpen, ChevronRight
+  Stethoscope, AlertCircle, BookOpen,
+  Pill, CheckCircle2, Clock3, XCircle, ListChecks
 } from 'lucide-react';
 // NOTE: recharts uses `window` but this is a 'use client' file with a loading
 // guard — recharts components only render after client-side data fetch completes,
@@ -17,7 +18,7 @@ import {
 import { format, subDays, startOfWeek, endOfWeek, subMonths, startOfMonth, endOfMonth, addDays, getDay, isSameDay, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 
-import { Patient, Visit, TechniqueCheck, MDI_STEPS } from '@/lib/types';
+import { Patient, Visit, TechniqueCheck, MDI_STEPS, DRP } from '@/lib/types';
 import { getAge, normalizeHN } from '@/lib/helpers';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
@@ -45,6 +46,9 @@ export default function StatsPage() {
   const [fiscalYearStats, setFiscalYearStats] = useState<any[]>([]);
   const [selectedFy, setSelectedFy] = useState<number>(new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0)); // Default to current FY (Oct starts new FY)
 
+  const [drpFyStats, setDrpFyStats] = useState<any[]>([]);
+  const [selectedDrpFy, setSelectedDrpFy] = useState<number>(new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0));
+
 
   useEffect(() => {
     fetchData();
@@ -53,19 +57,22 @@ export default function StatsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [resPatients, resVisits, resTech] = await Promise.all([
+      const [resPatients, resVisits, resTech, resDrps] = await Promise.all([
         fetch('/api/db?type=patients'),
         fetch('/api/db?type=visits'),
-        fetch('/api/db?type=technique_checks')
+        fetch('/api/db?type=technique_checks'),
+        fetch('/api/db?type=drps')
       ]);
 
       const dataPatients: Patient[] = await resPatients.json();
       const dataVisits: Visit[] = await resVisits.json();
       const dataTech: TechniqueCheck[] = await resTech.json();
+      const dataDrps: DRP[] = await resDrps.json();
 
       const validPatients = Array.isArray(dataPatients) ? dataPatients : [];
       const validVisits = Array.isArray(dataVisits) ? dataVisits : [];
       const validTech = Array.isArray(dataTech) ? dataTech : [];
+      const validDrps = Array.isArray(dataDrps) ? dataDrps : [];
 
       setPatients(validPatients);
       setVisits(validVisits);
@@ -102,9 +109,11 @@ export default function StatsPage() {
       // --- 4. Next Tuesday Appointments ---
       calculateNextTuesdayAppts(validVisits, validPatients);
 
-      // --- 5. Fiscal Year Stats ---
+      // --- 5. Fiscal Year Stats (Inhaler Teaching) ---
       calculateFiscalYearStats(validTech);
 
+      // --- 6. DRP Fiscal Year Stats ---
+      calculateDrpFiscalYearStats(validDrps);
 
     } catch (error) {
       console.error("Failed to fetch:", error);
@@ -171,6 +180,85 @@ export default function StatsPage() {
     // Fiscal Year: Oct 1 - Sep 30
     // If Month >= 9 (Oct is 9 in JS 0-indexed), then FY = Year + 1
     return date.getMonth() >= 9 ? date.getFullYear() + 1 : date.getFullYear();
+  };
+
+  const calculateDrpFiscalYearStats = (drpList: DRP[]) => {
+    const grouped: Record<number, DRP[]> = {};
+
+    drpList.forEach(d => {
+      const dateStr = d.date || d.visit_date;
+      if (!dateStr) return;
+      const parsed = new Date(dateStr);
+      if (isNaN(parsed.getTime())) return;
+      const fy = getFiscalYear(parsed);
+      if (!grouped[fy]) grouped[fy] = [];
+      grouped[fy].push(d);
+    });
+
+    const stats = Object.keys(grouped).map(fyStr => {
+      const fy = parseInt(fyStr);
+      const list = grouped[fy];
+
+      // Unique patients with any DRP
+      const uniqueHns = new Set(list.map(d => normalizeHN(d.hn)));
+
+      // Outcome buckets
+      const resolvedHns = new Set<string>();
+      const followUpHns = new Set<string>();
+      const refusedHns = new Set<string>();
+
+      list.forEach(d => {
+        const o = (d.outcome || '').toLowerCase();
+        const hn = normalizeHN(d.hn);
+        if (o.includes('resolved') || o.includes('สำเร็จ')) {
+          resolvedHns.add(hn);
+        } else if (o.includes('monitoring') || o.includes('follow') || o.includes('ติดตาม')) {
+          followUpHns.add(hn);
+        } else if (o.includes('refused') || o.includes('ปฏิเสธ')) {
+          refusedHns.add(hn);
+        }
+      });
+
+      // Top problem categories
+      const catCount: Record<string, number> = {};
+      list.forEach(d => {
+        const cat = (d.category || '').trim();
+        if (cat) catCount[cat] = (catCount[cat] || 0) + 1;
+      });
+      const topCategories = Object.entries(catCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      // Also gather top problem types
+      const typeCount: Record<string, number> = {};
+      list.forEach(d => {
+        const t = (d.type || '').trim();
+        if (t) typeCount[t] = (typeCount[t] || 0) + 1;
+      });
+      const topTypes = Object.entries(typeCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      return {
+        fy,
+        totalPatients: uniqueHns.size,
+        totalDrps: list.length,
+        resolved: resolvedHns.size,
+        followUp: followUpHns.size,
+        refused: refusedHns.size,
+        topCategories,
+        topTypes,
+      };
+    });
+
+    stats.sort((a, b) => b.fy - a.fy);
+    setDrpFyStats(stats);
+
+    if (stats.length > 0 && !stats.find(s => s.fy === selectedDrpFy)) {
+      setSelectedDrpFy(stats[0].fy);
+    }
   };
 
   const calculateFiscalYearStats = (techChecks: TechniqueCheck[]) => {
@@ -521,6 +609,132 @@ export default function StatsPage() {
           </div>
         </FadeContent>
       </div>
+
+      {/* DRP Summary by Fiscal Year */}
+      <FadeContent delay={0.4} className="stat-card bg-violet-50 dark:bg-violet-900/10 border-violet-200 dark:border-violet-800">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4 justify-between mb-6">
+          <div>
+            <h3 className="font-bold text-lg flex items-center gap-2 text-violet-800 dark:text-violet-200">
+              <Pill size={20} /> สรุปข้อมูล DRP (รายปีงบ)
+            </h3>
+            <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
+              ปีงบ {selectedDrpFy + 543} (1 ต.ค. {selectedDrpFy - 1 + 543} – 30 ก.ย. {selectedDrpFy + 543})
+            </p>
+          </div>
+          {/* Year selector */}
+          <div className="flex flex-wrap gap-2">
+            {drpFyStats.map(s => (
+              <button
+                key={s.fy}
+                onClick={() => setSelectedDrpFy(s.fy)}
+                className={`px-3 py-1 rounded text-xs font-bold transition-all ${selectedDrpFy === s.fy
+                  ? 'bg-violet-600 text-white shadow-lg scale-105'
+                  : 'bg-white dark:bg-zinc-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50'
+                  }`}
+              >
+                {s.fy + 543}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {(() => {
+          const d = drpFyStats.find(s => s.fy === selectedDrpFy) || { totalPatients: 0, totalDrps: 0, resolved: 0, followUp: 0, refused: 0, topCategories: [], topTypes: [] };
+          return (
+            <div className="space-y-5">
+              {/* Stat chips row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-violet-100 dark:bg-violet-900/30 rounded-xl p-4 text-center">
+                  <div className="flex justify-center mb-1"><ListChecks size={18} className="text-violet-600" /></div>
+                  <p className="text-2xl font-black text-violet-900 dark:text-violet-100">{d.totalPatients}</p>
+                  <p className="text-[11px] text-violet-700 dark:text-violet-300 font-semibold mt-0.5">พบ DRP</p>
+                  <p className="text-[10px] text-violet-500 dark:text-violet-400">{d.totalDrps} รายการ</p>
+                </div>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center border border-green-100 dark:border-green-900/40">
+                  <div className="flex justify-center mb-1"><CheckCircle2 size={18} className="text-green-600" /></div>
+                  <p className="text-2xl font-black text-green-700 dark:text-green-400">{d.resolved}</p>
+                  <p className="text-[11px] text-green-700 dark:text-green-300 font-semibold mt-0.5">แก้ไขสำเร็จ</p>
+                  <p className="text-[10px] text-green-500 dark:text-green-400">Resolved</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-center border border-amber-100 dark:border-amber-900/40">
+                  <div className="flex justify-center mb-1"><Clock3 size={18} className="text-amber-600" /></div>
+                  <p className="text-2xl font-black text-amber-700 dark:text-amber-400">{d.followUp}</p>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold mt-0.5">รอติดตาม</p>
+                  <p className="text-[10px] text-amber-500 dark:text-amber-400">Follow-up</p>
+                </div>
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center border border-red-100 dark:border-red-900/40">
+                  <div className="flex justify-center mb-1"><XCircle size={18} className="text-red-500" /></div>
+                  <p className="text-2xl font-black text-red-600 dark:text-red-400">{d.refused}</p>
+                  <p className="text-[11px] text-red-600 dark:text-red-300 font-semibold mt-0.5">แก้ไขไม่สำเร็จ</p>
+                  <p className="text-[10px] text-red-400">Refused</p>
+                </div>
+              </div>
+
+              {/* Problem breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Top categories */}
+                <div className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-violet-100 dark:border-violet-900/30 shadow-sm">
+                  <h4 className="font-bold text-sm text-violet-900 dark:text-violet-100 flex items-center gap-2 mb-3">
+                    <AlertCircle size={14} className="text-violet-500" /> ประเภทปัญหาที่พบ
+                  </h4>
+                  {d.topCategories.length > 0 ? (
+                    <div className="space-y-2">
+                      {d.topCategories.map((cat: any, i: number) => {
+                        const maxCount = d.topCategories[0]?.count || 1;
+                        const pct = Math.round((cat.count / maxCount) * 100);
+                        // Shorten long category names
+                        const shortName = cat.name.replace(/^\d+\.\s*/, '').replace(/\s*\(.*\)/, '').trim();
+                        return (
+                          <div key={i}>
+                            <div className="flex justify-between items-center mb-0.5">
+                              <span className="text-xs font-semibold text-foreground truncate max-w-[200px]" title={cat.name}>#{i + 1} {shortName}</span>
+                              <span className="text-xs font-bold text-violet-600 ml-2 shrink-0">{cat.count} ราย</span>
+                            </div>
+                            <div className="w-full bg-violet-100 dark:bg-violet-900/30 rounded-full h-1.5">
+                              <div className="bg-violet-500 h-1.5 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">ไม่มีข้อมูล</p>
+                  )}
+                </div>
+
+                {/* Top problem types (sub-category) */}
+                <div className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-violet-100 dark:border-violet-900/30 shadow-sm">
+                  <h4 className="font-bold text-sm text-violet-900 dark:text-violet-100 flex items-center gap-2 mb-3">
+                    <AlertCircle size={14} className="text-rose-500" /> ลักษณะปัญหาที่พบบ่อย
+                  </h4>
+                  {d.topTypes.length > 0 ? (
+                    <div className="space-y-2">
+                      {d.topTypes.map((t: any, i: number) => {
+                        const maxCount = d.topTypes[0]?.count || 1;
+                        const pct = Math.round((t.count / maxCount) * 100);
+                        const shortName = t.name.replace(/^[\d.]+\s*/, '').replace(/\s*\(.*\)/, '').trim();
+                        return (
+                          <div key={i}>
+                            <div className="flex justify-between items-center mb-0.5">
+                              <span className="text-xs font-semibold text-foreground truncate max-w-[200px]" title={t.name}>#{i + 1} {shortName}</span>
+                              <span className="text-xs font-bold text-rose-600 ml-2 shrink-0">{t.count} ราย</span>
+                            </div>
+                            <div className="w-full bg-rose-100 dark:bg-rose-900/30 rounded-full h-1.5">
+                              <div className="bg-rose-400 h-1.5 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">ไม่มีข้อมูล</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </FadeContent>
 
       {/* Charts Section (Original) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
