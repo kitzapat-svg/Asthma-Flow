@@ -70,7 +70,7 @@ export const ActionPlanPrint: React.FC<ActionPlanPrintProps> = ({ patient, visit
                         <p className="text-xs font-bold text-gray-500">แผนปฏิบัติการสำหรับผู้ป่วยหอบหืด</p>
                     </div>
                     <div className="bg-white border-2 border-black p-1">
-                        <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient.public_token}`} size={60} />
+                        <QRCodeSVG value={`https://asthma-flow.vercel.app/patient/${patient.public_token}`} size={60} />
                     </div>
                 </div>
             </div>

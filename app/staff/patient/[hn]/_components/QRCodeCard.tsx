@@ -15,7 +15,7 @@ export function QRCodeCard({ publicToken }: QRCodeCardProps) {
         setOrigin(window.location.origin);
     }, []);
 
-    const qrUrl = origin ? `${origin}/patient/${publicToken}` : `https://asthsawan.vercel.app/patient/${publicToken}`;
+    const qrUrl = origin ? `${origin}/patient/${publicToken}` : `https://asthma-flow.vercel.app/patient/${publicToken}`;
 
     return (
         <div className="bg-[#2D2A26] dark:bg-zinc-800 p-6 text-white border-2 border-[#3D3834] dark:border-zinc-700 shadow-[6px_6px_0px_0px_#888] dark:shadow-none text-center transition-colors">

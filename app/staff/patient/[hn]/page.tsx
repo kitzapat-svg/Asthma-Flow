@@ -334,56 +334,63 @@ export default function PatientDetailPage() {
                 ส่วนที่ 2: หน้าตาบัตร (Print View - ไม่ต้อง Dark Mode)
                 ========================================
               */}
-            {/* 1. Wallet Card View */}
+            {/* 1. Wallet Card View — Redesigned: QR + HN only (no name/DOB for privacy) */}
             {printMode === 'card' && (
                 <div className="hidden print:flex print:items-center print:justify-center print:h-screen bg-white text-black print:absolute print:top-0 print:left-0 print:w-full print:z-[9999]">
-                    <div className="w-[85.6mm] h-[54mm] border border-gray-300 rounded-lg overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col text-black">
-                        <div className="bg-[#D97736] text-white p-2 flex items-center justify-between h-[12mm]">
-                            <div className="flex items-center gap-2">
-                                <div className="bg-white p-1 rounded-full text-[#D97736]">
-                                    <Activity size={12} />
+                    <div className="w-[85.6mm] h-[54mm] border border-gray-200 rounded-xl overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col text-black">
+                        {/* Header with gradient */}
+                        <div className="bg-gradient-to-r from-[#D97736] to-[#E8943D] text-white px-3 py-2 flex items-center justify-between h-[11mm]">
+                            <div className="flex items-center gap-1.5">
+                                <div className="bg-white/20 p-1 rounded-lg">
+                                    <Activity size={11} />
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-wider">Asthma Alert Card</span>
-                            </div>
-                            <span className="text-[8px] font-bold opacity-80">โรงพยาบาลสวรรคโลก</span>
-                        </div>
-                        <div className="flex-1 p-3 flex gap-3 items-center">
-                            <div className="w-[28mm] flex flex-col items-center justify-center">
-                                <div className="border-2 border-[#2D2A26] p-1 bg-white">
-                                    <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient?.public_token}`} size={80} />
-                                </div>
-                                <span className="text-[6px] font-bold text-center mt-1 text-gray-600">สแกนเพื่อดูแผนฉุกเฉิน</span>
-                            </div>
-                            <div className="flex-1 space-y-1">
                                 <div>
-                                    <p className="text-[7px] text-gray-500 uppercase font-bold">Name</p>
-                                    <p className="text-[12px] font-black text-[#2D2A26] leading-none truncate">
-                                        {patient?.prefix}{patient?.first_name} {patient?.last_name}
+                                    <span className="text-[9px] font-black tracking-wide">Asthma Flow</span>
+                                    <span className="text-[7px] font-medium opacity-80 ml-1">Alert Card</span>
+                                </div>
+                            </div>
+                            <span className="text-[7px] font-bold opacity-80">รพ.สวรรคโลก</span>
+                        </div>
+
+                        {/* Content: QR + Info side by side */}
+                        <div className="flex-1 flex items-center px-3 py-2 gap-3">
+                            {/* QR Code — Large & Centered */}
+                            <div className="flex flex-col items-center justify-center">
+                                <div className="border-2 border-[#D97736] rounded-lg p-1.5 bg-white">
+                                    <QRCodeSVG value={`https://asthma-flow.vercel.app/patient/${patient?.public_token}`} size={85} />
+                                </div>
+                            </div>
+
+                            {/* Right side info */}
+                            <div className="flex-1 flex flex-col justify-between h-full py-0.5">
+                                {/* HN Badge */}
+                                <div className="bg-[#FFF8F0] border border-[#D97736]/30 rounded-lg px-2.5 py-1.5 text-center">
+                                    <p className="text-[6px] text-[#D97736] font-bold uppercase tracking-widest">Hospital Number</p>
+                                    <p className="text-[14px] font-black font-mono text-[#D97736] tracking-wider leading-tight">{patient?.hn}</p>
+                                </div>
+
+                                {/* Scan instruction */}
+                                <div className="text-center py-1">
+                                    <p className="text-[7px] text-gray-500 font-bold">📱 สแกน QR เพื่อดูข้อมูลการรักษา</p>
+                                    <p className="text-[6px] text-gray-400">ยืนยันตัวตนด้วยวันเดือนปีเกิด</p>
+                                </div>
+
+                                {/* Emergency box */}
+                                <div className="bg-red-50 border border-red-200 rounded-lg px-2 py-1.5 text-center">
+                                    <p className="text-[6px] text-red-500 font-bold flex items-center justify-center gap-1">
+                                        <AlertTriangle size={6} /> กรณีฉุกเฉิน
+                                    </p>
+                                    <p className="text-[8px] font-black text-red-700 leading-tight">
+                                        โทร 1669 · นำส่ง รพ. ทันที
                                     </p>
                                 </div>
-                                <div className="flex gap-4">
-                                    <div>
-                                        <p className="text-[7px] text-gray-500 uppercase font-bold">HN</p>
-                                        <p className="text-[10px] font-bold font-mono text-[#D97736]">{patient?.hn}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[7px] text-gray-500 uppercase font-bold">DOB</p>
-                                        <p className="text-[10px] font-bold">{new Date(patient?.dob || '').toLocaleDateString('th-TH')}</p>
-                                    </div>
-                                </div>
-                                <div className="pt-1">
-                                    <div className="bg-red-50 border border-red-100 p-1 rounded">
-                                        <p className="text-[6px] text-red-600 font-bold flex items-center gap-1">
-                                            <AlertTriangle size={6} /> ในกรณีฉุกเฉิน (Emergency)
-                                        </p>
-                                        <p className="text-[8px] font-bold text-red-700">
-                                            โทร 1669 หรือ นำส่งโรงพยาบาลทันที
-                                        </p>
-                                    </div>
-                                </div>
                             </div>
                         </div>
-                        <div className="bg-[#2D2A26] h-[3mm] w-full mt-auto"></div>
+
+                        {/* Footer bar */}
+                        <div className="bg-[#2D2A26] h-[2.5mm] w-full mt-auto flex items-center justify-center">
+                            <span className="text-[5px] text-white/50 font-bold tracking-wider">ASTHMA FLOW — SAWANKALOK HOSPITAL</span>
+                        </div>
                     </div>
                 </div>
             )}
