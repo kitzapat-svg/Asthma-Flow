@@ -3,7 +3,7 @@
 import { Activity } from 'lucide-react';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer, ReferenceLine, Label
+    Tooltip, ResponsiveContainer, ReferenceArea
 } from 'recharts';
 import { VisitDisplay } from './types';
 
@@ -29,8 +29,9 @@ export function PEFRChart({ visitHistory, predictedVal }: PEFRChartProps) {
                         <XAxis dataKey="dateDisplay" tick={{ fontSize: 12, fill: '#888888' }} />
                         <YAxis domain={[0, 800]} tick={{ fontSize: 12, fill: '#888888' }} />
                         <Tooltip contentStyle={{ borderRadius: '0px', border: '2px solid #3D3834', boxShadow: '4px 4px 0px 0px #3D3834', color: '#000' }} />
-                        <ReferenceLine y={predictedVal * 0.8} stroke="#22c55e" strokeDasharray="3 3"><Label value="Green Zone" fill="#22c55e" fontSize={10} position="insideTopRight" /></ReferenceLine>
-                        <ReferenceLine y={predictedVal * 0.6} stroke="#ef4444" strokeDasharray="3 3"><Label value="Red Zone" fill="#ef4444" fontSize={10} position="insideTopRight" /></ReferenceLine>
+                        <ReferenceArea y1={predictedVal * 0.8} y2={Math.max(predictedVal, 800)} fill="#22c55e" fillOpacity={0.08} />
+                        <ReferenceArea y1={predictedVal * 0.5} y2={predictedVal * 0.8} fill="#eab308" fillOpacity={0.08} />
+                        <ReferenceArea y1={0} y2={predictedVal * 0.5} fill="#ef4444" fillOpacity={0.08} />
                         <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} connectNulls />
                     </LineChart>
                 </ResponsiveContainer>

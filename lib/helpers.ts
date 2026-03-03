@@ -1,4 +1,5 @@
 import { Patient, VisitDisplay, InhalerStatus } from './types';
+import { getDejsomritrutaiPefr } from './pef-reference';
 
 export const normalizeHN = (val: any): string => {
     if (val === null || val === undefined) return '';
@@ -22,14 +23,11 @@ export const getAge = (dob: string): number => {
 export const calculatePredictedPEFR = (p: Pick<Patient, 'height' | 'prefix' | 'dob'>): number => {
     const age = getAge(p.dob);
     const height = parseFloat(p.height || "0");
-    if (height === 0) return 0;
-    let predicted = 0;
-    if (["นาย", "ด.ช."].includes(p.prefix)) {
-        predicted = (5.48 * height) - (1.51 * age) - 279.7;
-    } else {
-        predicted = (3.72 * height) - (2.24 * age) - 96.6;
-    }
-    return Math.max(0, Math.round(predicted));
+    if (height === 0 || age === 0) return 0;
+
+    const isMale = ["นาย", "ด.ช."].includes(p.prefix);
+    const predicted = getDejsomritrutaiPefr(age, height, isMale);
+    return predicted ? Math.max(0, predicted) : 0;
 };
 
 export const getStatusStyle = (status: string): string => {

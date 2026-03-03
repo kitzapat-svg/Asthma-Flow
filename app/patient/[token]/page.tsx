@@ -12,6 +12,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { ActionPlanPrint } from './_components/ActionPlanPrint';
 import { Patient, Visit, Medication } from '@/lib/types';
 import { blindName } from '@/lib/helpers';
+import { getDejsomritrutaiPefr } from '@/lib/pef-reference';
 
 export default function PatientPublicPage() {
   const params = useParams();
@@ -52,7 +53,8 @@ export default function PatientPublicPage() {
                   month: '2-digit',
                   year: '2-digit'
                 }),
-                pefr: parseInt(v.pefr) || 0
+                pefr: parseInt(v.pefr) > 0 ? parseInt(v.pefr) : null,
+                hasData: parseInt(v.pefr) > 0
               }));
             setVisitHistory(graphData);
           }
@@ -232,14 +234,40 @@ export default function PatientPublicPage() {
     );
   };
 
-  // ✨ NEW: PEFR zone boundaries (based on best_pefr if available)
+  // ✨ NEW: PEFR zone boundaries (based on Predicted PEFR)
+  // Green: >= 80%, Yellow: 50% - 79%, Red: < 50%
   const getPefrZones = () => {
-    const bestPefr = patient?.best_pefr ? parseInt(patient.best_pefr) : 500;
+    const predicted = getPredictedPefr();
+    const referenceValue = predicted || (patient?.best_pefr ? parseInt(patient.best_pefr) : 500);
     return {
-      greenMin: Math.round(bestPefr * 0.8),
-      yellowMin: Math.round(bestPefr * 0.6),
-      max: Math.max(bestPefr, 800),
+      greenMin: Math.round(referenceValue * 0.8),
+      yellowMin: Math.round(referenceValue * 0.5),
+      max: Math.max(referenceValue, 800),
     };
+  };
+
+  // ✨ NEW: Predicted PEFR using Thai Reference (Dejsomritrutai W, et al. 2000)
+  // Exact lookup from published tables in J Med Assoc Thai. 2000
+  const getPredictedPefr = (): number | null => {
+    if (!patient) return null;
+    const heightCm = parseFloat(patient.height);
+    const dob = patient.dob;
+    if (!heightCm || !dob) return null;
+    const ageMs = Date.now() - new Date(dob).getTime();
+    const age = Math.floor(ageMs / (1000 * 60 * 60 * 24 * 365.25));
+    const isMale = patient.prefix === 'นาย' || patient.prefix === 'ด.ช.';
+
+    // Accurate table lookup
+    return getDejsomritrutaiPefr(age, heightCm, isMale);
+  };
+
+  // ✨ NEW: Find most recent visit with valid PEFR (> 0), fallback to previous visits
+  const getLatestValidPefr = (): { pefr: number; date: string } | null => {
+    for (const v of allVisits) {
+      const p = parseInt(v.pefr);
+      if (p > 0) return { pefr: p, date: v.date };
+    }
+    return null;
   };
 
   if (loading) return (
@@ -562,36 +590,78 @@ export default function PatientPublicPage() {
           </div>
 
           {/* 6. PEFR Chart with Zone Highlighting */}
-          {visitHistory.length > 0 && (
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md transition-colors">
-              <h3 className="font-bold flex items-center gap-2 mb-2 text-primary"><Activity size={18} /> แนวโน้มค่าปอด (PEFR)</h3>
-              <p className="text-xs text-muted-foreground mb-4">พื้นหลังสีแสดงระดับ: 🟢 ดี / 🟡 ระวัง / 🔴 อันตราย</p>
+          {visitHistory.length > 0 && (() => {
+            const predicted = getPredictedPefr();
+            const latestValid = getLatestValidPefr();
+            const pctOfPredicted = predicted && latestValid ? Math.round((latestValid.pefr / predicted) * 100) : null;
+            const pctColor =
+              pctOfPredicted === null ? ''
+                : pctOfPredicted >= 80 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-green-200 dark:border-green-700'
+                  : pctOfPredicted >= 60 ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border-yellow-200 dark:border-yellow-700'
+                    : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border-red-200 dark:border-red-700';
 
-              <div className="h-[220px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={visitHistory}>
-                    {/* Zone backgrounds */}
-                    <ReferenceArea y1={zones.greenMin} y2={zones.max} fill="#22c55e" fillOpacity={0.08} />
-                    <ReferenceArea y1={zones.yellowMin} y2={zones.greenMin} fill="#eab308" fillOpacity={0.08} />
-                    <ReferenceArea y1={0} y2={zones.yellowMin} fill="#ef4444" fillOpacity={0.08} />
+            return (
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md transition-colors">
+                <h3 className="font-bold flex items-center gap-2 mb-2 text-primary"><Activity size={18} /> แนวโน้มค่าปอด (PEFR)</h3>
+                <p className="text-xs text-muted-foreground mb-4">พื้นหลังสีแสดงระดับ: 🟢 ดี / 🟡 ระวัง / 🔴 อันตราย</p>
 
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} stroke="#888888" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888888' }} />
-                    <YAxis domain={[0, zones.max]} tick={{ fontSize: 10, fill: '#888888' }} width={35} />
-                    <Tooltip contentStyle={{ borderRadius: '10px', fontSize: '12px', color: '#000' }} />
-                    <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', stroke: '#fff', strokeWidth: 2 }} />
-                  </LineChart>
-                </ResponsiveContainer>
+                {/* % of predicted badge */}
+                {pctOfPredicted !== null && latestValid && (
+                  <div className={`mb-4 rounded-xl border px-4 py-3 flex items-center justify-between ${pctColor}`}>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide opacity-70">ค่าปอดล่าสุด vs ค่าเป้าหมาย</p>
+                      <p className="text-2xl font-black mt-0.5">
+                        {latestValid.pefr} <span className="text-sm font-bold">L/min</span>
+                        <span className="ml-3 text-base">
+                          {pctOfPredicted >= 80 ? '🟢' : pctOfPredicted >= 60 ? '🟡' : '🔴'}&nbsp;
+                          {pctOfPredicted}% ของค่าเป้าหมาย
+                        </span>
+                      </p>
+                      <p className="text-xs opacity-70 mt-0.5">
+                        ค่าเป้าหมาย (Predicted): {predicted} L/min
+                        {allVisits[0] && parseInt(allVisits[0].pefr) === 0 && (
+                          <> · ใช้ข้อมูลจากครั้งก่อน ({new Date(latestValid.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})</>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="h-[220px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={visitHistory}>
+                      {/* Zone backgrounds */}
+                      <ReferenceArea y1={zones.greenMin} y2={zones.max} fill="#22c55e" fillOpacity={0.08} />
+                      <ReferenceArea y1={zones.yellowMin} y2={zones.greenMin} fill="#eab308" fillOpacity={0.08} />
+                      <ReferenceArea y1={0} y2={zones.yellowMin} fill="#ef4444" fillOpacity={0.08} />
+
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.3} stroke="#888888" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888888' }} />
+                      <YAxis domain={[0, zones.max]} tick={{ fontSize: 10, fill: '#888888' }} width={35} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '10px', fontSize: '12px', color: '#000' }}
+                        formatter={(value: any) => [value || 'ไม่มีข้อมูล', 'PEFR']}
+                      />
+                      <Line connectNulls={false} type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', stroke: '#fff', strokeWidth: 2 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Zone legend */}
+                <div className="flex justify-center flex-wrap gap-4 mt-3 text-xs font-bold">
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400 inline-block"></span> ดี (&gt;{zones.greenMin})</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span> ระวัง ({zones.yellowMin}-{zones.greenMin})</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span> อันตราย (&lt;{zones.yellowMin})</span>
+                </div>
+
+                {visitHistory.some(v => !v.hasData) && (
+                  <p className="text-center text-[10px] text-muted-foreground mt-3">
+                    * หมายเหตุ: จุดที่ไม่มีข้อมูลกราฟ คือ visit ที่ไม่ได้เป่าปอด
+                  </p>
+                )}
               </div>
-
-              {/* Zone legend */}
-              <div className="flex justify-center gap-4 mt-3 text-xs font-bold">
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400 inline-block"></span> ดี (&gt;{zones.greenMin})</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span> ระวัง ({zones.yellowMin}-{zones.greenMin})</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span> อันตราย (&lt;{zones.yellowMin})</span>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
 

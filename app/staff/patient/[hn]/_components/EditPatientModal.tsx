@@ -6,6 +6,7 @@ import { X, Edit, Trash2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Patient } from './types';
+import { getDejsomritrutaiPefr } from '@/lib/pef-reference';
 
 interface EditPatientModalProps {
     patient: Patient;
@@ -17,19 +18,37 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
     const router = useRouter();
     const [editFormData, setEditFormData] = useState<Patient>({ ...patient });
 
+    // ✨ NEW: Calculate Predicted PEFR (Dejsomritrutai 2000)
+    const calculatePredictedPefr = (height: string, dob: string, prefix: string): string => {
+        const heightCm = parseFloat(height);
+        if (!heightCm || !dob) return "";
+        const ageMs = Date.now() - new Date(dob).getTime();
+        const age = Math.floor(ageMs / (1000 * 60 * 60 * 24 * 365.25));
+        const isMale = prefix === 'นาย' || prefix === 'ด.ช.';
+
+        const result = getDejsomritrutaiPefr(age, heightCm, isMale);
+        return result !== null ? result.toString() : "";
+    };
+
     const [isDeleting, setIsDeleting] = useState(false);
 
     const handleEditSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         try {
+            // Auto calculate if empty
+            let finalBgPefr = editFormData.best_pefr;
+            if (!finalBgPefr) {
+                finalBgPefr = calculatePredictedPefr(editFormData.height, editFormData.dob, editFormData.prefix);
+            }
+
             const dataToUpdate = [
                 patient.hn,
                 editFormData.prefix,
                 editFormData.first_name,
                 editFormData.last_name,
                 editFormData.dob,
-                editFormData.best_pefr,
+                finalBgPefr,
                 editFormData.height,
                 editFormData.status,
                 patient.public_token,
@@ -49,7 +68,7 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
             if (res.ok) {
                 toast.success("บันทึกการแก้ไขเรียบร้อย");
 
-                onSaved({ ...patient, ...editFormData });
+                onSaved({ ...patient, ...editFormData, best_pefr: finalBgPefr });
                 onClose();
             } else {
                 toast.error("เกิดข้อผิดพลาดในการบันทึก");
@@ -145,7 +164,19 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-bold mb-1">Predicted PEFR</label>
+                            <div className="flex justify-between items-end mb-1">
+                                <label className="block text-sm font-bold">Predicted PEFR</label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const calc = calculatePredictedPefr(editFormData.height, editFormData.dob, editFormData.prefix);
+                                        if (calc) setEditFormData({ ...editFormData, best_pefr: calc });
+                                    }}
+                                    className="text-xs text-primary hover:underline font-bold"
+                                >
+                                    คำนวณอัตโนมัติ
+                                </button>
+                            </div>
                             <input type="number" value={editFormData.best_pefr} onChange={e => setEditFormData({ ...editFormData, best_pefr: e.target.value })} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
                         </div>
                         <div>
