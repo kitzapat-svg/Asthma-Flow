@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, LayoutDashboard, Users, PieChart, ChevronDown, UserCog } from "lucide-react";
+import { LogOut, LayoutDashboard, Users, PieChart, ChevronDown, UserCog, Wind } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useState, useRef, useEffect } from "react";
@@ -29,10 +29,15 @@ export default function StaffLayout({
 
           {/* Logo & Brand */}
           <div className="flex items-center gap-6">
-            <h1 className="text-2xl font-black flex items-center gap-2 text-[#2D2A26] dark:text-white">
-              <span className="bg-[#D97736] text-white px-2 py-1 transform -rotate-2 text-lg">ASTHMA</span>
-              CARE
-            </h1>
+            <Link href="/staff/dashboard" className="flex items-center gap-2.5 group">
+              <div className="bg-gradient-to-br from-[#D97736] to-[#E8943D] text-white p-2 rounded-xl shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all">
+                <Wind size={22} strokeWidth={2.5} />
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-black tracking-tight text-[#2D2A26] dark:text-white">Asthma</span>
+                <span className="text-xl font-black tracking-tight text-[#D97736]">Flow</span>
+              </div>
+            </Link>
 
             {/* Navigation Links */}
             <div className="hidden md:flex items-center gap-2">

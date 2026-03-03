@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, ChevronDown, Phone, Heart, Star, Shield } from 'lucide-react';
+import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, ChevronDown, Phone, Heart, Star, Shield, Lock, KeyRound } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceArea
@@ -23,16 +23,82 @@ export default function PatientPublicPage() {
   const [medication, setMedication] = useState<Medication | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- DOB Verification State ---
+  const [verified, setVerified] = useState(false);
+  const [maskedName, setMaskedName] = useState('');
+  const [dobInput, setDobInput] = useState('');
+  const [verifyError, setVerifyError] = useState('');
+  const [verifying, setVerifying] = useState(false);
+
+  // Step 1: Check if already verified in this session, otherwise fetch masked name
   useEffect(() => {
-    const fetchData = async () => {
+    const checkVerification = async () => {
+      const storedDob = sessionStorage.getItem(`verified_dob_${params.token}`);
+      if (storedDob) {
+        // Already verified in this session → load data directly
+        await fetchPatientData(storedDob);
+        return;
+      }
+
+      // Not verified → get masked name from API
       try {
         const res = await fetch(`/api/patient?token=${params.token}`);
         if (!res.ok) {
           setLoading(false);
           return;
         }
-
         const data = await res.json();
+        if (data.requireVerification) {
+          setMaskedName(data.maskedName);
+          setLoading(false);
+        }
+      } catch {
+        setLoading(false);
+      }
+    };
+    checkVerification();
+  }, [params.token]);
+
+  // Step 2: Verify DOB
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyError('');
+    setVerifying(true);
+
+    // Validate format
+    const dobRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+    if (!dobRegex.test(dobInput)) {
+      setVerifyError('กรุณาใส่ในรูปแบบ วว/ดด/ปปปป เช่น 15/06/2510');
+      setVerifying(false);
+      return;
+    }
+
+    await fetchPatientData(dobInput);
+  };
+
+  // Fetch full patient data with DOB
+  const fetchPatientData = async (dob: string) => {
+    try {
+      const res = await fetch(`/api/patient?token=${params.token}&dob=${encodeURIComponent(dob)}`);
+
+      if (res.status === 403) {
+        setVerifyError('วันเดือนปีเกิดไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+        setVerifying(false);
+        return;
+      }
+
+      if (!res.ok) {
+        setVerifyError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+        setVerifying(false);
+        return;
+      }
+
+      const data = await res.json();
+      if (data.verified) {
+        // Save verification to session
+        sessionStorage.setItem(`verified_dob_${params.token}`, dob);
+        setVerified(true);
+
         const foundPatient = data.patient;
         const visits: Visit[] = data.visits;
         const medData: Medication | null = data.medication;
@@ -59,15 +125,15 @@ export default function PatientPublicPage() {
             setVisitHistory(graphData);
           }
         }
-      } catch (error) {
-        console.error("Error:", error);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchData();
-  }, [params.token]);
+    } catch (error) {
+      console.error("Error:", error);
+      setVerifyError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setLoading(false);
+      setVerifying(false);
+    }
+  };
 
   // --- Helpers ---
   const getStatusColor = (level: string) => {
@@ -276,6 +342,111 @@ export default function PatientPublicPage() {
       <p className="text-muted-foreground dark:text-gray-400 font-bold">กำลังโหลดข้อมูล...</p>
     </div>
   );
+
+  // --- DOB Verification Screen ---
+  if (!verified && !patient) {
+    if (!maskedName) {
+      // No masked name = token not found
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background dark:bg-black text-center">
+          <AlertTriangle size={48} className="text-red-500 mb-4" />
+          <h1 className="text-xl font-black text-foreground dark:text-white">ไม่พบข้อมูล</h1>
+          <p className="text-muted-foreground dark:text-gray-400 mt-2">QR Code อาจไม่ถูกต้อง หรือข้อมูลถูกลบไปแล้ว</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white dark:from-zinc-950 dark:to-black p-4">
+        <div className="w-full max-w-sm">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-[#D97736] to-[#E8943D] text-white shadow-lg mb-4">
+              <Shield size={36} />
+            </div>
+            <h1 className="text-2xl font-black text-[#2D2A26] dark:text-white">ยืนยันตัวตน</h1>
+            <p className="text-sm text-gray-500 dark:text-zinc-400 mt-1">เพื่อความปลอดภัย กรุณายืนยันตัวตนก่อนดูข้อมูล</p>
+          </div>
+
+          {/* Card */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-gray-100 dark:border-zinc-800 p-6">
+            {/* Masked name */}
+            <div className="flex items-center gap-3 mb-6 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-xl">
+              <div className="w-10 h-10 rounded-full bg-[#D97736]/20 flex items-center justify-center">
+                <Lock size={18} className="text-[#D97736]" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">ข้อมูลของ</p>
+                <p className="font-bold text-[#2D2A26] dark:text-white">{maskedName}</p>
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleVerify} className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-zinc-300 mb-2">
+                  <KeyRound size={14} className="inline mr-1.5 -mt-0.5" />
+                  วันเดือนปีเกิด (พ.ศ.)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="วว/ดด/ปปปป"
+                  value={dobInput}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[^\d/]/g, '');
+                    // Auto-add slashes
+                    if (val.length === 2 && dobInput.length < 2) val += '/';
+                    if (val.length === 5 && dobInput.length < 5) val += '/';
+                    if (val.length <= 10) setDobInput(val);
+                    setVerifyError('');
+                  }}
+                  className="w-full px-4 py-3 text-lg font-mono text-center tracking-widest border-2 border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50 dark:bg-zinc-800 focus:border-[#D97736] focus:ring-2 focus:ring-[#D97736]/20 outline-none transition-all text-[#2D2A26] dark:text-white placeholder:text-gray-300 dark:placeholder:text-zinc-600"
+                  maxLength={10}
+                  autoFocus
+                />
+              </div>
+
+              {/* Guide */}
+              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300">
+                <p className="font-bold mb-1">📋 รูปแบบการใส่รหัส:</p>
+                <p>ใส่เป็น <span className="font-mono font-bold bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 rounded">วว/ดด/ปปปป</span> (พ.ศ.)</p>
+                <p className="mt-1.5 text-blue-600 dark:text-blue-400">
+                  ตัวอย่าง: เกิดวันที่ 15 มิถุนายน 2510 → <span className="font-mono font-bold">15/06/2510</span>
+                </p>
+              </div>
+
+              {/* Error */}
+              {verifyError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm font-bold animate-shake">
+                  <XCircle size={16} />
+                  {verifyError}
+                </div>
+              )}
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={verifying || dobInput.length < 10}
+                className="w-full py-3.5 bg-gradient-to-r from-[#D97736] to-[#E8943D] text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+              >
+                {verifying ? (
+                  <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> กำลังตรวจสอบ...</>
+                ) : (
+                  <><CheckCircle size={20} /> ยืนยันตัวตน</>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Footer note */}
+          <p className="text-center text-[10px] text-gray-400 dark:text-zinc-600 mt-4">
+            🔒 ข้อมูลของท่านจะถูกเก็บรักษาอย่างปลอดภัย
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!patient) return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background dark:bg-black text-center">
