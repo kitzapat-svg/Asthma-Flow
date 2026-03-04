@@ -8,6 +8,7 @@ import { Patient, Visit } from '@/lib/types';
 const SHEET_CONFIG = {
     PATIENTS_TAB: 'patients',
     VISITS_TAB: 'visits',
+    ADVICE_TAB: 'staff_advice',
 };
 
 
@@ -74,7 +75,18 @@ export async function GET(request: Request) {
         const { getLatestMedication } = await import('@/lib/sheets');
         const medication = await getLatestMedication(patient.hn);
 
-        // 6. ส่งคืนข้อมูล
+        // 6. ดึงคำแนะนำจากเจ้าหน้าที่
+        let adviceList: any[] = [];
+        try {
+            const allAdvice = await getSheetData(SHEET_CONFIG.ADVICE_TAB) as any[];
+            if (Array.isArray(allAdvice)) {
+                adviceList = allAdvice
+                    .filter((a: any) => normalizeHN(a.hn || '') === normalizeHN(patient.hn))
+                    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            }
+        } catch { /* ignore if tab doesn't exist yet */ }
+
+        // 7. ส่งคืนข้อมูล
         const safePatient = {
             hn: patient.hn,
             prefix: patient.prefix,
@@ -89,6 +101,7 @@ export async function GET(request: Request) {
             patient: safePatient,
             visits: patientVisits,
             medication: medication,
+            advice: adviceList,
         });
     } catch (error) {
         console.error('Public Patient API Error:', error);

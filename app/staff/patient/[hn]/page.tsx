@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Activity, FileText, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Activity, FileText, AlertTriangle, MessageSquareText } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSession } from 'next-auth/react';
 import { getUnresolvedDrps } from '@/lib/drp-helpers';
 
 import { Patient, Visit, TechniqueCheck, VisitDisplay, Medication } from './_components/types';
@@ -18,12 +19,15 @@ import { VisitHistoryTable } from './_components/VisitHistoryTable';
 import { TechniqueModal } from './_components/TechniqueModal';
 import { EditPatientModal } from './_components/EditPatientModal';
 import { ActionPlanPrint } from './_components/ActionPlanPrint';
+import { StaffAdviceCard } from './_components/StaffAdviceCard';
+import { AddAdviceModal } from './_components/AddAdviceModal';
 import { QRCodeSVG } from 'qrcode.react';
 
 
 export default function PatientDetailPage() {
     const params = useParams();
     const router = useRouter();
+    const { data: session } = useSession();
     const [patient, setPatient] = useState<Patient | null>(null);
     const [visitHistory, setVisitHistory] = useState<VisitDisplay[]>([]);
     const [techniqueHistory, setTechniqueHistory] = useState<TechniqueCheck[]>([]);
@@ -33,6 +37,8 @@ export default function PatientDetailPage() {
     const [updatingStatus, setUpdatingStatus] = useState(false);
     const [showTechniqueModal, setShowTechniqueModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [adviceList, setAdviceList] = useState<any[]>([]);
+    const [showAdviceModal, setShowAdviceModal] = useState(false);
 
     // --- Print Logic ---
     const [printMode, setPrintMode] = useState<'card' | 'plan'>('card');
@@ -88,6 +94,13 @@ export default function PatientDetailPage() {
                             return new Date(dateB).getTime() - new Date(dateA).getTime();
                         });
                     setDrpHistory(drpList);
+                }
+
+                // Advice
+                const resAdvice = await fetch(`/api/db?type=advice&hn=${params.hn}`);
+                const adviceData = await resAdvice.json();
+                if (Array.isArray(adviceData)) {
+                    setAdviceList(adviceData);
                 }
 
                 const history: VisitDisplay[] = dataVisits
@@ -233,6 +246,18 @@ export default function PatientDetailPage() {
                         <PatientInfoCard patient={patient} age={age} onEdit={() => setShowEditModal(true)} />
                         <QRCodeCard publicToken={patient.public_token} />
                         <InhalerReviewCard inhalerStatus={inhalerStatus} onShowHistory={() => setShowTechniqueModal(true)} />
+                        {adviceList.length > 0 && (
+                            <StaffAdviceCard
+                                adviceList={adviceList}
+                                currentUserId={(session?.user as any)?.id || ''}
+                                currentUserRole={(session?.user as any)?.role || ''}
+                                onRefresh={async () => {
+                                    const res = await fetch(`/api/db?type=advice&hn=${params.hn}`);
+                                    const data = await res.json();
+                                    if (Array.isArray(data)) setAdviceList(data);
+                                }}
+                            />
+                        )}
                         {drpHistory.length > 0 && <DrpListCard drpHistory={drpHistory} />}
                     </div>
 
@@ -288,8 +313,11 @@ export default function PatientDetailPage() {
                                     <FileText size={20} /> บันทึกการตรวจ (Visit)
                                 </button>
                             </Link>
-                            <button className="py-4 bg-[#D97736] text-white border-2 border-[#3D3834] dark:border-zinc-700 shadow-[4px_4px_0px_0px_#3D3834] dark:shadow-none font-bold hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2">
-                                <Activity size={20} /> พ่นยาฉุกเฉิน
+                            <button
+                                onClick={() => setShowAdviceModal(true)}
+                                className="py-4 bg-[#D97736] text-white border-2 border-[#3D3834] dark:border-zinc-700 shadow-[4px_4px_0px_0px_#3D3834] dark:shadow-none font-bold hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2"
+                            >
+                                <MessageSquareText size={20} /> เพิ่มคำแนะนำ
                             </button>
                         </div>
 
@@ -306,6 +334,18 @@ export default function PatientDetailPage() {
                         patient={patient}
                         onClose={() => setShowEditModal(false)}
                         onSaved={(updated) => setPatient(updated)}
+                    />
+                )}
+                {showAdviceModal && (
+                    <AddAdviceModal
+                        patientHn={patient.hn}
+                        onClose={() => setShowAdviceModal(false)}
+                        onSaved={async () => {
+                            // Refresh advice list
+                            const res = await fetch(`/api/db?type=advice&hn=${patient.hn}`);
+                            const data = await res.json();
+                            if (Array.isArray(data)) setAdviceList(data);
+                        }}
                     />
                 )}
 

@@ -500,3 +500,83 @@ export async function deleteMedicationItem(name: string) {
   // Delete by Name (Column B -> Index 1)
   return await deleteRowByValue('medication_list', name, 1);
 }
+
+// --- Staff Advice Functions ---
+
+// Find advice row by composite key: hn + staff_username + date
+function findAdviceRowIndex(rows: any[][], hn: string, staffUsername: string, date: string): number {
+  // Columns: A=hn, B=staff_username, C=staff_name, D=staff_position, E=advice, F=date
+  return rows.findIndex((row) =>
+    normalizeHN(row[0] || '') === normalizeHN(hn) &&
+    row[1] === staffUsername &&
+    row[5] === date
+  );
+}
+
+export async function updateAdvice(hn: string, staffUsername: string, date: string, newAdviceText: string) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'staff_advice!A:F',
+    });
+    const rows = response.data.values;
+    if (!rows) return { success: false, error: "No data found" };
+
+    const rowIndex = findAdviceRowIndex(rows, hn, staffUsername, date);
+    if (rowIndex <= 0) return { success: false, error: "Advice not found" };
+
+    // Update only the advice column (E = column 5, 1-based row)
+    const sheetRow = rowIndex + 1;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `staff_advice!E${sheetRow}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[newAdviceText]] }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Update Advice Error:", error);
+    return { success: false, error };
+  }
+}
+
+export async function deleteAdvice(hn: string, staffUsername: string, date: string) {
+  try {
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === 'staff_advice');
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined) return { success: false, error: "Sheet not found" };
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'staff_advice!A:F',
+    });
+    const rows = response.data.values;
+    if (!rows) return { success: false, error: "No data found" };
+
+    const rowIndex = findAdviceRowIndex(rows, hn, staffUsername, date);
+    if (rowIndex <= 0) return { success: false, error: "Advice not found" };
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheetId,
+              dimension: 'ROWS',
+              startIndex: rowIndex,
+              endIndex: rowIndex + 1
+            }
+          }
+        }]
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Delete Advice Error:", error);
+    return { success: false, error };
+  }
+}

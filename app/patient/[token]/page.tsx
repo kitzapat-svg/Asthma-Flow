@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, ChevronDown, Phone, Heart, Star, Shield, Lock, KeyRound } from 'lucide-react';
+import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, ChevronDown, Phone, Heart, Star, Shield, Lock, KeyRound, MessageSquareText, User } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceArea
@@ -22,6 +22,7 @@ export default function PatientPublicPage() {
   const [allVisits, setAllVisits] = useState<Visit[]>([]);
   const [medication, setMedication] = useState<Medication | null>(null);
   const [loading, setLoading] = useState(true);
+  const [adviceList, setAdviceList] = useState<any[]>([]);
 
   // --- DOB Verification State ---
   const [verified, setVerified] = useState(false);
@@ -125,6 +126,11 @@ export default function PatientPublicPage() {
             setVisitHistory(graphData);
           }
         }
+      }
+
+      // Advice
+      if (data.advice && Array.isArray(data.advice)) {
+        setAdviceList(data.advice);
       }
     } catch (error) {
       console.error("Error:", error);
@@ -521,6 +527,44 @@ export default function PatientPublicPage() {
               <div className="text-center py-4 text-gray-400">ยังไม่มีประวัติการตรวจ</div>
             )}
           </div>
+
+          {/* ✨ Staff Advice Section */}
+          {adviceList.length > 0 && (
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-md border border-orange-100 dark:border-orange-900/30 transition-colors">
+              <h3 className="font-bold flex items-center gap-2 mb-4 text-[#D97736]">
+                <MessageSquareText size={18} /> คำแนะนำจากทีมดูแล
+              </h3>
+              <div className="space-y-3">
+                {adviceList.map((advice: any, i: number) => (
+                  <div key={i} className="bg-orange-50/60 dark:bg-orange-950/20 rounded-xl p-4 border border-orange-100 dark:border-orange-800/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-7 h-7 rounded-full bg-[#D97736]/10 flex items-center justify-center">
+                        <User size={14} className="text-[#D97736]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-[#2D2A26] dark:text-white leading-tight truncate">
+                          {advice.staff_name}
+                        </p>
+                        {advice.staff_position && (
+                          <p className="text-[10px] text-gray-500 dark:text-zinc-400 leading-tight">
+                            {advice.staff_position}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-400 dark:text-zinc-500 font-medium whitespace-nowrap">
+                        {new Date(advice.date).toLocaleDateString('th-TH', {
+                          day: 'numeric', month: 'short', year: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#2D2A26] dark:text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                      {advice.advice}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 2. Action Plan (Auto-open for Yellow/Red + Zone Highlight) */}
           {lastVisit && (

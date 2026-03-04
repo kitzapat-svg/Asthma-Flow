@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
-import { getSheetData, appendData, updatePatientStatus, updatePatientData, updateRowByHnAndDate, deleteRow, logActivity, getUsers, createUser, updateUser, deleteUser, updateDrpById } from '@/lib/sheets';
+import { getSheetData, appendData, updatePatientStatus, updatePatientData, updateRowByHnAndDate, deleteRow, logActivity, getUsers, createUser, updateUser, deleteUser, updateDrpById, updateAdvice, deleteAdvice } from '@/lib/sheets';
 import { normalizeHN } from '@/lib/helpers';
 import { Patient } from '@/lib/types';
 import { hashPassword } from '@/lib/auth';
@@ -13,6 +13,7 @@ const SHEET_CONFIG = {
   USERS_TAB: 'users',
   MEDICATIONS_TAB: 'medications',
   DRP_TAB: 'drps',
+  ADVICE_TAB: 'staff_advice',
 };
 
 
@@ -57,6 +58,19 @@ export async function GET(request: Request) {
       const { getLatestMedication } = await import('@/lib/sheets');
       const med = await getLatestMedication(hn);
       return NextResponse.json(med || {}); // Return empty object if no history
+    }
+
+    if (type === 'advice') {
+      const data = await getSheetData(SHEET_CONFIG.ADVICE_TAB);
+      if (!data) return NextResponse.json([]);
+      if (hn) {
+        const filtered = Array.isArray(data)
+          ? data.filter((item: any) => normalizeHN(item.hn || '') === normalizeHN(hn))
+            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          : [];
+        return NextResponse.json(filtered);
+      }
+      return NextResponse.json(data);
     }
 
     let tabName = '';
@@ -151,6 +165,35 @@ export async function POST(request: Request) {
       tabName = SHEET_CONFIG.DRP_TAB;
       const result = drpRowSchema.safeParse(data);
       if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
+    }
+    else if (type === 'advice') {
+      // data from frontend: [hn, advice_text]
+      // We auto-fill staff info from session + users table
+      const hn = data[0];
+      const adviceText = data[1];
+      if (!hn || !adviceText) return NextResponse.json({ error: "Missing HN or advice text" }, { status: 400 });
+
+      const staffUsername = (session.user as any).id || '';
+      const staffName = session.user?.name || staffUsername;
+
+      // Get position from users table
+      let staffPosition = '';
+      try {
+        const { getUserByUsername } = await import('@/lib/sheets');
+        const user = await getUserByUsername(staffUsername);
+        if (user) staffPosition = user.position || '';
+      } catch { /* ignore */ }
+
+      const now = new Date().toISOString();
+      const adviceRow = [hn, staffUsername, staffName, staffPosition, adviceText, now];
+
+      const result = await appendData(SHEET_CONFIG.ADVICE_TAB, adviceRow);
+      if (result.success) {
+        await logActivity(session.user?.email || 'Unknown', 'Add Advice', `Success (HN: ${hn})`);
+        return NextResponse.json({ message: 'Advice saved' });
+      } else {
+        return NextResponse.json({ error: result.error }, { status: 500 });
+      }
     }
     else return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
@@ -281,6 +324,29 @@ export async function PUT(request: Request) {
       }
     }
 
+    // --- Update advice (edit advice text) ---
+    if (type === 'advice_update') {
+      const { hn: adviceHn, staff_username, date: adviceDate, advice: newAdviceText } = body;
+      if (!adviceHn || !staff_username || !adviceDate || !newAdviceText) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      }
+
+      // RBAC: Staff can only edit their own advice, Admin can edit any
+      const currentUserId = (session.user as any).id || '';
+      const currentUserRole = (session.user as any).role;
+      if (currentUserRole !== 'Admin' && currentUserId !== staff_username) {
+        return NextResponse.json({ error: "Access Denied: You can only edit your own advice" }, { status: 403 });
+      }
+
+      const result = await updateAdvice(adviceHn, staff_username, adviceDate, newAdviceText);
+      if (result.success) {
+        await logActivity(session.user?.email || 'Unknown', 'Edit Advice', `Success (HN: ${adviceHn})`);
+        return NextResponse.json({ message: "Advice updated" });
+      } else {
+        return NextResponse.json({ error: result.error }, { status: 404 });
+      }
+    }
+
     let tabName = "";
     if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
     else return NextResponse.json({ error: "Invalid type" }, { status: 400 });
@@ -341,6 +407,30 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ message: "Delete success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 500 });
+      }
+    }
+
+    // --- Delete advice ---
+    if (type === 'advice') {
+      const staffUsername = searchParams.get('staff_username');
+      const date = searchParams.get('date');
+      if (!hn || !staffUsername || !date) {
+        return NextResponse.json({ error: "Missing parameters (hn, staff_username, date)" }, { status: 400 });
+      }
+
+      // RBAC: Staff can only delete their own advice, Admin can delete any
+      const currentUserId = (session.user as any).id || '';
+      const currentUserRole = (session.user as any).role;
+      if (currentUserRole !== 'Admin' && currentUserId !== staffUsername) {
+        return NextResponse.json({ error: "Access Denied: You can only delete your own advice" }, { status: 403 });
+      }
+
+      const result = await deleteAdvice(hn, staffUsername, date);
+      if (result.success) {
+        await logActivity(session.user?.email || 'Unknown', 'Delete Advice', `Success (HN: ${hn})`);
+        return NextResponse.json({ message: "Advice deleted" });
+      } else {
+        return NextResponse.json({ error: result.error }, { status: 404 });
       }
     }
 

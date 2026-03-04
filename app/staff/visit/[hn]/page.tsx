@@ -8,6 +8,7 @@ import * as z from 'zod';
 import { AlertCircle, AlertTriangle, ArrowLeft, Send, CheckCircle, Activity, LayoutDashboard, Search, FileText, Pill, Plus, X, Trash2, CalendarDays, RefreshCw, Stethoscope, Users, RefreshCcw, ClipboardList, Save } from 'lucide-react';
 import { MDI_STEPS } from '@/lib/types';
 import { toast } from 'sonner';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { PatientContextBar } from '@/components/staff/patient-context-bar';
 import { Patient } from '@/lib/types';
@@ -50,6 +51,7 @@ type VisitFormValues = z.infer<typeof visitSchema> & {
 export default function RecordVisitPage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(true);
@@ -479,6 +481,20 @@ export default function RecordVisitPage() {
       }
 
       await Promise.all(promises);
+
+      // Save advice to staff_advice sheet if non-empty (only on new visits, not edits)
+      if (data.advice && data.advice.trim() !== '' && data.advice.trim() !== '-') {
+        try {
+          await fetch('/api/db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'advice',
+              data: [params.hn, data.advice.trim()],
+            }),
+          });
+        } catch { /* ignore — visit save already succeeded */ }
+      }
 
       // Optimistic success feedback
       setSaveSuccess(true);
