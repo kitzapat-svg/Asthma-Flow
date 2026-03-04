@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Activity, Lock, ArrowRight, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Activity, Lock, ArrowRight, ArrowLeft, AlertCircle, Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle"; // <--- เรียกใช้ปุ่มปรับธีม
 
 export default function SignInPage() {
@@ -142,6 +143,16 @@ export default function SignInPage() {
               )}
             </button>
           </form>
+
+          {/* Back to Landing */}
+          <div className="text-center mt-6">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-sm font-bold text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] dark:hover:text-[#D97736] transition-colors"
+            >
+              <ArrowLeft size={16} /> กลับหน้าหลัก
+            </Link>
+          </div>
 
         </div>
 

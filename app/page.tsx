@@ -1,6 +1,8 @@
 import { Navbar } from "@/components/navbar";
 import { Hero } from "@/components/sections/hero";
 import { Features } from "@/components/sections/features";
+import { AsthmaKnowledge } from "@/components/sections/asthma-knowledge";
+import { PefrCalculator } from "@/components/sections/pefr-calculator";
 import { Stats } from "@/components/sections/stats";
 import { MarqueeSection } from "@/components/sections/marquee-section";
 import { Testimonials } from "@/components/sections/testimonials";
@@ -15,6 +17,8 @@ export default function Home() {
         <Hero />
         <MarqueeSection />
         <Features />
+        <AsthmaKnowledge />
+        <PefrCalculator />
         <Stats />
         <Testimonials />
         <CTA />

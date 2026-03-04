@@ -10,8 +10,9 @@ import { signIn } from "next-auth/react";
 
 const navLinks = [
   { name: "Features", href: "#features" },
+  { name: "Knowledge", href: "#knowledge" },
+  { name: "PEFR Calc", href: "#pefr-calculator" },
   { name: "About", href: "#about" },
-  { name: "Services", href: "#services" },
   { name: "Contact", href: "#contact" },
 ];
 
