@@ -5,6 +5,7 @@ import { getSheetData, appendData, updatePatientStatus, updatePatientData, updat
 import { normalizeHN } from '@/lib/helpers';
 import { Patient } from '@/lib/types';
 import { hashPassword } from '@/lib/auth';
+import { getBangkokISOString } from '@/lib/date-utils';
 
 const SHEET_CONFIG = {
   PATIENTS_TAB: 'patients',
@@ -184,7 +185,7 @@ export async function POST(request: Request) {
         if (user) staffPosition = user.position || '';
       } catch { /* ignore */ }
 
-      const now = new Date().toISOString();
+      const now = getBangkokISOString();
       const adviceRow = [hn, staffUsername, staffName, staffPosition, adviceText, now];
 
       const result = await appendData(SHEET_CONFIG.ADVICE_TAB, adviceRow);

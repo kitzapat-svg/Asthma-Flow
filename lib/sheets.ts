@@ -1,6 +1,7 @@
 // lib/sheets.ts
 import { google } from 'googleapis';
 import { normalizeHN } from '@/lib/helpers';
+import { getBangkokTimestamp } from '@/lib/date-utils';
 
 
 const auth = new google.auth.GoogleAuth({
@@ -315,7 +316,7 @@ export async function logActivity(email: string, action: string, details: string
     // ใช้ format มาตรฐานที่ parse ง่าย: YYYY-MM-DD HH:mm:ss
     // ใช้ Intl.DateTimeFormat เพื่อให้ได้ Christian Year แน่นอน
     const now = new Date();
-    const timestamp = now.toISOString().replace('T', ' ').split('.')[0];
+    const timestamp = getBangkokTimestamp();
 
     // Logs columns: [Timestamp, Email, Action, Details]
     await appendData('logs', [timestamp, email, action, details]);

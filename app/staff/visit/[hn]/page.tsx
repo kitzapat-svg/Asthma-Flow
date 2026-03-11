@@ -14,6 +14,7 @@ import { PatientContextBar } from '@/components/staff/patient-context-bar';
 import { Patient } from '@/lib/types';
 import { DRP_DATA, INTERVENTION_OPTIONS, OUTCOME_OPTIONS } from '@/lib/drp-data';
 import { v4 as uuidv4 } from 'uuid';
+import { getBangkokDateString, getBangkokISOString } from '@/lib/date-utils';
 import { getUnresolvedDrps } from '@/lib/drp-helpers';
 import { DRP } from '@/lib/types';
 
@@ -214,7 +215,7 @@ export default function RecordVisitPage() {
         }
 
         // Determine which date to check for existing visit
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getBangkokDateString();
         const targetDate = dateParam || todayStr;
 
         // Check if there's already a visit for the target date
@@ -405,7 +406,7 @@ export default function RecordVisitPage() {
   const onSubmit = async (data: VisitFormValues) => {
     setLoading(true);
     try {
-      const today = editDate || new Date().toISOString().split('T')[0];
+      const today = editDate || getBangkokDateString();
       const totalScore = checklist.filter(Boolean).length;
       const inhalerScore = data.technique_check === 'ทำ' ? totalScore.toString() : '-';
 
@@ -467,7 +468,7 @@ export default function RecordVisitPage() {
           const drpRow = [
             drpId,
             params.hn,
-            new Date().toISOString(),
+            getBangkokISOString(),
             today,
             drp.category || '-',
             drp.type || '-',
@@ -533,7 +534,7 @@ export default function RecordVisitPage() {
         <PatientContextBar patient={patient} latestControlLevel={latestControlLevel} />
 
         {/* Editing old visit info banner */}
-        {isEditMode && editDate && editDate !== new Date().toISOString().split('T')[0] && (
+        {isEditMode && editDate && editDate !== getBangkokDateString() && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-700 rounded-lg p-4 mb-6 flex items-center gap-3 animate-in fade-in">
             <div className="bg-blue-500 text-white p-2 rounded-lg shrink-0">
               <FileText size={18} />

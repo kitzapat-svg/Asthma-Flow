@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 import { format, subDays, startOfWeek, endOfWeek, subMonths, startOfMonth, endOfMonth, addDays, getDay, isSameDay, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
+import { toBangkokDateString } from '@/lib/date-utils';
 
 import { Patient, Visit, TechniqueCheck, MDI_STEPS, DRP } from '@/lib/types';
 import { getAge, normalizeHN } from '@/lib/helpers';
@@ -334,8 +335,19 @@ export default function StatsPage() {
       const d = subDays(now, i * 7);
       const start = startOfWeek(d, { weekStartsOn: 1 }); // Monday start
       const end = endOfWeek(d, { weekStartsOn: 1 });
-      const label = `W${format(start, 'w')} (${format(start, 'd MMM')})`; // Week number + Date
-      const dateRange = `${format(start, 'd MMM')} - ${format(end, 'd MMM', { locale: th })}`;
+
+      // Use Tuesday (clinic day) for the label instead of Monday (start of week)
+      const tuesday = addDays(start, 1);
+      const tueBkk = toBangkokDateString(tuesday);
+      const tueDay = parseInt(tueBkk.split('-')[2], 10);
+      const tueMonth = new Date(tueBkk + 'T00:00:00+07:00').toLocaleDateString('en-US', { month: 'short', timeZone: 'Asia/Bangkok' });
+      const endBkk = toBangkokDateString(end);
+      const endDay = parseInt(endBkk.split('-')[2], 10);
+      const endMonth = new Date(endBkk + 'T00:00:00+07:00').toLocaleDateString('th-TH', { month: 'short', timeZone: 'Asia/Bangkok' });
+
+      const weekNum = format(start, 'w');
+      const label = `W${weekNum} (${tueDay} ${tueMonth})`;
+      const dateRange = `${tueDay} ${tueMonth} - ${endDay} ${endMonth}`;
 
       // Count visits in this week
       const visitCount = visits.filter(v => {
