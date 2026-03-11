@@ -171,6 +171,11 @@
     box-shadow: 6px 6px 0px 0px var(--primary);
   }
   
+  .retro-box-static {
+    border: 2px solid var(--border);
+    box-shadow: var(--retro-shadow);
+  }
+  
   .retro-button {
     border: 2px solid var(--border);
     box-shadow: var(--retro-shadow-sm);
