@@ -47,7 +47,7 @@ export default function StaffLayout({
               >
                 <Wind size={20} strokeWidth={2.5} className="text-primary-foreground" />
               </motion.div>
-              <span className="hidden sm:inline text-lg font-black tracking-tight text-foreground uppercase">
+              <span className="text-lg font-black tracking-tight text-foreground uppercase">
                 Asthma Flow
               </span>
             </Link>
