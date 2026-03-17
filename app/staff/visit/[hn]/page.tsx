@@ -224,20 +224,28 @@ export default function RecordVisitPage() {
 
         // Check appointment timing: compare today with the most recent previous visit's next_appt
         if (Array.isArray(visitData) && visitData.length > 0 && !dateParam) {
-          const sorted = [...visitData].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          const getDate = (v: any) => v.date || v.Date || '';
+          const getNextAppt = (v: any) => v.next_appt || v['Next Appt'] || v['next appt'] || v.NextAppt || '';
+
+          const sorted = [...visitData].sort((a: any, b: any) => new Date(getDate(b)).getTime() - new Date(getDate(a)).getTime());
           // Find the most recent visit that is NOT today (to get its next_appt)
-          const prevVisit = sorted.find((v: any) => v.date !== todayStr);
-          if (prevVisit && prevVisit.next_appt) {
-            const scheduled = new Date(prevVisit.next_appt);
+          const prevVisit = sorted.find((v: any) => getDate(v) !== todayStr);
+          const nextApptValue = prevVisit ? getNextAppt(prevVisit) : '';
+          
+          console.log('[Appt Check] prevVisit date:', prevVisit ? getDate(prevVisit) : 'none', '| next_appt:', nextApptValue, '| today:', todayStr);
+          
+          if (prevVisit && nextApptValue) {
+            const scheduled = new Date(nextApptValue);
             const today = new Date(todayStr);
             // Reset time parts to compare dates only
             scheduled.setHours(0, 0, 0, 0);
             today.setHours(0, 0, 0, 0);
             const diffMs = today.getTime() - scheduled.getTime();
             const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+            console.log('[Appt Check] scheduled:', scheduled.toISOString(), '| diff:', diffDays, 'days');
             if (diffDays !== 0) {
               setAppointmentInfo({
-                scheduledDate: prevVisit.next_appt,
+                scheduledDate: nextApptValue,
                 diffDays: Math.abs(diffDays),
                 type: diffDays < 0 ? 'early' : 'late',
               });
