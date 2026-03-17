@@ -25,7 +25,7 @@ export function ActionPlanPrint({ patient, visit }: ActionPlanPrintProps) {
                 </div>
                 <div className="text-right flex flex-col items-end">
                     <div className="border p-2 mb-2">
-                        <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient.public_token}`} size={64} />
+                        <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : 'https://asthsawan.vercel.app'}/patient/${patient.public_token}`} size={64} />
                     </div>
                     <p className="text-xs text-gray-400">Scan for Digital Card</p>
                     <p className="text-sm font-bold mt-2">วันที่ประเมิน: {new Date(visit.date).toLocaleDateString('th-TH')}</p>

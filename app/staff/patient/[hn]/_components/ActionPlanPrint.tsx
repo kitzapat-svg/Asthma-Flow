@@ -70,7 +70,7 @@ export const ActionPlanPrint: React.FC<ActionPlanPrintProps> = ({ patient, visit
                         <p className="text-xs font-bold text-gray-500">แผนปฏิบัติการสำหรับผู้ป่วยหอบหืด</p>
                     </div>
                     <div className="bg-white border-2 border-black p-1">
-                        <QRCodeSVG value={`https://asthma-flow.vercel.app/patient/${patient.public_token}`} size={60} />
+                        <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : 'https://asthma-flow.vercel.app'}/patient/${patient.public_token}`} size={60} />
                     </div>
                 </div>
             </div>
@@ -135,7 +135,7 @@ export const ActionPlanPrint: React.FC<ActionPlanPrintProps> = ({ patient, visit
                         <div className="bg-white border border-yellow-200 rounded-lg p-2 shadow-sm">
                             <p className="font-bold text-yellow-800 underline mb-1 text-xs">การปฏิบัติตัว:</p>
                             <ul className="list-decimal pl-4 space-y-0.5 text-xs text-gray-800">
-                                <li>ใช้ยาควบคุม <span className="font-bold">{controllerText}</span> ต่อเนื่อง</li>
+                                <li>ใช้ยาควบคุม <span className="font-bold">{controllerText}</span> </li>
                                 <li>พ่นยาฉุกเฉิน <span className="font-bold">{medication?.reliever_name || visit.reliever || "Salbutamol"}</span> 2 พัฟ ทุก 4-6 ชั่วโมง</li>
                                 <li>ถ้าอาการไม่ดีขึ้นใน 1 วัน ให้ไปพบแพทย์</li>
                             </ul>
@@ -180,7 +180,7 @@ export const ActionPlanPrint: React.FC<ActionPlanPrintProps> = ({ patient, visit
             {/* Footer / Signature */}
             <div className="mt-4 flex justify-between items-end border-t border-gray-300 pt-4">
                 <div className="text-left">
-                    <p className="text-[10px] text-gray-400">Scan for Digital Plan: asthma-flow.vercel.app</p>
+                    <p className="text-[10px] text-gray-400">Scan for Digital Plan: {typeof window !== 'undefined' ? window.location.host : 'asthma-flow.vercel.app'}</p>
                 </div>
                 <div className="text-center">
                     <div className="w-64 border-b border-black mb-2"></div>

@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FieldError, useWatch, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { AlertCircle, AlertTriangle, ArrowLeft, Send, CheckCircle, Activity, LayoutDashboard, Search, FileText, Pill, Plus, X, Trash2, CalendarDays, RefreshCw, Stethoscope, Users, RefreshCcw, ClipboardList, Save } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, Send, CheckCircle, Activity, LayoutDashboard, Search, FileText, Pill, Plus, X, Trash2, CalendarDays, RefreshCw, Stethoscope, Users, RefreshCcw, ClipboardList, Save, CalendarClock } from 'lucide-react';
 import { MDI_STEPS } from '@/lib/types';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
@@ -66,6 +66,7 @@ export default function RecordVisitPage() {
   const [existingUnresolvedDrps, setExistingUnresolvedDrps] = useState<DRP[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editDate, setEditDate] = useState<string | null>(null); // date being edited (null = today)
+  const [appointmentInfo, setAppointmentInfo] = useState<{ scheduledDate: string; diffDays: number; type: 'early' | 'late' | 'on-time' } | null>(null);
   const searchParams = useSearchParams();
   const dateParam = searchParams.get('date'); // e.g. ?date=2026-01-15
 
@@ -120,9 +121,12 @@ export default function RecordVisitPage() {
   const clinicianNote = useWatch({ control, name: 'note' });
   const medNote = useWatch({ control, name: 'medication_note' });
 
-  // Logic 1: ถ้าญาติมาแทน -> เทคนิคพ่นยาต้องเป็น "ไม่"
+  // Logic 1: ถ้าญาติมาแทน -> เทคนิคพ่นยาต้องเป็น "ไม่" และ ความร่วมมือเป็น "0"
   useEffect(() => {
-    if (isRelative) setValue('technique_check', 'ไม่');
+    if (isRelative) {
+      setValue('technique_check', 'ไม่');
+      setValue('adherence', '0');
+    }
   }, [isRelative, setValue]);
 
   // Logic 2: ถ้าไม่ได้เป่า -> เคลียร์ค่า PEFR
@@ -217,6 +221,29 @@ export default function RecordVisitPage() {
         // Determine which date to check for existing visit
         const todayStr = getBangkokDateString();
         const targetDate = dateParam || todayStr;
+
+        // Check appointment timing: compare today with the most recent previous visit's next_appt
+        if (Array.isArray(visitData) && visitData.length > 0 && !dateParam) {
+          const sorted = [...visitData].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          // Find the most recent visit that is NOT today (to get its next_appt)
+          const prevVisit = sorted.find((v: any) => v.date !== todayStr);
+          if (prevVisit && prevVisit.next_appt) {
+            const scheduled = new Date(prevVisit.next_appt);
+            const today = new Date(todayStr);
+            // Reset time parts to compare dates only
+            scheduled.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+            const diffMs = today.getTime() - scheduled.getTime();
+            const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+            if (diffDays !== 0) {
+              setAppointmentInfo({
+                scheduledDate: prevVisit.next_appt,
+                diffDays: Math.abs(diffDays),
+                type: diffDays < 0 ? 'early' : 'late',
+              });
+            }
+          }
+        }
 
         // Check if there's already a visit for the target date
         if (Array.isArray(visitData)) {
@@ -416,9 +443,11 @@ export default function RecordVisitPage() {
         finalNote = finalNote === '-' || finalNote.trim() === '' ? 'ญาติรับยาแทน' : `${finalNote} (ญาติรับยาแทน)`;
       }
 
+      const finalAdherence = data.is_relative_pickup ? '0' : `${data.adherence}%`;
+
       const visitData = [
         params.hn, today, finalPefr, data.control_level, data.c1_name, data.reliever_name,
-        data.adherence + '%', data.drpList && data.drpList.length > 0 ? `${data.drpList.length} DRP(s)` : '-', data.advice, data.technique_check, data.next_appt || '',
+        finalAdherence, data.drpList && data.drpList.length > 0 ? `${data.drpList.length} DRP(s)` : '-', data.advice, data.technique_check, data.next_appt || '',
         finalNote, data.is_new_case ? 'TRUE' : 'FALSE', inhalerScore
       ];
 
@@ -532,6 +561,39 @@ export default function RecordVisitPage() {
 
       <div className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 border-2 border-border dark:border-zinc-800 shadow-[8px_8px_0px_0px_var(--border)] dark:shadow-none p-8">
         <PatientContextBar patient={patient} latestControlLevel={latestControlLevel} />
+
+        {/* Appointment Timing Alert Banner */}
+        {appointmentInfo && (
+          <div className={`rounded-lg p-4 mb-6 flex items-center gap-3 animate-in fade-in border-2 ${
+            appointmentInfo.type === 'early'
+              ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-300 dark:border-sky-700'
+              : 'bg-rose-50 dark:bg-rose-900/20 border-rose-300 dark:border-rose-700'
+          }`}>
+            <div className={`p-2 rounded-lg shrink-0 text-white ${
+              appointmentInfo.type === 'early' ? 'bg-sky-500' : 'bg-rose-500'
+            }`}>
+              <CalendarClock size={18} />
+            </div>
+            <div className="flex-1">
+              <h4 className={`font-bold text-sm ${
+                appointmentInfo.type === 'early'
+                  ? 'text-sky-800 dark:text-sky-300'
+                  : 'text-rose-800 dark:text-rose-300'
+              }`}>
+                {appointmentInfo.type === 'early'
+                  ? `📅 ผู้ป่วยมาก่อนนัด ${appointmentInfo.diffDays} วัน`
+                  : `📅 ผู้ป่วยมาหลังนัด ${appointmentInfo.diffDays} วัน`}
+              </h4>
+              <p className={`text-xs mt-0.5 ${
+                appointmentInfo.type === 'early'
+                  ? 'text-sky-600 dark:text-sky-400'
+                  : 'text-rose-600 dark:text-rose-400'
+              }`}>
+                วันนัดเดิม: {new Date(appointmentInfo.scheduledDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Editing old visit info banner */}
         {isEditMode && editDate && editDate !== getBangkokDateString() && (
@@ -826,9 +888,19 @@ export default function RecordVisitPage() {
                 <div className="mb-6">
                   <label className="text-sm font-bold mb-2 flex justify-between">
                     ความสม่ำเสมอ
-                    <span className="text-[#D97736]">{adherence}%</span>
+                    <span className={isRelative ? "text-muted-foreground" : "text-[#D97736]"}>
+                      {isRelative ? 'ไม่ได้ประเมิน' : `${adherence}%`}
+                    </span>
                   </label>
-                  <input type="range" {...register("adherence")} min="0" max="100" step="10" className="w-full accent-[#D97736]" />
+                  <input 
+                    type="range" 
+                    {...register("adherence")} 
+                    disabled={isRelative}
+                    min="0" 
+                    max="100" 
+                    step="10" 
+                    className={`w-full ${isRelative ? 'accent-gray-400 cursor-not-allowed opacity-50' : 'accent-[#D97736]'}`} 
+                  />
                 </div>
                 <div className="mt-auto pt-8">
                   <label className="text-sm font-bold mb-2 block">Note (Medication/DRP)</label>
