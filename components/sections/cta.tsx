@@ -61,7 +61,7 @@ export function CTA() {
 
               <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.4 }} className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <motion.button
-                  onClick={() => signIn("google", { callbackUrl: "/staff/dashboard" })}
+                  onClick={() => signIn("google", { callbackUrl: "/staff/patients" })}
                   className="inline-flex h-14 items-center justify-center px-10 text-base font-black uppercase tracking-wider overflow-hidden group cursor-pointer"
                   style={{
                     backgroundColor: "var(--primary)",

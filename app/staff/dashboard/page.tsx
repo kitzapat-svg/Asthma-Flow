@@ -1,534 +1,915 @@
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
-  UserPlus, Users, Activity, FileText, Search, X, Filter,
-  Calendar, ChevronRight, Clock, AlertCircle, CheckCircle
+  Activity, PieChart as PieChartIcon, BarChart3, RefreshCw,
+  CalendarDays, TrendingUp, Users, CalendarRange, LineChart,
+  Stethoscope, AlertCircle, BookOpen,
+  Pill, CheckCircle2, Clock3, XCircle, ListChecks
 } from 'lucide-react';
-import { useSession } from "next-auth/react";
-import { motion, AnimatePresence } from 'framer-motion';
+// NOTE: recharts uses `window` but this is a 'use client' file with a loading
+// guard — recharts components only render after client-side data fetch completes,
+// so they are never invoked during SSR.
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
+  CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  ComposedChart, Line, Area
+} from 'recharts';
+import { format, subDays, startOfWeek, endOfWeek, subMonths, startOfMonth, endOfMonth, addDays, getDay, isSameDay, parseISO } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { toBangkokDateString } from '@/lib/date-utils';
 
+import { Patient, Visit, TechniqueCheck, MDI_STEPS, DRP } from '@/lib/types';
+import { getAge, normalizeHN } from '@/lib/helpers';
 import { Button } from '@/components/ui/button';
-import { Patient, Visit } from '@/lib/types';
+import { Modal } from '@/components/ui/modal';
 import { CountUp } from '@/components/animated/count-up';
 import { FadeContent } from '@/components/animated/fade-content';
-import { getUnresolvedDrps } from '@/lib/drp-helpers';
 
-// Extended type for internal use
-interface PatientWithAppt extends Patient {
-  nextAppt: Date | null;
-  lastVisit: Date | null;
-  latestControlLevel: string | null;
-  hasUnresolvedDRP?: boolean;
-}
-
-export default function PatientListPage() {
-  const router = useRouter();
-  const { status } = useSession();
-
-  // Data State
-  const [patients, setPatients] = useState<PatientWithAppt[]>([]);
+export default function StatsPage() {
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [techniqueChecks, setTechniqueChecks] = useState<TechniqueCheck[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // UI State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [quickFilter, setQuickFilter] = useState('All'); // 'All', 'Today', 'Missed', 'Warning'
-  const [isFocused, setIsFocused] = useState(false);
+  // Stats
+  const [weeklyVisits, setWeeklyVisits] = useState(0);
+  const [monthlyVisits, setMonthlyVisits] = useState(0);
+  const [newPatients, setNewPatients] = useState(0);
+
+  // Drill-down State
+  const [selectedStat, setSelectedStat] = useState<'weekly' | 'monthly' | null>(null);
+
+  // New Features State
+  const [nextTuesdayDate, setNextTuesdayDate] = useState<Date | null>(null);
+  const [nextTuesdayAppts, setNextTuesdayAppts] = useState<{ hn: string, name: string, time: string }[]>([]);
+
+  const [fiscalYearStats, setFiscalYearStats] = useState<any[]>([]);
+  const [selectedFy, setSelectedFy] = useState<number>(new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0)); // Default to current FY (Oct starts new FY)
+
+  const [drpFyStats, setDrpFyStats] = useState<any[]>([]);
+  const [selectedDrpFy, setSelectedDrpFy] = useState<number>(new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0));
 
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
-    } else if (status === "authenticated") {
-      fetchData();
-    }
-  }, [status, router]);
+    fetchData();
+  }, []);
 
   const fetchData = async () => {
     try {
-      // Parallel fetch for speed
-      const [resPatients, resVisits, resDrps] = await Promise.all([
+      setLoading(true);
+      const [resPatients, resVisits, resTech, resDrps] = await Promise.all([
         fetch('/api/db?type=patients'),
         fetch('/api/db?type=visits'),
+        fetch('/api/db?type=technique_checks'),
         fetch('/api/db?type=drps')
       ]);
 
       const dataPatients: Patient[] = await resPatients.json();
       const dataVisits: Visit[] = await resVisits.json();
-      const dataDrps = await resDrps.json();
+      const dataTech: TechniqueCheck[] = await resTech.json();
+      const dataDrps: DRP[] = await resDrps.json();
 
-      if (!Array.isArray(dataPatients)) return;
+      const validPatients = Array.isArray(dataPatients) ? dataPatients : [];
+      const validVisits = Array.isArray(dataVisits) ? dataVisits : [];
+      const validTech = Array.isArray(dataTech) ? dataTech : [];
+      const validDrps = Array.isArray(dataDrps) ? dataDrps : [];
 
-      const unresolvedDrps = Array.isArray(dataDrps) ? getUnresolvedDrps(dataDrps) : [];
-      const hnsWithUnresolvedDrps = new Set(unresolvedDrps.map((d: any) => String(d.hn || d.HN)));
+      setPatients(validPatients);
+      setVisits(validVisits);
+      setTechniqueChecks(validTech);
 
-      // Process Data: Join Patients with Visits to find Next Appointment
-      const processed = dataPatients.map(p => {
-        // Find visits for this patient
-        const pVisits = Array.isArray(dataVisits)
-          ? dataVisits.filter(v => v.hn === p.hn)
-          : [];
+      // --- Calculate Snapshot Stats ---
+      const now = new Date();
 
-        // Find next appointment (future date)
-        // Logic: specific field 'next_appt' in visit, pick the one that is closest to now but in future
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
+      // 1. Weekly Visits (Last 7 Days)
+      const oneWeekAgo = new Date(now);
+      oneWeekAgo.setDate(now.getDate() - 7);
 
-        let nextAppt: Date | null = null;
-        let lastVisit: Date | null = null;
-        let latestControlLevel: string | null = null;
+      const weeklyCount = validVisits.filter(v => {
+        const d = new Date(v.date);
+        return d >= oneWeekAgo && d <= now;
+      }).length;
+      setWeeklyVisits(weeklyCount);
 
-        // Sort visits by date descending
-        pVisits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      // 2. Monthly Visits (This Month)
+      const startOfCurrentMonth = startOfMonth(now);
+      const monthlyCount = validVisits.filter(v => {
+        const d = new Date(v.date);
+        return d >= startOfCurrentMonth && d <= now;
+      }).length;
+      setMonthlyVisits(monthlyCount);
 
-        if (pVisits.length > 0) {
-          lastVisit = new Date(pVisits[0].date);
-          latestControlLevel = pVisits[0].control_level || null;
+      // 3. New Patients (First visit in this month)
+      const firstVisits = getFirstVisitsMap(validVisits);
+      const newPatientsCount = Object.values(firstVisits).filter(d =>
+        d >= startOfCurrentMonth && d <= now
+      ).length;
+      setNewPatients(newPatientsCount);
 
-          // Check for explicit next appointment fields
-          // Filter valid future dates
-          const futureAppts = pVisits
-            .map(v => v.next_appt ? new Date(v.next_appt) : null)
-            .filter(d => d && !isNaN(d.getTime()) && d >= now) as Date[];
+      // --- 4. Next Tuesday Appointments ---
+      calculateNextTuesdayAppts(validVisits, validPatients);
 
-          if (futureAppts.length > 0) {
-            // Sort ascending to get nearest
-            futureAppts.sort((a, b) => a.getTime() - b.getTime());
-            nextAppt = futureAppts[0];
-          }
-        }
+      // --- 5. Fiscal Year Stats (Inhaler Teaching) ---
+      calculateFiscalYearStats(validTech);
 
-        const hasUnresolvedDRP = hnsWithUnresolvedDrps.has(String(p.hn));
+      // --- 6. DRP Fiscal Year Stats ---
+      calculateDrpFiscalYearStats(validDrps);
 
-        return {
-          ...p,
-          nextAppt,
-          lastVisit,
-          latestControlLevel,
-          hasUnresolvedDRP
-        };
-      });
-
-      setPatients(processed);
     } catch (error) {
-      console.error("Failed to fetch data:", error);
+      console.error("Failed to fetch:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Logic: Focus Mode vs Search Mode ---
-  const displayedPatients = useMemo(() => {
-    // 1. Filter first
-    let filtered = patients.filter(p => {
-      const query = searchTerm.toLowerCase().trim();
-      const matchSearch =
-        !query ||
-        p.hn.toLowerCase().includes(query) ||
-        p.first_name.toLowerCase().includes(query) ||
-        p.last_name.toLowerCase().includes(query);
-
-      const matchStatus = filterStatus === 'All' || p.status === filterStatus;
-
-      let matchQuick = true;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (quickFilter === 'Today') {
-        if (p.nextAppt) {
-          const apptDate = new Date(p.nextAppt);
-          apptDate.setHours(0, 0, 0, 0);
-          matchQuick = apptDate.getTime() === today.getTime();
-        } else {
-          matchQuick = false;
-        }
-      } else if (quickFilter === 'Missed') {
-        // Needs a valid nextAppt that is past, but my logic above filters futureAppts only for nextAppt.
-        // If they missed it, nextAppt might be null. Let's redefine Missed based on exact logic or just skip if we don't have it.
-        // For now, let's say "Warning" = Partly/Uncontrolled
-        matchQuick = false; // We didn't keep past nextAppt in the variable
-      } else if (quickFilter === 'Warning') {
-        matchQuick = p.latestControlLevel === 'Partly Controlled' || p.latestControlLevel === 'Uncontrolled';
-      } else if (quickFilter === 'UnresolvedDRP') {
-        matchQuick = !!p.hasUnresolvedDRP;
+  // --- Helpers ---
+  const getFirstVisitsMap = (allVisits: Visit[]) => {
+    const firstVisits: Record<string, Date> = {};
+    allVisits.forEach(v => {
+      const d = new Date(v.date);
+      if (!firstVisits[v.hn] || d < firstVisits[v.hn]) {
+        firstVisits[v.hn] = d;
       }
-
-      return matchSearch && matchStatus && matchQuick;
     });
-
-    // 2. Sort Logic
-    // If searching, sort by relevance (name match) or HN
-    // If NOT searching (Default View), sort by Next Appointment (Nearest first), then Last Visit (Recent first)
-    if (!searchTerm) {
-      filtered.sort((a, b) => {
-        // Priority 1: Has Next Appointment (Nearest wins)
-        if (a.nextAppt && b.nextAppt) return a.nextAppt.getTime() - b.nextAppt.getTime();
-        if (a.nextAppt) return -1; // a comes first
-        if (b.nextAppt) return 1;  // b comes first
-
-        // Priority 2: Last Visit (Recent wins)
-        if (a.lastVisit && b.lastVisit) return b.lastVisit.getTime() - a.lastVisit.getTime();
-
-        // Priority 3: Fallback to HN
-        return b.hn.localeCompare(a.hn);
-      });
-
-      // Focus Mode: Limit to top 30
-      // But only if we have patients with appointments or recent activity
-      // If we have very few patients with appointments, we might want to show others too?
-      // Requirement said: "Only show top 20-30... hide others"
-      return quickFilter === 'All' ? filtered.slice(0, 30) : filtered;
-    }
-
-    return filtered; // Return all matches when searching
-  }, [patients, searchTerm, filterStatus, quickFilter]);
-
-  // Stats for Cards
-  const stats = {
-    total: patients.length,
-    active: patients.filter(p => p.status === 'Active').length,
-    copd: patients.filter(p => p.status === 'COPD').length,
-    discharge: patients.filter(p => p.status === 'Discharge').length,
+    return firstVisits;
   };
 
-  if (status === "loading" || loading) {
-    return (
-      <div className="space-y-8 pb-20 animate-fade-up">
-        {/* Skeleton Header */}
-        <div className="flex justify-between items-end">
-          <div>
-            <div className="h-8 w-40 skeleton-shimmer rounded-lg" />
-            <div className="h-4 w-56 skeleton-shimmer rounded mt-2" />
-          </div>
-          <div className="h-10 w-36 skeleton-shimmer rounded-lg" />
+  const calculateNextTuesdayAppts = (visits: Visit[], patients: Patient[]) => {
+    const today = new Date();
+    const currentDay = getDay(today); // 0=Sun, 1=Mon, 2=Tue...
+
+    // Logic: Find next Tuesday. 
+    // If today is Tuesday (2), do we show today? Or next week? 
+    // Usually "Next Tuesday" implies upcoming. If today is Tue, let's show Today + Next Week? No, usually just upcoming.
+    // Let's assume: If today is Tue, show Today. If passed or not Tue, show next Tue.
+
+    let daysUntilTue = (2 - currentDay + 7) % 7;
+    // If daysUntilTue is 0 (Today is Tue), we keep it 0 to show today's appts.
+
+    const nextTue = addDays(today, daysUntilTue);
+    setNextTuesdayDate(nextTue);
+
+    const nextTueStr = format(nextTue, 'yyyy-MM-dd');
+
+    // Filter visits that have next_appt on this date
+    // We need to check all visits. If any visit has `next_appt` = `nextTueStr`, then that patient is coming.
+    // Ideally we should check if that appointment wasn't already fulfilled or simpler: just check unique patients with that appt date.
+
+    // Group by HN to ensure unique listing
+    const patientsWithAppt = new Set<string>();
+
+    visits.forEach(v => {
+      if (v.next_appt === nextTueStr) {
+        patientsWithAppt.add(v.hn);
+      }
+    });
+
+    const apptDetails = Array.from(patientsWithAppt).map(hn => {
+      const p = patients.find(pat => normalizeHN(pat.hn) === normalizeHN(hn));
+      return {
+        hn: hn,
+        name: p ? `${p.prefix}${p.first_name} ${p.last_name}` : 'Unknown',
+        time: '13:00 - 16:00' // Default Clinic Time
+      };
+    });
+
+    setNextTuesdayAppts(apptDetails);
+  };
+
+  const getFiscalYear = (date: Date) => {
+    // Fiscal Year: Oct 1 - Sep 30
+    // If Month >= 9 (Oct is 9 in JS 0-indexed), then FY = Year + 1
+    return date.getMonth() >= 9 ? date.getFullYear() + 1 : date.getFullYear();
+  };
+
+  const calculateDrpFiscalYearStats = (drpList: DRP[]) => {
+    const grouped: Record<number, DRP[]> = {};
+
+    drpList.forEach(d => {
+      const dateStr = d.date || d.visit_date;
+      if (!dateStr) return;
+      const parsed = new Date(dateStr);
+      if (isNaN(parsed.getTime())) return;
+      const fy = getFiscalYear(parsed);
+      if (!grouped[fy]) grouped[fy] = [];
+      grouped[fy].push(d);
+    });
+
+    const stats = Object.keys(grouped).map(fyStr => {
+      const fy = parseInt(fyStr);
+      const list = grouped[fy];
+
+      // Unique patients with any DRP
+      const uniqueHns = new Set(list.map(d => normalizeHN(d.hn)));
+
+      // Outcome buckets
+      const resolvedHns = new Set<string>();
+      const followUpHns = new Set<string>();
+      const refusedHns = new Set<string>();
+
+      list.forEach(d => {
+        const o = (d.outcome || '').toLowerCase();
+        const hn = normalizeHN(d.hn);
+        if (o.includes('resolved') || o.includes('สำเร็จ')) {
+          resolvedHns.add(hn);
+        } else if (o.includes('monitoring') || o.includes('follow') || o.includes('ติดตาม')) {
+          followUpHns.add(hn);
+        } else if (o.includes('refused') || o.includes('ปฏิเสธ')) {
+          refusedHns.add(hn);
+        }
+      });
+
+      // Top problem categories
+      const catCount: Record<string, number> = {};
+      list.forEach(d => {
+        const cat = (d.category || '').trim();
+        if (cat) catCount[cat] = (catCount[cat] || 0) + 1;
+      });
+      const topCategories = Object.entries(catCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      // Also gather top problem types
+      const typeCount: Record<string, number> = {};
+      list.forEach(d => {
+        const t = (d.type || '').trim();
+        if (t) typeCount[t] = (typeCount[t] || 0) + 1;
+      });
+      const topTypes = Object.entries(typeCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, count]) => ({ name, count }));
+
+      return {
+        fy,
+        totalPatients: uniqueHns.size,
+        totalDrps: list.length,
+        resolved: resolvedHns.size,
+        followUp: followUpHns.size,
+        refused: refusedHns.size,
+        topCategories,
+        topTypes,
+      };
+    });
+
+    stats.sort((a, b) => b.fy - a.fy);
+    setDrpFyStats(stats);
+
+    if (stats.length > 0 && !stats.find(s => s.fy === selectedDrpFy)) {
+      setSelectedDrpFy(stats[0].fy);
+    }
+  };
+
+  const calculateFiscalYearStats = (techChecks: TechniqueCheck[]) => {
+    const groupedByFy: Record<number, TechniqueCheck[]> = {};
+
+    techChecks.forEach(t => {
+      const d = new Date(t.date);
+      const fy = getFiscalYear(d);
+      if (!groupedByFy[fy]) groupedByFy[fy] = [];
+      groupedByFy[fy].push(t);
+    });
+
+    const stats = Object.keys(groupedByFy).map(fyStr => {
+      const fy = parseInt(fyStr);
+      const checks = groupedByFy[fy];
+      const uniquePatients = new Set(checks.map(c => c.hn)).size;
+
+      // Common Mistakes
+      // Steps data: ["1", "0", "1"...] -> 1=Done/Correct, 0=Missed/Incorrect (Based on checkbox logic: checked=1)
+      // Usually "1" means checked (Done/Correct). So "0" means Mistake/Missed.
+      const mistakeCounts = new Array(MDI_STEPS.length).fill(0);
+
+      checks.forEach(c => {
+        // The data from Google Sheets API returns objects with headers as keys,
+        for (let idx = 0; idx < MDI_STEPS.length; idx++) {
+          const key = `step_${idx + 1}` as keyof TechniqueCheck;
+          const val = c[key] as any;
+
+          // Form sends "1" for checked, "0" for unchecked.
+          // If unchecked (0) => Mistake
+          if (String(val) === "0" || String(val) === "false") {
+            mistakeCounts[idx]++;
+          }
+        }
+      });
+
+      // Map to { step: string, count: number }
+      const mistakesMapped = mistakeCounts.map((count, idx) => ({
+        step: MDI_STEPS[idx],
+        count
+      })).filter(m => m.count > 0);
+
+      // Sort desc
+      mistakesMapped.sort((a, b) => b.count - a.count);
+
+      return {
+        fy,
+        totalPatients: uniquePatients,
+        totalChecks: checks.length,
+        topMistakes: mistakesMapped.slice(0, 3) // Top 3
+      };
+    });
+
+    // Sort by FY desc
+    stats.sort((a, b) => b.fy - a.fy);
+    setFiscalYearStats(stats);
+
+    // Set default selected FY if not set or available
+    if (stats.length > 0 && !stats.find(s => s.fy === selectedFy)) {
+      setSelectedFy(stats[0].fy);
+    }
+  };
+
+  // --- Historical Data Generators ---
+
+  // 1. Weekly Trend (Last 8 Weeks)
+  const getWeeklyTrend = () => {
+    const weeks = [];
+    const now = new Date();
+    const firstVisits = getFirstVisitsMap(visits);
+
+    for (let i = 7; i >= 0; i--) {
+      const d = subDays(now, i * 7);
+      const start = startOfWeek(d, { weekStartsOn: 1 }); // Monday start
+      const end = endOfWeek(d, { weekStartsOn: 1 });
+
+      // Use Tuesday (clinic day) for the label instead of Monday (start of week)
+      const tuesday = addDays(start, 1);
+      const tueBkk = toBangkokDateString(tuesday);
+      const tueDay = parseInt(tueBkk.split('-')[2], 10);
+      const tueMonth = new Date(tueBkk + 'T00:00:00+07:00').toLocaleDateString('en-US', { month: 'short', timeZone: 'Asia/Bangkok' });
+      const endBkk = toBangkokDateString(end);
+      const endDay = parseInt(endBkk.split('-')[2], 10);
+      const endMonth = new Date(endBkk + 'T00:00:00+07:00').toLocaleDateString('th-TH', { month: 'short', timeZone: 'Asia/Bangkok' });
+
+      const weekNum = format(start, 'w');
+      const label = `W${weekNum} (${tueDay} ${tueMonth})`;
+      const dateRange = `${tueDay} ${tueMonth} - ${endDay} ${endMonth}`;
+
+      // Count visits in this week
+      const visitCount = visits.filter(v => {
+        const vd = new Date(v.date);
+        return vd >= start && vd <= end;
+      }).length;
+
+      // Count new patients in this week
+      const newCount = Object.values(firstVisits).filter(vd =>
+        vd >= start && vd <= end
+      ).length;
+
+      weeks.push({
+        name: label,
+        fullDate: dateRange,
+        visits: visitCount,
+        newPatients: newCount
+      });
+    }
+    return weeks;
+  };
+
+  // 2. Monthly Trend (Last 24 Months)
+  const getMonthlyTrend = () => {
+    const months = [];
+    const now = new Date();
+    const firstVisits = getFirstVisitsMap(visits);
+
+    for (let i = 23; i >= 0; i--) {
+      const d = subMonths(now, i);
+      const start = startOfMonth(d);
+      const end = endOfMonth(d);
+      const label = format(d, 'MMM yy', { locale: th });
+
+      // Count visits in this month
+      const visitCount = visits.filter(v => {
+        const vd = new Date(v.date);
+        return vd >= start && vd <= end;
+      }).length;
+
+      // Count new patients in this month
+      const newCount = Object.values(firstVisits).filter(vd =>
+        vd >= start && vd <= end
+      ).length;
+
+      months.push({
+        name: label,
+        visits: visitCount,
+        newPatients: newCount
+      });
+    }
+    return months;
+  };
+
+  // --- Current Charts Data ---
+  const statusCounts = {
+    Active: patients.filter(p => p.status === 'Active').length,
+    COPD: patients.filter(p => p.status === 'COPD').length,
+    Discharge: patients.filter(p => p.status === 'Discharge').length,
+  };
+  const statusData = [
+    { name: 'Active', value: statusCounts.Active, color: '#22c55e' },
+    { name: 'COPD', value: statusCounts.COPD, color: '#f97316' },
+    { name: 'Discharge', value: statusCounts.Discharge, color: '#9ca3af' },
+  ].filter(item => item.value > 0);
+
+  const ageGroups = patients.reduce((acc, p) => {
+    const age = getAge(p.dob);
+    if (age < 15) acc['0-14']++;
+    else if (age < 60) acc['15-59']++;
+    else acc['60+']++;
+    return acc;
+  }, { '0-14': 0, '15-59': 0, '60+': 0 });
+
+  const ageData = [
+    { name: 'เด็ก (0-14)', value: ageGroups['0-14'] },
+    { name: 'ผู้ใหญ่ (15-59)', value: ageGroups['15-59'] },
+    { name: 'สูงอายุ (60+)', value: ageGroups['60+'] },
+  ];
+
+  // Current FY Data for Display
+  const currentFyData = fiscalYearStats.find(s => s.fy === selectedFy) || { totalPatients: 0, topMistakes: [] };
+
+  if (loading) return (
+    <div className="space-y-8 pb-20 animate-fade-up">
+      {/* Skeleton Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="h-8 w-36 skeleton-shimmer rounded-lg" />
+          <div className="h-4 w-52 skeleton-shimmer rounded mt-2" />
         </div>
-        {/* Skeleton Stat Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="stat-card p-6">
-              <div className="h-5 w-5 skeleton-shimmer rounded mb-4" />
-              <div className="h-3 w-24 skeleton-shimmer rounded mb-2" />
-              <div className="h-9 w-16 skeleton-shimmer rounded" />
-            </div>
-          ))}
-        </div>
-        {/* Skeleton Patient Rows */}
-        <div className="space-y-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="glass-card p-4 rounded-2xl flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full skeleton-shimmer" />
-              <div className="flex-1 space-y-2">
-                <div className="h-5 w-48 skeleton-shimmer rounded" />
-                <div className="h-3 w-32 skeleton-shimmer rounded" />
-              </div>
-              <div className="h-4 w-20 skeleton-shimmer rounded hidden md:block" />
-            </div>
-          ))}
-        </div>
+        <div className="h-10 w-10 skeleton-shimmer rounded-full" />
       </div>
-    );
-  }
+      {/* Skeleton Stat Tiles */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="glass-card p-5">
+            <div className="flex justify-between items-start mb-4">
+              <div className="h-9 w-9 skeleton-shimmer rounded-xl" />
+              <div className="h-5 w-12 skeleton-shimmer rounded-full" />
+            </div>
+            <div className="h-3 w-28 skeleton-shimmer rounded mb-2" />
+            <div className="h-8 w-16 skeleton-shimmer rounded" />
+          </div>
+        ))}
+      </div>
+      {/* Skeleton Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {[...Array(2)].map((_, i) => (
+          <div key={i} className="stat-card bg-white dark:bg-zinc-900 p-6">
+            <div className="h-5 w-44 skeleton-shimmer rounded mb-6" />
+            <div className="h-[280px] skeleton-shimmer rounded-xl" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
 
-      {/* 1. Header & Stats Section */}
-      <div className="flex flex-col gap-6">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-3xl font-black text-[#2D2A26] dark:text-white">Dashboard</h2>
-            <p className="text-muted-foreground mt-1">ภาพรวมผู้ป่วยคลินิกโรคหืด</p>
-          </div>
-          <Link href="/staff/register">
-            <Button className="bg-primary text-white hover:bg-primary/90 dark:text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all font-bold gap-2 px-6">
-              <UserPlus size={18} /> ลงทะเบียนใหม่
-            </Button>
-          </Link>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-black text-foreground dark:text-white">Statistics</h2>
+          <p className="text-muted-foreground mt-1">วิเคราะห์ข้อมูลการให้บริการ</p>
         </div>
-
-        {/* Animated Stat Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="ผู้ป่วยทั้งหมด" value={stats.total} icon={<Users size={20} />} color="bg-blue-500" delay={0.1} />
-          <StatCard label="Active" value={stats.active} icon={<Activity size={20} />} color="bg-green-500" delay={0.15} />
-          <StatCard label="COPD" value={stats.copd} icon={<AlertCircle size={20} />} color="bg-orange-500" delay={0.2} />
-          <StatCard label="Discharge" value={stats.discharge} icon={<FileText size={20} />} color="bg-gray-500" delay={0.25} />
-        </div>
+        <Button variant="outline" size="icon" onClick={fetchData} className="rounded-full hover:rotate-180 transition-all duration-500">
+          <RefreshCw size={20} />
+        </Button>
       </div>
 
-      {/* 2. Search & Filter Bar (Glassmorphism) */}
-      <div className="sticky top-20 z-30 -mx-2 px-2 py-4">
-        <div className={`glass-input p-2 rounded-2xl flex flex-col md:flex-row gap-2 transition-all duration-300 ${isFocused ? 'shadow-2xl ring-2 ring-primary/20 scale-[1.01]' : 'shadow-sm'}`}>
-
-          <div className="relative flex-1">
-            <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isFocused ? 'text-primary' : 'text-muted-foreground'}`} size={20} />
-            <input
-              type="text"
-              placeholder="ค้นหาชื่อ, HN..."
-              className="w-full pl-12 pr-10 py-3 bg-transparent border-none focus:outline-none focus:ring-0 text-lg font-bold placeholder:font-normal"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
-              >
-                <X size={16} className="text-muted-foreground" />
-              </button>
-            )}
-          </div>
-
-          <div className="h-px md:h-auto md:w-px bg-border/50 mx-2" />
-
-          <div className="relative min-w-[180px]">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full h-full pl-4 pr-10 py-3 bg-transparent border-none focus:ring-0 font-bold cursor-pointer appearance-none"
-            >
-              <option value="All">สถานะ: ทั้งหมด</option>
-              <option value="Active">Active</option>
-              <option value="COPD">COPD</option>
-              <option value="Discharge">Discharge</option>
-            </select>
-            <Filter className="absolute right-4 top-1/2 -translate-y-1/2 text-primary pointer-events-none" size={16} />
-          </div>
-        </div>
-
-        {/* Quick Filters */}
-        <div className="flex flex-wrap gap-2 mt-3 pl-2">
-          <button
-            onClick={() => setQuickFilter('All')}
-            className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors ${quickFilter === 'All' ? 'bg-primary text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-primary'}`}
-          >ทั้งหมด</button>
-          <button
-            onClick={() => setQuickFilter('Today')}
-            className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors ${quickFilter === 'Today' ? 'bg-primary text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-primary'}`}
-          >นัดหมายวันนี้</button>
-          <button
-            onClick={() => setQuickFilter('Warning')}
-            className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors flex items-center gap-1 ${quickFilter === 'Warning' ? 'bg-orange-500 text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-orange-500 hover:text-orange-500'}`}
-          ><AlertCircle size={14} /> ต้องเฝ้าระวัง</button>
-          <button
-            onClick={() => setQuickFilter('UnresolvedDRP')}
-            className={`px-5 py-2.5 min-h-[44px] rounded-full text-sm font-bold transition-colors flex items-center gap-1 ${quickFilter === 'UnresolvedDRP' ? 'bg-amber-600 text-white' : 'bg-white dark:bg-zinc-800 text-muted-foreground border border-border dark:border-zinc-700 hover:border-amber-600 hover:text-amber-600'}`}
-          ><AlertCircle size={14} /> ต้องติดตาม DRP</button>
-        </div>
+      {/* Top Stats Row (Cards) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatTile
+          label="จำนวนผู้รับบริการ (7 วัน)"
+          value={weeklyVisits}
+          sub="คน"
+          icon={<CalendarDays size={20} />}
+          delay={0.1}
+          trend="+5%"
+          onClick={() => setSelectedStat('weekly')}
+          clickable
+        />
+        <StatTile
+          label="จำนวนผู้รับบริการ (เดือนนี้)"
+          value={monthlyVisits}
+          sub="คน"
+          icon={<CalendarRange size={20} />}
+          delay={0.15}
+          trend="+12%"
+          onClick={() => setSelectedStat('monthly')}
+          clickable
+        />
+        <StatTile
+          label="ผู้ป่วยใหม่ (เดือนนี้)"
+          value={newPatients}
+          sub="คน"
+          icon={<Users size={20} />}
+          delay={0.2}
+          color="text-primary"
+          onClick={() => setSelectedStat('monthly')}
+          clickable
+        />
+        <StatTile
+          label="ผู้ป่วย Active"
+          value={statusCounts.Active}
+          sub="total"
+          icon={<Activity size={20} />}
+          delay={0.25}
+          color="text-green-500"
+        />
       </div>
 
-      {/* 3. Patient List (Clean & Pro) */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-2">
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            {searchTerm ? (
-              <>
-                <Search size={18} className="text-primary" />
-                ผลการค้นหา <span className="text-muted-foreground text-sm font-normal">({displayedPatients.length} รายการ)</span>
-              </>
-            ) : (
-              <>
-                <Calendar size={18} className="text-primary" />
-                นัดหมายใกล้มาถึง <span className="text-muted-foreground text-sm font-normal">(Top 30 เรียงตามเวลานัด)</span>
-              </>
-            )}
+      {/* NEW SECTION: Appointments & Teaching Stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        {/* 1. Next Tuesday Appointments */}
+        <FadeContent delay={0.3} className="stat-card bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800 lg:col-span-5">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-800 dark:text-orange-200">
+            <CalendarDays size={20} /> ผู้ป่วยนัดอังคารหน้า
           </h3>
-          {!searchTerm && displayedPatients.length > 0 && (
-            <span className="text-xs text-muted-foreground bg-black/5 dark:bg-white/10 px-2 py-1 rounded-full">
-              Auto-sorted by Appointment
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm font-bold text-orange-600 dark:text-orange-300 bg-white dark:bg-black/20 w-fit px-3 py-1 rounded-full border border-orange-100">
+              📅 {nextTuesdayDate ? format(nextTuesdayDate, 'd MMM yyyy', { locale: th }) : '-'}
+            </p>
+            <span className="text-sm font-bold bg-orange-200 text-orange-800 px-3 py-1 rounded-full">
+              {nextTuesdayAppts.length} คน
             </span>
+          </div>
+
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            {nextTuesdayAppts.length > 0 ? (
+              nextTuesdayAppts.map((appt, i) => (
+                <div key={i} className="bg-white dark:bg-zinc-800 p-3 rounded-lg border border-orange-100 dark:border-zinc-700 flex justify-between items-center shadow-sm">
+                  <div>
+                    <p className="font-bold text-foreground">{appt.name}</p>
+                    <p className="text-xs text-muted-foreground">HN: {appt.hn}</p>
+                  </div>
+                  <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded">{appt.time}</span>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground bg-white/50 dark:bg-black/20 rounded-lg border-dashed border-2">
+                <Users size={32} className="mx-auto mb-2 opacity-50" />
+                <p>ไม่มีนัดหมาย</p>
+              </div>
+            )}
+          </div>
+        </FadeContent>
+
+        {/* 2. Fiscal Year Stats */}
+        <FadeContent delay={0.35} className="stat-card bg-[#eefcfc] dark:bg-cyan-900/10 border-cyan-200 dark:border-cyan-800 lg:col-span-7">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h3 className="font-bold text-lg flex items-center gap-2 text-cyan-800 dark:text-cyan-200">
+                <Stethoscope size={20} /> สรุปการสอนพ่นยา (รายปีงบ)
+              </h3>
+              <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
+                ปีงบ {selectedFy + 543} (1 ต.ค. {selectedFy - 1 + 543} - 30 ก.ย. {selectedFy + 543})
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {fiscalYearStats.map(s => (
+                <button
+                  key={s.fy}
+                  onClick={() => setSelectedFy(s.fy)}
+                  className={`px-3 py-1 rounded text-xs font-bold transition-all ${selectedFy === s.fy ? 'bg-cyan-600 text-white shadow-lg scale-105' : 'bg-white dark:bg-zinc-800 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50'}`}
+                >
+                  {s.fy + 543}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Count */}
+            <div className="bg-white dark:bg-zinc-800 p-5 rounded-xl border border-cyan-100 dark:border-cyan-900/50 flex flex-col justify-center items-center text-center shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center mb-2">
+                <BookOpen size={24} />
+              </div>
+              <h4 className="text-4xl font-black text-cyan-900 dark:text-cyan-100">
+                <CountUp target={currentFyData.totalPatients} />
+              </h4>
+              <p className="text-sm font-bold text-cyan-700/70 dark:text-cyan-300/70">ผู้ป่วยที่รับการสอน</p>
+            </div>
+
+            {/* Mistakes */}
+            <div className="space-y-3">
+              <h4 className="font-bold text-sm text-cyan-900 dark:text-cyan-100 flex items-center gap-2">
+                <AlertCircle size={14} className="text-red-500" /> ข้อที่ผิดบ่อย 3 อันดับแรก
+              </h4>
+              {currentFyData.topMistakes.length > 0 ? (
+                currentFyData.topMistakes.map((m: any, i: number) => (
+                  <div key={i} className="bg-white dark:bg-zinc-800 p-3 rounded-lg border border-red-100 dark:border-red-900/30 flex gap-3 items-start shadow-sm">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center mt-0.5">
+                      #{i + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-foreground line-clamp-2">{m.step}</p>
+                      <p className="text-xs text-red-500 font-bold mt-1">{m.count} ครั้ง</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-sm text-muted-foreground py-4">
+                  ไม่มีข้อมูลข้อผิดพลาด
+                </div>
+              )}
+            </div>
+          </div>
+        </FadeContent>
+      </div>
+
+      {/* DRP Summary by Fiscal Year */}
+      <FadeContent delay={0.4} className="stat-card bg-violet-50 dark:bg-violet-900/10 border-violet-200 dark:border-violet-800">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4 justify-between mb-6">
+          <div>
+            <h3 className="font-bold text-lg flex items-center gap-2 text-violet-800 dark:text-violet-200">
+              <Pill size={20} /> สรุปข้อมูล DRP (รายปีงบ)
+            </h3>
+            <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
+              ปีงบ {selectedDrpFy + 543} (1 ต.ค. {selectedDrpFy - 1 + 543} – 30 ก.ย. {selectedDrpFy + 543})
+            </p>
+          </div>
+          {/* Year selector */}
+          <div className="flex flex-wrap gap-2">
+            {drpFyStats.map(s => (
+              <button
+                key={s.fy}
+                onClick={() => setSelectedDrpFy(s.fy)}
+                className={`px-3 py-1 rounded text-xs font-bold transition-all ${selectedDrpFy === s.fy
+                  ? 'bg-violet-600 text-white shadow-lg scale-105'
+                  : 'bg-white dark:bg-zinc-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50'
+                  }`}
+              >
+                {s.fy + 543}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {(() => {
+          const d = drpFyStats.find(s => s.fy === selectedDrpFy) || { totalPatients: 0, totalDrps: 0, resolved: 0, followUp: 0, refused: 0, topCategories: [], topTypes: [] };
+          return (
+            <div className="space-y-5">
+              {/* Stat chips row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-violet-100 dark:bg-violet-900/30 rounded-xl p-4 text-center">
+                  <div className="flex justify-center mb-1"><ListChecks size={18} className="text-violet-600" /></div>
+                  <p className="text-2xl font-black text-violet-900 dark:text-violet-100">{d.totalPatients}</p>
+                  <p className="text-[11px] text-violet-700 dark:text-violet-300 font-semibold mt-0.5">พบ DRP</p>
+                  <p className="text-[10px] text-violet-500 dark:text-violet-400">{d.totalDrps} รายการ</p>
+                </div>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center border border-green-100 dark:border-green-900/40">
+                  <div className="flex justify-center mb-1"><CheckCircle2 size={18} className="text-green-600" /></div>
+                  <p className="text-2xl font-black text-green-700 dark:text-green-400">{d.resolved}</p>
+                  <p className="text-[11px] text-green-700 dark:text-green-300 font-semibold mt-0.5">แก้ไขสำเร็จ</p>
+                  <p className="text-[10px] text-green-500 dark:text-green-400">Resolved</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-center border border-amber-100 dark:border-amber-900/40">
+                  <div className="flex justify-center mb-1"><Clock3 size={18} className="text-amber-600" /></div>
+                  <p className="text-2xl font-black text-amber-700 dark:text-amber-400">{d.followUp}</p>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold mt-0.5">รอติดตาม</p>
+                  <p className="text-[10px] text-amber-500 dark:text-amber-400">Follow-up</p>
+                </div>
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center border border-red-100 dark:border-red-900/40">
+                  <div className="flex justify-center mb-1"><XCircle size={18} className="text-red-500" /></div>
+                  <p className="text-2xl font-black text-red-600 dark:text-red-400">{d.refused}</p>
+                  <p className="text-[11px] text-red-600 dark:text-red-300 font-semibold mt-0.5">แก้ไขไม่สำเร็จ</p>
+                  <p className="text-[10px] text-red-400">Refused</p>
+                </div>
+              </div>
+
+              {/* Problem breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Top categories */}
+                <div className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-violet-100 dark:border-violet-900/30 shadow-sm">
+                  <h4 className="font-bold text-sm text-violet-900 dark:text-violet-100 flex items-center gap-2 mb-3">
+                    <AlertCircle size={14} className="text-violet-500" /> ประเภทปัญหาที่พบ
+                  </h4>
+                  {d.topCategories.length > 0 ? (
+                    <div className="space-y-2">
+                      {d.topCategories.map((cat: any, i: number) => {
+                        const maxCount = d.topCategories[0]?.count || 1;
+                        const pct = Math.round((cat.count / maxCount) * 100);
+                        // Shorten long category names
+                        const shortName = cat.name.replace(/^\d+\.\s*/, '').replace(/\s*\(.*\)/, '').trim();
+                        return (
+                          <div key={i}>
+                            <div className="flex justify-between items-center mb-0.5">
+                              <span className="text-xs font-semibold text-foreground truncate max-w-[200px]" title={cat.name}>#{i + 1} {shortName}</span>
+                              <span className="text-xs font-bold text-violet-600 ml-2 shrink-0">{cat.count} ราย</span>
+                            </div>
+                            <div className="w-full bg-violet-100 dark:bg-violet-900/30 rounded-full h-1.5">
+                              <div className="bg-violet-500 h-1.5 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">ไม่มีข้อมูล</p>
+                  )}
+                </div>
+
+                {/* Top problem types (sub-category) */}
+                <div className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-violet-100 dark:border-violet-900/30 shadow-sm">
+                  <h4 className="font-bold text-sm text-violet-900 dark:text-violet-100 flex items-center gap-2 mb-3">
+                    <AlertCircle size={14} className="text-rose-500" /> ลักษณะปัญหาที่พบบ่อย
+                  </h4>
+                  {d.topTypes.length > 0 ? (
+                    <div className="space-y-2">
+                      {d.topTypes.map((t: any, i: number) => {
+                        const maxCount = d.topTypes[0]?.count || 1;
+                        const pct = Math.round((t.count / maxCount) * 100);
+                        const shortName = t.name.replace(/^[\d.]+\s*/, '').replace(/\s*\(.*\)/, '').trim();
+                        return (
+                          <div key={i}>
+                            <div className="flex justify-between items-center mb-0.5">
+                              <span className="text-xs font-semibold text-foreground truncate max-w-[200px]" title={t.name}>#{i + 1} {shortName}</span>
+                              <span className="text-xs font-bold text-rose-600 ml-2 shrink-0">{t.count} ราย</span>
+                            </div>
+                            <div className="w-full bg-rose-100 dark:bg-rose-900/30 rounded-full h-1.5">
+                              <div className="bg-rose-400 h-1.5 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">ไม่มีข้อมูล</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </FadeContent>
+
+      {/* Charts Section (Original) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Status Pie Chart */}
+        <FadeContent delay={0.3} className="stat-card bg-white dark:bg-zinc-900">
+          <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-foreground">
+            <PieChartIcon size={20} className="text-primary" /> สัดส่วนสถานะ (Status)
+          </h3>
+          <div className="h-[300px] w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={statusData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={80}
+                  outerRadius={110}
+                  paddingAngle={5}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {statusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={`url(#gradient-${index})`} style={{ filter: 'drop-shadow(0px 4px 4px rgba(0,0,0,0.2))' }} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', backgroundColor: 'var(--card)' }}
+                  itemStyle={{ color: 'var(--foreground)' }}
+                />
+                <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                <defs>
+                  {statusData.map((entry, index) => (
+                    <linearGradient key={`gradient-${index}`} id={`gradient-${index}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={entry.color} />
+                      <stop offset="100%" stopColor={entry.color} stopOpacity={0.6} />
+                    </linearGradient>
+                  ))}
+                </defs>
+              </PieChart>
+            </ResponsiveContainer>
+
+            {/* Center Text */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-12 text-center pointer-events-none">
+              <span className="text-3xl font-black text-foreground">{patients.length}</span>
+              <p className="text-xs text-muted-foreground uppercase tracking-widest">Total</p>
+            </div>
+          </div>
+        </FadeContent>
+
+        {/* Age Bar Chart */}
+        <FadeContent delay={0.4} className="stat-card bg-white dark:bg-zinc-900">
+          <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-foreground">
+            <BarChart3 size={20} className="text-primary" /> ช่วงอายุผู้ป่วย (Age Groups)
+          </h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ageData} barSize={60}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--muted-foreground)' }} />
+                <Tooltip
+                  cursor={{ fill: 'var(--muted)' }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', backgroundColor: 'var(--card)' }}
+                  itemStyle={{ color: 'var(--primary)' }}
+                />
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--primary)" />
+                    <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.3} />
+                  </linearGradient>
+                </defs>
+                <Bar dataKey="value" fill="url(#barGradient)" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </FadeContent>
+      </div>
+
+      {/* Drill-down Modal */}
+      <Modal
+        isOpen={selectedStat !== null}
+        onClose={() => setSelectedStat(null)}
+        title={selectedStat === 'weekly' ? 'สถิติรายสัปดาห์ (ย้อนหลัง 8 สัปดาห์)' : 'สถิติรายเดือน (ย้อนหลัง 24 เดือน)'}
+      >
+        <div className="h-[400px] w-full">
+          {selectedStat && (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={selectedStat === 'weekly' ? getWeeklyTrend() : getMonthlyTrend()}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                <XAxis
+                  dataKey="name"
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                  tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                />
+                <YAxis yAxisId="left" tick={{ fill: 'var(--muted-foreground)' }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: 'var(--primary)' }} />
+                <Tooltip
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', backgroundColor: 'var(--card)' }}
+                  labelStyle={{ color: 'var(--foreground)', fontWeight: 'bold' }}
+                />
+                <Legend />
+                <defs>
+                  <linearGradient id="visitGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#D97736" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#D97736" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area yAxisId="left" type="monotone" dataKey="visits" name="จำนวนผู้รับบริการ" fill="url(#visitGradient)" stroke="var(--primary)" strokeWidth={3} />
+                <Line yAxisId="right" type="monotone" dataKey="newPatients" name="ผู้ป่วยใหม่" stroke="#22c55e" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
           )}
         </div>
-
-        <div className="min-h-[300px]">
-          <AnimatePresence mode="popLayout">
-            {displayedPatients.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3">
-                {displayedPatients.map((patient, index) => (
-                  <PatientRowItem key={patient.hn} patient={patient} index={index} />
-                ))}
-              </div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center justify-center py-20 bg-white/30 dark:bg-zinc-900/30 rounded-3xl border border-dashed border-border"
-              >
-                <div className="w-20 h-20 bg-black/5 dark:bg-white/5 rounded-full flex items-center justify-center mb-4">
-                  <Search size={32} className="text-muted-foreground/50" />
-                </div>
-                <p className="text-muted-foreground font-bold">ไม่พบรายชื่อที่ค้นหา</p>
-                {searchTerm && (
-                  <button onClick={() => setSearchTerm('')} className="mt-2 text-primary text-sm hover:underline">
-                    ล้างคำค้นหา
-                  </button>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-
-      </div>
+        {selectedStat === 'weekly' && (
+          <div className="mt-4 text-xs text-muted-foreground text-center">
+            * ข้อมูลย้อนหลัง 8 สัปดาห์ล่าสุด (นับตามสัปดาห์ปฏิทิน จันทร์-อาทิตย์)
+          </div>
+        )}
+      </Modal>
 
     </div>
   );
 }
 
-// --- Components ---
-
-interface StatCardProps {
+interface StatTileProps {
   label: string;
   value: number;
+  sub: string;
   icon: React.ReactNode;
-  color: string;
   delay: number;
+  trend?: string;
+  color?: string;
+  onClick?: () => void;
+  clickable?: boolean;
 }
 
-function StatCard({ label, value, icon, color, delay }: StatCardProps) {
+function StatTile({ label, value, sub, icon, delay, trend, color, onClick, clickable }: StatTileProps) {
   return (
-    <FadeContent delay={delay} className="stat-card group">
-      <div className={`absolute top-0 right-0 w-20 h-20 ${color} opacity-10 blur-2xl rounded-full -mr-10 -mt-10 transition-all group-hover:scale-150 group-hover:opacity-20`} />
-      <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-2 text-muted-foreground">
+    <FadeContent delay={delay} className={`glass-card p-5 relative overflow-hidden group transition-all duration-300 ${clickable ? 'cursor-pointer hover:border-primary/50 hover:shadow-primary/10' : ''}`} >
+      <div className="absolute inset-0 z-0 bg-transparent group-hover:bg-primary/5 transition-colors" onClick={onClick} />
+      <div className="flex justify-between items-start mb-4 relative z-10 pointer-events-none">
+        <div className={`p-2 rounded-xl bg-black/5 dark:bg-white/10 ${color || 'text-foreground'}`}>
           {icon}
-          <span className="text-xs font-bold uppercase tracking-wider">{label}</span>
         </div>
-        <div className="text-4xl font-black text-foreground">
-          <CountUp target={value} duration={1.5} />
+        {trend && (
+          <span className="flex items-center text-xs font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
+            <TrendingUp size={12} className="mr-1" /> {trend}
+          </span>
+        )}
+      </div>
+      <div className="relative z-10 pointer-events-none">
+        <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-1">{label}</p>
+        <div className="flex items-baseline justify-between">
+          <h4 className="text-3xl font-black text-foreground flex items-baseline gap-1">
+            <CountUp target={value} />
+            <span className="text-sm font-normal text-muted-foreground/50">{sub}</span>
+          </h4>
+          {clickable && <LineChart size={16} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
         </div>
       </div>
     </FadeContent>
-  );
-}
-
-function PatientRowItem({ patient, index }: { patient: PatientWithAppt, index: number }) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Active': return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400';
-      case 'COPD': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400';
-      case 'Discharge': return 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400';
-      default: return 'bg-zinc-100 text-zinc-600';
-    }
-  };
-
-  const getDayDiff = (date: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dateCopy = new Date(date);
-    dateCopy.setHours(0, 0, 0, 0);
-
-    const diff = Math.ceil((dateCopy.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diff === 0) return { text: 'วันนี้', color: 'text-red-500 animate-pulse' };
-    if (diff === 1) return { text: 'วันพรุ่งนี้', color: 'text-orange-500' };
-    if (diff < 0) return { text: `${Math.abs(diff)} วันที่แล้ว (เกินกำหนด)`, color: 'text-red-500' };
-    return { text: `อีก ${diff} วัน`, color: 'text-primary' };
-  };
-
-  const nextApptInfo = patient.nextAppt ? getDayDiff(patient.nextAppt) : null;
-
-  const isVisitedToday = (() => {
-    if (!patient.lastVisit) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const lastDate = new Date(patient.lastVisit);
-    lastDate.setHours(0, 0, 0, 0);
-    return lastDate.getTime() === today.getTime();
-  })();
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ delay: index * 0.05, duration: 0.3 }}
-    >
-      <Link href={`/staff/patient/${patient.hn}`}>
-        <div className="glass-card hover:bg-white dark:hover:bg-zinc-900 p-4 pl-6 rounded-2xl flex items-center justify-between group transition-all duration-300 border-l-4 border-l-transparent hover:border-l-primary hover:shadow-2xl hover:-translate-y-1">
-
-          <div className="flex items-center gap-4">
-            {/* Gender Avatar */}
-            {(() => {
-              const prefix = patient.prefix?.trim() || "";
-
-              // Same color for everyone — shape carries gender meaning
-              const colorClass = "bg-primary/10 text-primary dark:bg-primary/20";
-
-              const isFemale = prefix === 'นาง' || prefix === 'นางสาว' || prefix === 'น.ส.' || prefix === 'ด.ญ.';
-              const isChild = prefix === 'ด.ช.' || prefix === 'ด.ญ.';
-              const size = isChild ? 20 : 23;
-
-              return (
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${colorClass} shadow-inner flex-shrink-0`}>
-                  {isFemale ? (
-                    /* Female — circular head + dress silhouette */
-                    <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="12" cy="7" r="4" />
-                      <path d="M12 13 L7 22 H17 L12 13Z" />
-                      <path d="M9.5 13.5 Q12 15.5 14.5 13.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                    </svg>
-                  ) : (
-                    /* Male — circular head + rectangular torso */
-                    <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="12" cy="7" r="4" />
-                      <rect x="7" y="13" width="10" height="9" rx="2.5" />
-                    </svg>
-                  )}
-                </div>
-              );
-            })()}
-
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-lg font-bold group-hover:text-primary transition-colors">
-                  {patient.prefix}{patient.first_name} {patient.last_name}
-                </h4>
-                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide ${getStatusColor(patient.status)}`}>
-                  {patient.status}
-                </span>
-                {isVisitedToday && (
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 flex items-center gap-1">
-                    <CheckCircle size={10} /> มาตรวจวันนี้แล้ว
-                  </span>
-                )}
-              </div>
-              <div className="text-sm text-muted-foreground font-mono mt-0.5">
-                HN: {patient.hn}
-                {patient.phone && <span className="ml-3 border-l pl-3 border-border">📞 {patient.phone}</span>}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            {/* Next Appointment Info */}
-            <div className="hidden md:flex flex-col items-end text-right">
-              {patient.nextAppt ? (
-                <>
-                  <div className={`text-sm font-bold flex items-center gap-1.5 ${nextApptInfo?.color}`}>
-                    <Clock size={14} /> {nextApptInfo?.text}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    นัด: {patient.nextAppt.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
-                  </div>
-                </>
-              ) : (
-                <div className="text-xs text-muted-foreground/50 italic">ไม่มีนัดหมายเร็วๆ นี้</div>
-              )}
-            </div>
-
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground group-hover:text-white group-hover:bg-primary transition-all">
-              <ChevronRight size={20} />
-            </div>
-          </div>
-
-        </div>
-      </Link>
-    </motion.div>
   );
 }

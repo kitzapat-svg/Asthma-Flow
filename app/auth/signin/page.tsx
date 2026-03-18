@@ -31,7 +31,7 @@ export default function SignInPage() {
         setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
         setLoading(false);
       } else {
-        router.push("/staff/dashboard");
+        router.push("/staff/patients");
       }
     } catch (err) {
       console.error(err);

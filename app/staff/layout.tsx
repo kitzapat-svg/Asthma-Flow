@@ -9,8 +9,8 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const staffNavItems = [
-  { href: "/staff/dashboard", icon: Users, label: "รายชื่อผู้ป่วย" },
-  { href: "/staff/stats", icon: PieChart, label: "แดชบอร์ด & สถิติ" },
+  { href: "/staff/patients", icon: Users, label: "รายชื่อผู้ป่วย" },
+  { href: "/staff/dashboard", icon: PieChart, label: "แดชบอร์ด & สถิติ" },
 ];
 
 export default function StaffLayout({
@@ -39,7 +39,7 @@ export default function StaffLayout({
 
           {/* Logo & Brand */}
           <div className="flex items-center gap-2 sm:gap-6">
-            <Link href="/staff/dashboard" className="flex items-center gap-3 group">
+            <Link href="/staff/patients" className="flex items-center gap-3 group">
               <motion.div
                 className="h-10 w-10 bg-primary border-2 border-foreground flex items-center justify-center"
                 whileHover={{ rotate: 10, scale: 1.1 }}

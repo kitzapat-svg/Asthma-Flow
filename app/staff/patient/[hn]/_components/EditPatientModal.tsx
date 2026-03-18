@@ -90,7 +90,7 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
             if (res.ok) {
                 toast.success("ลบข้อมูลเรียบร้อย");
 
-                router.push('/staff/dashboard');
+                router.push('/staff/patients');
             } else {
                 toast.error("เกิดข้อผิดพลาดในการลบ");
 

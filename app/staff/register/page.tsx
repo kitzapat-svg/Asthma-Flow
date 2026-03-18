@@ -104,7 +104,7 @@ export default function RegisterPatientPage() {
       if (res.ok) {
         toast.success(`✅ ลงทะเบียนสำเร็จ! HN: ${formattedHN}`);
 
-        router.push('/staff/dashboard');
+        router.push('/staff/patients');
       } else {
         toast.error("เกิดข้อผิดพลาดในการบันทึก");
 

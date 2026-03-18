@@ -121,7 +121,7 @@ export function Navbar() {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <div className="hidden sm:block">
-              <NavButton onClick={() => signIn("google", { callbackUrl: "/staff/dashboard" })}>
+              <NavButton onClick={() => signIn("google", { callbackUrl: "/staff/patients" })}>
                 Login
               </NavButton>
             </div>
@@ -173,7 +173,7 @@ export function Navbar() {
               ))}
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mt-3">
                 <button
-                  onClick={() => signIn("google", { callbackUrl: "/staff/dashboard" })}
+                  onClick={() => signIn("google", { callbackUrl: "/staff/patients" })}
                   className="block w-full text-center py-3 text-sm font-bold uppercase tracking-wider retro-button-primary cursor-pointer"
                 >
                   Login
