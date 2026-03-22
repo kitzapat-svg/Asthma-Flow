@@ -437,7 +437,7 @@ export default function PatientDetailPage() {
 
             {/* 2. Action Plan A4 View */}
             {printMode === 'plan' && visitHistory.length > 0 && (
-                <div className="hidden print:block print:absolute print:top-0 print:left-0 print:w-full print:h-auto print:bg-white print:z-[9999]">
+                <div className="hidden print:block print:relative print:w-full print:h-auto print:bg-white print:z-[9999]">
                     <ActionPlanPrint patient={patient} visit={visitHistory[visitHistory.length - 1] as unknown as Visit} medication={medication} />
                 </div>
             )}

@@ -45,6 +45,10 @@ export default function PatientPublicPage() {
       try {
         const res = await fetch(`/api/patient?token=${params.token}`);
         if (!res.ok) {
+          try {
+             const errData = await res.json();
+             if (errData.error) setVerifyError(errData.error);
+          } catch {}
           setLoading(false);
           return;
         }
@@ -89,7 +93,12 @@ export default function PatientPublicPage() {
       }
 
       if (!res.ok) {
-        setVerifyError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+        try {
+          const errData = await res.json();
+          setVerifyError(errData.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+        } catch {
+          setVerifyError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+        }
         setVerifying(false);
         return;
       }
@@ -351,6 +360,16 @@ export default function PatientPublicPage() {
 
   // --- DOB Verification Screen ---
   if (!verified && !patient) {
+    if (!maskedName && verifyError) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background dark:bg-black text-center">
+          <AlertTriangle size={48} className="text-orange-500 mb-4" />
+          <h1 className="text-xl font-black text-foreground dark:text-white">ระงับการเข้าถึงชั่วคราว</h1>
+          <p className="text-muted-foreground dark:text-gray-400 mt-2">{verifyError}</p>
+        </div>
+      );
+    }
+    
     if (!maskedName) {
       // No masked name = token not found
       return (

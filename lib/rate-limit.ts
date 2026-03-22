@@ -68,3 +68,5 @@ export class RateLimiter {
 
 // Singleton instance for global use per server instance
 export const authRateLimiter = new RateLimiter();
+// 5 attempts, 15 minutes block
+export const patientRateLimiter = new RateLimiter(5, 15 * 60 * 1000);

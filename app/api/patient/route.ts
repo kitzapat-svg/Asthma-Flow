@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getSheetData } from '@/lib/sheets';
+import { getSheetData, logActivity } from '@/lib/sheets';
 import { normalizeHN } from '@/lib/helpers';
 import { Patient, Visit } from '@/lib/types';
+import { patientRateLimiter } from '@/lib/rate-limit';
 
 
 
@@ -23,6 +24,14 @@ export async function GET(request: Request) {
 
         if (!token) {
             return NextResponse.json({ error: 'Missing token parameter' }, { status: 400 });
+        }
+
+        // --- Rate Limiting Check ---
+        if (patientRateLimiter.isBlocked(token)) {
+            const remainingMins = patientRateLimiter.getRemainingTime(token);
+            return NextResponse.json({ 
+                error: `บัญชีถูกระงับชั่วคราวจากการยืนยันตัวตนผิดพลาดหลายครั้ง กรุณาลองใหม่ในอีก ${remainingMins} นาที` 
+            }, { status: 429 });
         }
 
         // 1. ค้นหาผู้ป่วยจาก token
@@ -62,8 +71,16 @@ export async function GET(request: Request) {
             patientDob.getDate() === inputDay;
 
         if (!dobMatch) {
+            // --- Rate Limiting Increment & Audit Logging ---
+            patientRateLimiter.increment(token);
+            await logActivity("System", "DOB Verify Failed", `Token: ${token}`);
+
             return NextResponse.json({ error: 'วันเดือนปีเกิดไม่ถูกต้อง', verified: false }, { status: 403 });
         }
+
+        // --- Reset Rate Limiting & Audit Logging ---
+        patientRateLimiter.reset(token);
+        await logActivity("System", "Patient View", `Token: ${token}, HN: ${patient.hn}`);
 
         // 4. DOB ถูกต้อง → ดึง visits เฉพาะของผู้ป่วยคนนี้
         const allVisits = await getSheetData(SHEET_CONFIG.VISITS_TAB) as any[];

@@ -34,7 +34,7 @@ export default function StaffLayout({
   return (
     <div className="min-h-screen bg-background font-sans transition-colors duration-300">
       {/* --- MENU BAR ด้านบน (Retro Static + Glassmorphism blend) --- */}
-      <div className="sticky top-0 z-50 px-4 pt-4">
+      <div className="sticky top-0 z-50 px-4 pt-4 print:hidden">
         <nav className="mx-auto max-w-7xl flex h-16 items-center justify-between px-6 bg-background/90 backdrop-blur-md retro-box-static">
 
           {/* Logo & Brand */}
