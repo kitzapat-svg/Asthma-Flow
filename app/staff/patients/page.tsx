@@ -161,19 +161,29 @@ export default function PatientListPage() {
 
     // 2. Sort Logic
     // If searching, sort by relevance (name match) or HN
-    // If NOT searching (Default View), sort by Next Appointment (Nearest first), then Last Visit (Recent first)
+    // If NOT searching (Default View), sort by Next Appointment (Nearest first), then HN as second priority
     if (!searchTerm) {
       filtered.sort((a, b) => {
         // Priority 1: Has Next Appointment (Nearest wins)
-        if (a.nextAppt && b.nextAppt) return a.nextAppt.getTime() - b.nextAppt.getTime();
-        if (a.nextAppt) return -1; // a comes first
-        if (b.nextAppt) return 1;  // b comes first
+        if (a.nextAppt && b.nextAppt) {
+          const timeDiff = a.nextAppt.getTime() - b.nextAppt.getTime();
+          if (timeDiff !== 0) return timeDiff;
+        } else if (a.nextAppt) {
+          return -1; // a comes first
+        } else if (b.nextAppt) {
+          return 1;  // b comes first
+        }
 
-        // Priority 2: Last Visit (Recent wins)
-        if (a.lastVisit && b.lastVisit) return b.lastVisit.getTime() - a.lastVisit.getTime();
+        // Priority 2: HN (Ascending)
+        const hnDiff = a.hn.localeCompare(b.hn, undefined, { numeric: true });
+        if (hnDiff !== 0) return hnDiff;
 
-        // Priority 3: Fallback to HN
-        return b.hn.localeCompare(a.hn);
+        // Priority 3: Last Visit (Recent wins)
+        if (a.lastVisit && b.lastVisit) {
+          return b.lastVisit.getTime() - a.lastVisit.getTime();
+        }
+
+        return 0;
       });
 
       // Focus Mode: Limit to top 30
