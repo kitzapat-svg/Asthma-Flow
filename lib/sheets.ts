@@ -244,6 +244,111 @@ export async function deleteRow(tabName: string, hn: string) {
   }
 }
 
+// --- ฟังก์ชันใหม่: ลบข้อมูลที่ตรงกับ HN ทั้งหมด (Cascade Delete) ---
+export async function deleteAllRowsByHn(tabName: string, hn: string, columnIndex: number = 0) {
+  try {
+    // 1. หา SheetId
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === tabName);
+    const sheetId = sheet?.properties?.sheetId;
+
+    if (sheetId === undefined) return { success: false, error: `Sheet ${tabName} not found` };
+
+    // 2. ดึงข้อมูล
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tabName}!A:Z`, // ดึงมาเพื่อดูข้อมูล โดยสมมติว่า column ที่ใช้หาคือ A หรือขึ้นกับ columnIndex
+    });
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return { success: true }; // ไม่มีข้อมูลหรือมีแค่ header
+
+    // 3. หาอินเด็กซ์ของแถวทั้งหมดที่ตรงกับ hn
+    const indicesToDelete: number[] = [];
+    rows.forEach((row, index) => {
+      if (index > 0 && normalizeHN(row[columnIndex] || '') === normalizeHN(hn)) {
+        indicesToDelete.push(index);
+      }
+    });
+
+    if (indicesToDelete.length === 0) return { success: true }; // ไม่มีให้ลบ
+
+    // 4. สร้าง requests สำหรับลบ (เรียงจากหลังมาหน้าเพื่อไม่ให้ index เคลื่อน)
+    indicesToDelete.sort((a, b) => b - a);
+    
+    const requests = indicesToDelete.map(index => ({
+      deleteDimension: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'ROWS',
+          startIndex: index,
+          endIndex: index + 1
+        }
+      }
+    }));
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: { requests }
+    });
+
+    return { success: true, count: indicesToDelete.length };
+  } catch (error) {
+    console.error(`Cascade Delete Error in ${tabName}:`, error);
+    return { success: false, error };
+  }
+}
+
+// --- ฟังก์ชันใหม่: ลบข้อมูลที่ตรงกับ HN และ Date ทั้งหมด ---
+export async function deleteAllRowsByHnAndDate(tabName: string, hn: string, date: string, dateColumnIndex: number = 1, hnColumnIndex: number = 0) {
+  try {
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === tabName);
+    const sheetId = sheet?.properties?.sheetId;
+
+    if (sheetId === undefined) return { success: false, error: `Sheet ${tabName} not found` };
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tabName}!A:Z`,
+    });
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return { success: true }; 
+
+    const indicesToDelete: number[] = [];
+    rows.forEach((row, index) => {
+      if (index > 0 && normalizeHN(row[hnColumnIndex] || '') === normalizeHN(hn) && (row[dateColumnIndex] || '').trim() === date.trim()) {
+        indicesToDelete.push(index);
+      }
+    });
+
+    if (indicesToDelete.length === 0) return { success: true }; 
+
+    indicesToDelete.sort((a, b) => b - a);
+    
+    const requests = indicesToDelete.map(index => ({
+      deleteDimension: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'ROWS',
+          startIndex: index,
+          endIndex: index + 1
+        }
+      }
+    }));
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: { requests }
+    });
+
+    return { success: true, count: indicesToDelete.length };
+  } catch (error) {
+    console.error(`Delete Visit Error in ${tabName}:`, error);
+    return { success: false, error };
+  }
+}
+
+
 // --- ฟังก์ชันใหม่: บันทึก Activity Log ---
 // --- ฟังก์ชันใหม่: ลบ Logs เก่าเกิน 60 วัน ---
 export async function cleanOldLogs(retentionDays: number = 60) {

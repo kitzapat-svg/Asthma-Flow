@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Activity, FileText, AlertTriangle, MessageSquareText } from 'lucide-react';
+import { ArrowLeft, Activity, FileText, AlertTriangle, MessageSquareText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
 import { getUnresolvedDrps } from '@/lib/drp-helpers';

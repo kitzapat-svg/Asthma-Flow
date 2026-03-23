@@ -54,6 +54,7 @@ export default function RecordVisitPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(true);
   const [checklist, setChecklist] = useState<boolean[]>(new Array(8).fill(false));
@@ -75,6 +76,7 @@ export default function RecordVisitPage() {
   const { register, handleSubmit, setValue, control, formState: { errors } } = useForm<VisitFormValues>({
     resolver: zodResolver(visitSchema),
     defaultValues: {
+      visit_date: getBangkokDateString(),
       pefr: '',
       control_level: 'Well-controlled',
       controller: 'Seretide',
@@ -221,6 +223,7 @@ export default function RecordVisitPage() {
         // Determine which date to check for existing visit
         const todayStr = getBangkokDateString();
         const targetDate = dateParam || todayStr;
+        setValue('visit_date', targetDate);
 
         // Check appointment timing: compare today with the most recent previous visit's next_appt
         if (Array.isArray(visitData) && visitData.length > 0 && !dateParam) {
@@ -441,7 +444,8 @@ export default function RecordVisitPage() {
   const onSubmit = async (data: VisitFormValues) => {
     setLoading(true);
     try {
-      const today = editDate || getBangkokDateString();
+      const originalDate = editDate || getBangkokDateString();
+      const visitDate = data.visit_date;
       const totalScore = checklist.filter(Boolean).length;
       const inhalerScore = data.technique_check === 'ทำ' ? totalScore.toString() : '-';
 
@@ -454,7 +458,7 @@ export default function RecordVisitPage() {
       const finalAdherence = data.is_relative_pickup ? '0' : `${data.adherence}%`;
 
       const visitData = [
-        params.hn, today, finalPefr, data.control_level, data.c1_name, data.reliever_name,
+        params.hn, visitDate, finalPefr, data.control_level, data.c1_name, data.reliever_name,
         finalAdherence, data.drpList && data.drpList.length > 0 ? `${data.drpList.length} DRP(s)` : '-', data.advice, data.technique_check, data.next_appt || '',
         finalNote, data.is_new_case ? 'TRUE' : 'FALSE', inhalerScore
       ];
@@ -465,23 +469,23 @@ export default function RecordVisitPage() {
         fetch('/api/db', {
           method: httpMethod,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'visits', hn: params.hn, date: today, data: visitData })
+          body: JSON.stringify({ type: 'visits', hn: params.hn, date: originalDate, data: visitData })
         })
       ];
 
       if (data.technique_check === 'ทำ') {
-        const checklistData = [params.hn, today, ...checklist.map(c => c ? "1" : "0"), totalScore.toString(), data.technique_note || '-'];
+        const checklistData = [params.hn, visitDate, ...checklist.map(c => c ? "1" : "0"), totalScore.toString(), data.technique_note || '-'];
         promises.push(fetch('/api/db', {
           method: httpMethod,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'technique_checks', hn: params.hn, date: today, data: checklistData })
+          body: JSON.stringify({ type: 'technique_checks', hn: params.hn, date: originalDate, data: checklistData })
         }));
       }
 
       // Save Medications
       const medData = [
         params.hn,
-        today,
+        visitDate,
         data.c1_name, data.c1_puffs, data.c1_freq,
         data.show_c2 ? data.c2_name : "", data.show_c2 ? data.c2_puffs : "", data.show_c2 ? data.c2_freq : "",
         data.reliever_name, data.reliever_label,
@@ -490,7 +494,7 @@ export default function RecordVisitPage() {
       promises.push(fetch('/api/db', {
         method: httpMethod,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'medications', hn: params.hn, date: today, data: medData })
+        body: JSON.stringify({ type: 'medications', hn: params.hn, date: originalDate, data: medData })
       }));
 
       // Save DRPs
@@ -506,7 +510,7 @@ export default function RecordVisitPage() {
             drpId,
             params.hn,
             getBangkokISOString(),
-            today,
+            visitDate,
             drp.category || '-',
             drp.type || '-',
             finalCause,
@@ -550,6 +554,22 @@ export default function RecordVisitPage() {
 
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteVisit = async () => {
+    const originalDate = editDate || getBangkokDateString();
+    if (!confirm(`⚠️ ยืนยันการลบประวัติการตรวจของวันที่ ${originalDate} ใช่หรือไม่?\n\nข้อมูลการตรวจ ยาที่ใช้ เทคนิคพ่นยา และ DRP ของวันนี้จะถูกลบทิ้งทั้งหมดและไม่สามารถกู้คืนได้`)) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/db?type=visit_entry&hn=${params.hn}&date=${originalDate}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete visit');
+      toast.success('ลบประวัติการตรวจเรียบร้อยแล้ว');
+      router.push(`/staff/patient/${params.hn}`);
+    } catch (e) {
+      toast.error('ไม่สามารถลบประวัติการตรวจได้');
+      setIsDeleting(false);
     }
   };
 
@@ -768,6 +788,17 @@ export default function RecordVisitPage() {
 
           {/* 1. Clinical */}
           <div className="bg-[#F7F3ED] dark:bg-zinc-800/50 p-6 border border-[#3D3834]/20 rounded-lg space-y-4">
+            <div className="flex justify-between items-center mb-4 pb-4 border-b border-[#3D3834]/10 dark:border-zinc-700/50">
+              <h3 className="font-bold flex gap-2 text-[#D97736]"><CalendarDays size={18} /> วันที่รับบริการ</h3>
+              <div className="w-48">
+                <input
+                  type="date"
+                  {...register("visit_date")}
+                  className={inputClass(errors.visit_date)}
+                />
+              </div>
+            </div>
+
             <div className="flex justify-between items-center">
               <h3 className="font-bold flex gap-2 text-primary"><Activity size={18} /> 1. การประเมินผล</h3>
               <label className="flex gap-2 cursor-pointer bg-white dark:bg-zinc-900 px-3 py-1 rounded border hover:border-primary">
@@ -1050,9 +1081,16 @@ export default function RecordVisitPage() {
             <div><label className="text-sm font-bold mb-2 block">วันนัดถัดไป</label><input type="date" {...register("next_appt")} className={inputClass()} /></div>
           </div >
 
-          <Button type="submit" disabled={loading || saveSuccess} className={`w-full font-bold text-lg h-14 border-2 border-border transition-all flex justify-center gap-2 ${saveSuccess ? 'bg-green-600 text-white shadow-none border-green-700' : isEditMode ? 'bg-amber-600 text-white shadow-[4px_4px_0px_0px_#888] hover:bg-amber-700 hover:shadow-none active:translate-y-0.5' : 'bg-foreground text-background shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5'}`}>
-            {saveSuccess ? <><CheckCircle size={20} className="animate-pulse" /> {isEditMode ? 'อัพเดตสำเร็จ!' : 'บันทึกสำเร็จ!'}</> : loading ? <><RefreshCw size={20} className="animate-spin" /> กำลังบันทึก...</> : isEditMode ? <><Save size={20} /> อัพเดตข้อมูลวันนี้</> : <><Save size={20} /> บันทึกผล</>}
-          </Button>
+          <div className="flex gap-4">
+            {isEditMode && session?.user && (session.user as any).role === 'Admin' && (
+              <Button type="button" onClick={handleDeleteVisit} disabled={loading || saveSuccess || isDeleting} className="w-1/3 font-bold text-lg h-14 border-2 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:border-red-800 dark:text-red-400 transition-all flex justify-center gap-2">
+                 {isDeleting ? <><RefreshCw size={20} className="animate-spin" /> กำลังลบ...</> : <><Trash2 size={20} /> ลบ Visit นี้</>}
+              </Button>
+            )}
+            <Button type="submit" disabled={loading || saveSuccess || isDeleting} className={`flex-1 font-bold text-lg h-14 border-2 border-border transition-all flex justify-center gap-2 ${saveSuccess ? 'bg-green-600 text-white shadow-none border-green-700' : isEditMode ? 'bg-amber-600 text-white shadow-[4px_4px_0px_0px_#888] hover:bg-amber-700 hover:shadow-none active:translate-y-0.5' : 'bg-foreground text-background shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5'}`}>
+              {saveSuccess ? <><CheckCircle size={20} className="animate-pulse" /> {isEditMode ? 'อัพเดตสำเร็จ!' : 'บันทึกสำเร็จ!'}</> : loading ? <><RefreshCw size={20} className="animate-spin" /> กำลังบันทึก...</> : isEditMode ? <><Save size={20} /> อัพเดตข้อมูลวันนี้</> : <><Save size={20} /> บันทึกผล</>}
+            </Button>
+          </div>
 
         </form >
       </div >

@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Asthma Flow - ระบบจัดการข้อมูลผู้ป่วยหอบหืด",
-  description: "ระบบจัดการข้อมูลผู้ป่วยโรคหอบหืดแบบครบวงจร ติดตาม PEFR ประเมินเทคนิคการใช้ยาพ่น และวิเคราะห์แนวโน้มสุขภาพ",
+  title: "Asthma Flow - ระบบจัดการข้อมูลผู้ป่วยโรคหืด",
+  description: "ระบบจัดการข้อมูลผู้ป่วยโรคหืดแบบครบวงจร ติดตาม PEFR ประเมินเทคนิคการใช้ยาพ่น และวิเคราะห์แนวโน้มสุขภาพ",
 };
 
 export default function RootLayout({

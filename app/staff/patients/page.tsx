@@ -249,7 +249,7 @@ export default function PatientListPage() {
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-3xl font-black text-[#2D2A26] dark:text-white">Dashboard</h2>
+            <h2 className="text-3xl font-black text-[#2D2A26] dark:text-white">Overview</h2>
             <p className="text-muted-foreground mt-1">ภาพรวมผู้ป่วยคลินิกโรคหืด</p>
           </div>
           <Link href="/staff/register">

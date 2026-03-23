@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
-import { getSheetData, appendData, updatePatientStatus, updatePatientData, updateRowByHnAndDate, deleteRow, logActivity, getUsers, createUser, updateUser, deleteUser, updateDrpById, updateAdvice, deleteAdvice } from '@/lib/sheets';
+import { getSheetData, appendData, updatePatientStatus, updatePatientData, updateRowByHnAndDate, deleteRow, deleteAllRowsByHn, deleteAllRowsByHnAndDate, logActivity, getUsers, createUser, updateUser, deleteUser, updateDrpById, updateAdvice, deleteAdvice } from '@/lib/sheets';
 import { normalizeHN } from '@/lib/helpers';
 import { Patient } from '@/lib/types';
 import { hashPassword } from '@/lib/auth';
@@ -435,10 +435,63 @@ export async function DELETE(request: Request) {
       }
     }
 
+    // --- Delete specific visit entry ---
+    if (type === 'visit_entry') {
+      const date = searchParams.get('date');
+      if (!hn || !date) {
+        return NextResponse.json({ error: "Missing parameters (hn, date)" }, { status: 400 });
+      }
+
+      // RBAC: Only Admin can delete a visit
+      const currentUserRole = (session.user as any).role;
+      if (currentUserRole !== 'Admin') {
+        return NextResponse.json({ error: "Access Denied: Only Admin can delete a visit" }, { status: 403 });
+      }
+
+      try {
+        await Promise.all([
+          deleteAllRowsByHnAndDate(SHEET_CONFIG.VISITS_TAB, hn, date, 1, 0),
+          deleteAllRowsByHnAndDate(SHEET_CONFIG.MEDICATIONS_TAB, hn, date, 1, 0),
+          deleteAllRowsByHnAndDate(SHEET_CONFIG.TECHNIQUE_TAB, hn, date, 1, 0),
+          // For DRPs, Date is in column 3 (index 3 for Visit_Date), HN is index 1
+          deleteAllRowsByHnAndDate(SHEET_CONFIG.DRP_TAB, hn, date, 3, 1)
+        ]);
+
+        await logActivity(session.user?.email || "Unknown", `Delete Visit Entry`, `Success (HN: ${hn}, Date: ${date})`);
+        return NextResponse.json({ message: "Visit deleted successfully" });
+      } catch (e) {
+        console.error("Delete Visit Error:", e);
+        return NextResponse.json({ error: "Failed to delete visit" }, { status: 500 });
+      }
+    }
+
     if (!type || !hn) return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
 
     let tabName = "";
-    if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
+    if (type === 'patients') {
+      tabName = SHEET_CONFIG.PATIENTS_TAB;
+      
+      const deleteHistoryStr = searchParams.get('deleteHistory');
+      const deleteHistory = deleteHistoryStr === 'true';
+
+      // RBAC for patient deletion: Only Admin
+      const currentUserRole = (session.user as any).role;
+      if (currentUserRole !== 'Admin') {
+        return NextResponse.json({ error: "Access Denied: Only Admin can delete patients" }, { status: 403 });
+      }
+
+      if (deleteHistory) {
+        // Cascade Delete
+        await Promise.all([
+          deleteAllRowsByHn(SHEET_CONFIG.VISITS_TAB, hn),
+          deleteAllRowsByHn(SHEET_CONFIG.MEDICATIONS_TAB, hn),
+          deleteAllRowsByHn(SHEET_CONFIG.TECHNIQUE_TAB, hn),
+          deleteAllRowsByHn(SHEET_CONFIG.ADVICE_TAB, hn),
+          // For DRPs, the HN is typically in column B (index 1), so we pass columnIndex = 1
+          deleteAllRowsByHn(SHEET_CONFIG.DRP_TAB, hn, 1)
+        ]);
+      }
+    }
     else return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
     const result = await deleteRow(tabName, hn);

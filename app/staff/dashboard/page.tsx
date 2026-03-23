@@ -472,7 +472,7 @@ export default function StatsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-black text-foreground dark:text-white">Statistics</h2>
+          <h2 className="text-3xl font-black text-foreground dark:text-white">Dashboard</h2>
           <p className="text-muted-foreground mt-1">วิเคราะห์ข้อมูลการให้บริการ</p>
         </div>
         <Button variant="outline" size="icon" onClick={fetchData} className="rounded-full hover:rotate-180 transition-all duration-500">

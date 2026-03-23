@@ -14,6 +14,7 @@ export const registerSchema = z.object({
 });
 
 export const visitSchema = z.object({
+    visit_date: z.string().refine((date) => date !== "", "กรุณาระบุวันที่รับบริการ"),
     pefr: z.string().optional(),
     control_level: z.string(),
     controller: z.string(),

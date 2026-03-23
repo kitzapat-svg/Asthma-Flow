@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { X, Edit, Trash2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -16,6 +17,7 @@ interface EditPatientModalProps {
 
 export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModalProps) {
     const router = useRouter();
+    const { data: session } = useSession();
     const [editFormData, setEditFormData] = useState<Patient>({ ...patient });
 
     // ✨ NEW: Calculate Predicted PEFR (Dejsomritrutai 2000)
@@ -82,11 +84,13 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
     };
 
     const handleDelete = async () => {
-        if (!confirm("⚠️ ยืนยันการลบข้อมูลผู้ป่วย?\nข้อมูลทั้งหมดจะหายไปและกู้คืนไม่ได้")) return;
+        if (!confirm(`คุณต้องการลบข้อมูลผู้ป่วย ${patient.first_name} ${patient.last_name} (HN: ${patient.hn}) ใช่หรือไม่?`)) return;
+
+        const confirmHistory = window.confirm(`คุณต้องการลบ "ประวัติการเข้าตรวจทั้งหมด" ของผู้ป่วยรายนี้ด้วยหรือไม่?\n- กด OK เพื่อลบประวัติทั้งหมด\n- กด Cancel เพื่อลบเฉพาะข้อมูลเบื้องต้นของผู้ป่วยแต่เก็บประวัติการเข้าตรวจไว้`);
 
         setIsDeleting(true);
         try {
-            const res = await fetch(`/api/db?type=patients&hn=${patient.hn}`, { method: 'DELETE' });
+            const res = await fetch(`/api/db?type=patients&hn=${patient.hn}&deleteHistory=${confirmHistory}`, { method: 'DELETE' });
             if (res.ok) {
                 toast.success("ลบข้อมูลเรียบร้อย");
 
@@ -186,9 +190,11 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
                     </div>
 
                     <div className="flex gap-3 mt-6 pt-4 border-t dark:border-zinc-700">
-                        <button type="button" onClick={handleDelete} disabled={isDeleting} className="flex-1 px-4 py-2 bg-red-100 text-red-700 font-bold rounded hover:bg-red-200 flex items-center justify-center gap-2">
-                            {isDeleting ? "กำลังลบ..." : <><Trash2 size={18} /> ลบผู้ป่วย</>}
-                        </button>
+                        {session?.user && (session.user as any).role === 'Admin' && (
+                            <button type="button" onClick={handleDelete} disabled={isDeleting} className="flex-1 px-4 py-2 bg-red-100 text-red-700 font-bold rounded hover:bg-red-200 flex items-center justify-center gap-2">
+                                {isDeleting ? "กำลังลบ..." : <><Trash2 size={18} /> ลบผู้ป่วย</>}
+                            </button>
+                        )}
                         <button type="submit" className="flex-[2] px-4 py-2 bg-[#D97736] text-white font-bold rounded hover:bg-[#c66a2e] flex items-center justify-center gap-2">
                             <Save size={18} /> บันทึกการแก้ไข
                         </button>
