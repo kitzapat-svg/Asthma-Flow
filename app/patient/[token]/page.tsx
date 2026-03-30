@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Image from 'next/image';
 import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, ChevronDown, Phone, Heart, Star, Shield, Lock, KeyRound, MessageSquareText, User } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -717,9 +718,11 @@ export default function PatientPublicPage() {
 
                 {/* Steps 1-2 */}
                 <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-white">
-                  <img
+                  <Image
                     src="/inhaler-guide/step-1-2.png"
                     alt="ขั้นตอนที่ 1-2: เขย่ายา และหายใจออกให้สุด"
+                    width={180}
+                    height={180}
                     className="w-full max-w-[180px] mx-auto object-contain py-2"
                   />
                 </div>
@@ -738,9 +741,11 @@ export default function PatientPublicPage() {
 
                 {/* Steps 3-4 */}
                 <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-white">
-                  <img
+                  <Image
                     src="/inhaler-guide/step-3-4.png"
                     alt="ขั้นตอนที่ 3-4: อมปากกระบอกยา และกดพร้อมสูด"
+                    width={180}
+                    height={180}
                     className="w-full max-w-[180px] mx-auto object-contain py-2"
                   />
                 </div>
@@ -759,9 +764,11 @@ export default function PatientPublicPage() {
 
                 {/* Step 5 */}
                 <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-zinc-800 bg-white">
-                  <img
+                  <Image
                     src="/inhaler-guide/step-5-hold.png"
                     alt="ขั้นตอนที่ 5: กลั้นลมหายใจ 10 วินาที"
+                    width={120}
+                    height={120}
                     className="w-full max-w-[120px] mx-auto object-contain py-2"
                   />
                 </div>
@@ -786,9 +793,11 @@ export default function PatientPublicPage() {
                   </div>
                   <div className="bg-red-50 dark:bg-red-900/20 p-4">
                     <div className="bg-white rounded-lg mb-3">
-                      <img
+                      <Image
                         src="/inhaler-guide/mouthrinse.png"
                         alt="บ้วนปากและกลั้วคอหลังพ่นยาสเตียรอยด์"
+                        width={140}
+                        height={140}
                         className="w-full max-w-[140px] mx-auto object-contain py-2 rounded-lg"
                       />
                     </div>

@@ -103,7 +103,7 @@ export function Navbar() {
                 </svg>
               </motion.div>
               <span className="text-lg font-black tracking-tight text-foreground uppercase">
-                Asthma Clinic
+                Asthma Flow
               </span>
             </Link>
           </motion.div>

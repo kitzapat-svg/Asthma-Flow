@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FieldError, useWatch, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -50,6 +50,18 @@ type VisitFormValues = z.infer<typeof visitSchema> & {
 };
 
 export default function RecordVisitPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin text-primary"><svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4m0 12v4m-8.5-10H4m16 0h.5m-2.6-6.4-.7.7M6.1 17.9l-.7.7m12.6.7-.7-.7M6.1 6.1l-.7-.7" /></svg></div>
+      </div>
+    }>
+      <RecordVisitPageInner />
+    </Suspense>
+  );
+}
+
+function RecordVisitPageInner() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();

@@ -17,7 +17,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Asthma Flow - ระบบจัดการข้อมูลผู้ป่วยโรคหืด",
+  title: {
+    default: "Asthma Flow — ระบบจัดการข้อมูลผู้ป่วยโรคหืด",
+    template: "%s — Asthma Flow",
+  },
   description: "ระบบจัดการข้อมูลผู้ป่วยโรคหืดแบบครบวงจร ติดตาม PEFR ประเมินเทคนิคการใช้ยาพ่น และวิเคราะห์แนวโน้มสุขภาพ",
 };
 
@@ -27,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="th" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
