@@ -244,7 +244,7 @@ export default function PatientListPage() {
 
   return (
     <div className="space-y-8 pb-20">
-
+      
       {/* 1. Header & Stats Section */}
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-end">

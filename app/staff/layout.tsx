@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Users, PieChart, ChevronDown, UserCog, Wind, Menu, X, User } from "lucide-react";
+import { LogOut, Users, PieChart, ChevronDown, UserCog, Wind, Menu, X, User, Database } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useState, useRef, useEffect } from "react";
@@ -21,6 +21,7 @@ export default function StaffLayout({
   const pathname = usePathname();
   const { data: session } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const handleLogout = async () => {
     await signOut({ redirect: true, callbackUrl: "/auth/signin" });
@@ -53,12 +54,15 @@ export default function StaffLayout({
             </Link>
 
             {/* Desktop Navigation Links */}
-            <div className="hidden md:flex items-center gap-1 ml-2">
-              {staffNavItems.map((item) => (
+            <div className="hidden md:flex items-center gap-1 ml-2 bg-secondary/30 p-1 rounded-xl">
+              {staffNavItems.map((item, index) => (
                 <StaffNavLink
                   key={item.href}
                   href={item.href}
                   isActive={pathname === item.href}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  isHovered={hoveredIndex === index}
                 >
                   <item.icon size={16} /> {item.label}
                 </StaffNavLink>
@@ -152,7 +156,6 @@ export default function StaffLayout({
                     </div>
                   </div>
                 </motion.div>
-
                 {/* User Management Link */}
                 <motion.div
                   initial={{ opacity: 0, x: -16 }}
@@ -166,6 +169,21 @@ export default function StaffLayout({
                     <UserCog size={18} /> จัดการผู้ใช้
                   </Link>
                 </motion.div>
+
+                {(session?.user as any)?.role === 'Admin' && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.18 }}
+                  >
+                    <Link
+                      href="/staff/data-management"
+                      className="flex items-center gap-3 px-4 py-3.5 text-sm font-bold uppercase tracking-wide text-foreground hover:bg-secondary retro-box-sm transition-all"
+                    >
+                      <Database size={18} /> จัดการข้อมูล
+                    </Link>
+                  </motion.div>
+                )}
 
                 {/* Logout Button */}
                 <motion.div
@@ -202,31 +220,49 @@ function StaffNavLink({
   href,
   children,
   isActive,
+  onMouseEnter,
+  onMouseLeave,
+  isHovered,
 }: {
   href: string;
   children: React.ReactNode;
   isActive?: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  isHovered?: boolean;
 }) {
   return (
-    <motion.div whileHover={{ y: -2 }} whileTap={{ y: 0 }}>
-      <Link
-        href={href}
-        className={`relative px-4 py-2 text-sm font-bold transition-all uppercase tracking-wide group flex items-center gap-2 ${isActive
-          ? "text-primary-foreground bg-primary"
-          : "text-foreground hover:text-primary"
-          }`}
-      >
-        {children}
-        {!isActive && (
-          <motion.span
-            className="absolute bottom-0 left-0 w-full h-0.5 bg-primary origin-left"
-            initial={{ scaleX: 0 }}
-            whileHover={{ scaleX: 1 }}
-            transition={{ duration: 0.2 }}
+    <Link
+      href={href}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={`relative px-4 py-2 text-sm font-black transition-all uppercase tracking-tight group flex items-center gap-2 no-underline z-10 ${isActive
+        ? "text-primary dark:text-white"
+        : "text-muted-foreground hover:text-foreground"
+        }`}
+    >
+      <span className="relative z-20 flex items-center gap-2">{children}</span>
+
+      <AnimatePresence>
+        {(isHovered || isActive) && (
+          <motion.div
+            layoutId="nav-pill"
+            className={`absolute inset-0 z-10 rounded-lg border ${isActive
+              ? "bg-primary/10 border-primary/20 shadow-sm"
+              : "bg-secondary border-border"
+              }`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{
+              type: "spring",
+              stiffness: 400,
+              damping: 30,
+            }}
           />
         )}
-      </Link>
-    </motion.div>
+      </AnimatePresence>
+    </Link>
   );
 }
 
@@ -307,6 +343,17 @@ function UserDropdown({
                   จัดการผู้ใช้
                 </div>
               </Link>
+              {(session?.user as any)?.role === 'Admin' && (
+                <Link
+                  href="/staff/data-management"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <div className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-bold text-foreground hover:bg-secondary transition-colors cursor-pointer">
+                    <Database size={16} className="text-muted-foreground" />
+                    จัดการข้อมูล
+                  </div>
+                </Link>
+              )}
               <div className="border-t border-border my-1" />
               <button
                 onClick={() => {
