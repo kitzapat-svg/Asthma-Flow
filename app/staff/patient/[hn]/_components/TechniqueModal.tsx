@@ -29,26 +29,32 @@ export function TechniqueModal({ techniqueHistory, onClose }: TechniqueModalProp
                                             <Calendar size={16} className="text-gray-400" />
                                             {new Date(record.date).toLocaleDateString('th-TH', { dateStyle: 'long' })}
                                         </p>
-                                        <div className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border ${parseInt(record.total_score) >= 7 ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
-                                            คะแนนรวม: {record.total_score} / 8
+                                        <div className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border ${(record.score ?? 0) >= 7 ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                                            คะแนนรวม: {record.score ?? 0} / 8
                                         </div>
                                     </div>
                                 </div>
                                 <div className="mb-3">
                                     <p className="text-xs font-bold text-gray-500 uppercase mb-2">จุดที่ทำไม่ได้ / ต้องปรับปรุง:</p>
                                     <div className="flex flex-wrap gap-2">
-                                        {record.steps.map((passed, i) => (
-                                            passed === "0" && (
-                                                <span key={i} className="text-xs bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded flex items-center gap-1">
-                                                    <X size={10} /> {MDI_STEPS[i]}
+                                        {(() => {
+                                            const stepKeys = ['step1','step2','step3','step4','step5','step6','step7','step8'] as const;
+                                            const steps = stepKeys.map(k => (record as any)[k] ?? '0');
+                                            const allCorrect = steps.every(s => String(s) === '1');
+                                            return allCorrect ? (
+                                                <span className="text-xs text-green-600 flex items-center gap-1 font-bold">
+                                                    <CheckCircle size={12} /> ทำได้ถูกต้องครบถ้วน
                                                 </span>
-                                            )
-                                        ))}
-                                        {record.steps.every(s => s === "1") && (
-                                            <span className="text-xs text-green-600 flex items-center gap-1 font-bold">
-                                                <CheckCircle size={12} /> ทำได้ถูกต้องครบถ้วน
-                                            </span>
-                                        )}
+                                            ) : (
+                                                steps.map((passed, i) => (
+                                                    (passed === '0' || passed === 0 || passed === false) && (
+                                                        <span key={i} className="text-xs bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded flex items-center gap-1">
+                                                            <X size={10} /> {MDI_STEPS[i]}
+                                                        </span>
+                                                    )
+                                                ))
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                                 <div className="bg-white dark:bg-zinc-900 p-3 rounded border border-dashed border-gray-300 dark:border-zinc-700 text-sm">

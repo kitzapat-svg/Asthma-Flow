@@ -105,14 +105,17 @@ export default function PatientDetailPage() {
 
                 const history: VisitDisplay[] = dataVisits
                     .filter(v => normalizeHN(v.hn) === normalizeHN(params.hn))
-                    .map(v => ({
-                        ...v,
-                        dateDisplay: new Date(v.date).toLocaleDateString('th-TH', {
-                            day: '2-digit', month: 'short', year: '2-digit'
-                        }),
-                        fullDate: v.date,
-                        pefr: parseInt(v.pefr) || null
-                    }))
+                    .map(v => {
+                        const dateStr = v.visit_date ?? v.date ?? '';
+                        return {
+                            ...v,
+                            dateDisplay: new Date(dateStr).toLocaleDateString('th-TH', {
+                                day: '2-digit', month: 'short', year: '2-digit'
+                            }),
+                            fullDate: dateStr,
+                            pefr: parseInt(v.pefr as string) || null
+                        };
+                    })
                     .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
                 setVisitHistory(history);
 
@@ -122,11 +125,18 @@ export default function PatientDetailPage() {
                         .map((t: any) => ({
                             hn: t.hn,
                             date: t.date,
-                            steps: [t.step_1, t.step_2, t.step_3, t.step_4, t.step_5, t.step_6, t.step_7, t.step_8],
-                            total_score: t.total_score,
+                            step1: t.step1 ?? '0',
+                            step2: t.step2 ?? '0',
+                            step3: t.step3 ?? '0',
+                            step4: t.step4 ?? '0',
+                            step5: t.step5 ?? '0',
+                            step6: t.step6 ?? '0',
+                            step7: t.step7 ?? '0',
+                            step8: t.step8 ?? '0',
+                            score: t.score ?? 0,
                             note: t.note || '-'
                         }))
-                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
                     setTechniqueHistory(techHistory);
                 }
             }

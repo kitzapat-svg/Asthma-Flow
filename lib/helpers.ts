@@ -3,7 +3,9 @@ import { getDejsomritrutaiPefr } from './pef-reference';
 
 export const normalizeHN = (val: any): string => {
     if (val === null || val === undefined) return '';
-    return String(val).trim().replace(/^0+/, '');
+    const cleaned = String(val).trim().replace(/^0+/, '');
+    if (cleaned === '') return '';
+    return cleaned.padStart(7, '0');
 };
 
 export const getAge = (dob: string): number => {

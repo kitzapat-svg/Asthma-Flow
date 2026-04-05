@@ -125,13 +125,13 @@ export default function PatientPublicPage() {
             const graphData = [...visits]
               .reverse()
               .map(v => ({
-                date: new Date(v.date).toLocaleDateString('th-TH', {
+                date: new Date(v.visit_date ?? v.date ?? '').toLocaleDateString('th-TH', {
                   day: '2-digit',
                   month: '2-digit',
                   year: '2-digit'
                 }),
-                pefr: parseInt(v.pefr) > 0 ? parseInt(v.pefr) : null,
-                hasData: parseInt(v.pefr) > 0
+                pefr: parseInt(v.pefr as string) > 0 ? parseInt(v.pefr as string) : null,
+                hasData: parseInt(v.pefr as string) > 0
               }));
             setVisitHistory(graphData);
           }
@@ -346,8 +346,9 @@ export default function PatientPublicPage() {
   // ✨ NEW: Find most recent visit with valid PEFR (> 0), fallback to previous visits
   const getLatestValidPefr = (): { pefr: number; date: string } | null => {
     for (const v of allVisits) {
-      const p = parseInt(v.pefr);
-      if (p > 0) return { pefr: p, date: v.date };
+      const p = parseInt(v.pefr as string);
+      const dateStr = v.visit_date ?? v.date ?? '';
+      if (p > 0) return { pefr: p, date: dateStr };
     }
     return null;
   };
@@ -525,7 +526,7 @@ export default function PatientPublicPage() {
                   {getStatusIcon(lastVisit.control_level)}
                 </div>
                 <h3 className="text-xl font-black text-foreground dark:text-white mb-1">{getStatusText(lastVisit.control_level)}</h3>
-                <p className="text-muted-foreground dark:text-zinc-400 text-sm">อัปเดต: {new Date(lastVisit.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</p>
+                <p className="text-muted-foreground dark:text-zinc-400 text-sm">อัปเดต: {new Date(lastVisit.visit_date ?? lastVisit.date ?? '').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</p>
 
                 {/* ✨ Encouragement Message */}
                 <div className={`mt-4 p-3 rounded-xl border text-sm font-bold ${getEncouragementStyle(lastVisit.control_level)}`}>

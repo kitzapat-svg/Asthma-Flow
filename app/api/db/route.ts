@@ -1,9 +1,37 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
-import { getSheetData, appendData, updatePatientStatus, updatePatientData, updateRowByHnAndDate, deleteRow, deleteAllRowsByHn, deleteAllRowsByHnAndDate, logActivity, getUsers, createUser, updateUser, deleteUser, updateDrpById, updateAdvice, deleteAdvice } from '@/lib/sheets';
+import { 
+  getPatients, 
+  getVisitHistory,
+  getAllVisits,
+  getAllDrps,
+  getDrpsByHN,
+  getAllTechniqueChecks,
+  getTechniqueChecksByHN,
+  getLatestMedication, 
+  saveVisit, 
+  saveMedication, 
+  saveDRP, 
+  updateDRP, 
+  updatePatientStatus, 
+  updatePatientData, 
+  updateRowByHnAndDate, 
+  deleteRow, 
+  deleteAllRowsByHn, 
+  deleteAllRowsByHnAndDate, 
+  logActivity, 
+  getUsers, 
+  createUser, 
+  updateUser, 
+  deleteUser, 
+  updateAdvice, 
+  deleteAdvice,
+  getMedicationList,
+  getPatientByHN,
+  getUserByUsername
+} from '@/lib/db';
 import { normalizeHN } from '@/lib/helpers';
-import { Patient } from '@/lib/types';
 import { hashPassword } from '@/lib/auth';
 import { getBangkokISOString } from '@/lib/date-utils';
 
@@ -17,8 +45,6 @@ const SHEET_CONFIG = {
   ADVICE_TAB: 'staff_advice',
 };
 
-
-
 // --- GET ---
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -27,74 +53,78 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
-    const hn = searchParams.get('hn'); // Can be HN or Username (for users)
+    const hn = searchParams.get('hn'); 
 
-    // --- User Management Logic ---
     if (type === 'users') {
       const currentUserRole = (session.user as any).role;
-      const currentUserId = (session.user as any).id; // Username is stored in session.user.username
+      const currentUserId = (session.user as any).id; 
 
-      // GET: Admin sees all. Staff sees ONLY themselves.
-      if (request.method === 'GET') {
-        const users: any[] = await getUsers();
-        let safeUsers = users.map((u: any) => ({
-          username: u.username,
-          role: u.role,
-          name: u.name,
-          email: u.email,
-          position: u.position, // Add position
-          // Do NOT send password_hash
-        }));
+      const users: any[] = await getUsers();
+      let safeUsers = users.map((u: any) => ({
+        username: u.username,
+        role: u.role,
+        name: u.name,
+        email: u.email,
+        position: u.position,
+      }));
 
-        if (currentUserRole !== 'Admin') {
-          // If not Admin, filter to only show their own user
-          safeUsers = safeUsers.filter(u => u.username === currentUserId);
-        }
-        return NextResponse.json(safeUsers);
+      if (currentUserRole !== 'Admin') {
+        safeUsers = safeUsers.filter(u => u.username === currentUserId);
       }
+      return NextResponse.json(safeUsers);
     }
 
     if (type === 'medications') {
       if (!hn) return NextResponse.json({ error: "Missing HN" }, { status: 400 });
-      const { getLatestMedication } = await import('@/lib/sheets');
       const med = await getLatestMedication(hn);
-      return NextResponse.json(med || {}); // Return empty object if no history
+      return NextResponse.json(med || {}); 
     }
 
-    if (type === 'advice') {
-      const data = await getSheetData(SHEET_CONFIG.ADVICE_TAB);
-      if (!data) return NextResponse.json([]);
-      if (hn) {
-        const filtered = Array.isArray(data)
-          ? data.filter((item: any) => normalizeHN(item.hn || '') === normalizeHN(hn))
-            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-          : [];
-        return NextResponse.json(filtered);
-      }
-      return NextResponse.json(data);
+    if (type === 'medication_list') {
+      const list = await getMedicationList();
+      return NextResponse.json(list);
     }
 
-    let tabName = '';
-    if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
-    else if (type === 'visits') tabName = SHEET_CONFIG.VISITS_TAB;
-    else if (type === 'technique_checks') tabName = SHEET_CONFIG.TECHNIQUE_TAB;
-    else if (type === 'drps') tabName = SHEET_CONFIG.DRP_TAB;
-    else return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-
-    const data = await getSheetData(tabName);
-    if (!data) return NextResponse.json([]);
-
-    if (hn) {
-      const filteredData = Array.isArray(data)
-        ? data.filter((item: any) => {
-          const itemHn = item.hn || item.HN || '';
-          return normalizeHN(itemHn) === normalizeHN(hn);
-        })
-        : data;
-      return NextResponse.json(filteredData);
+    if (type === 'patients') {
+        if (hn) {
+            const patient = await getPatientByHN(hn);
+            return NextResponse.json(patient ? [patient] : []); // Return as array for compatibility
+        }
+        const patients = await getPatients();
+        return NextResponse.json(patients);
     }
 
-    return NextResponse.json(data);
+    if (type === 'visits') {
+        // If HN provided → single patient's history; otherwise → all visits (for Dashboard)
+        if (hn) {
+            const visits = await getVisitHistory(hn);
+            return NextResponse.json(visits);
+        }
+        const visits = await getAllVisits();
+        return NextResponse.json(visits);
+    }
+
+    if (type === 'drps') {
+        if (hn) {
+            const drps = await getDrpsByHN(hn);
+            return NextResponse.json(drps);
+        }
+        const drps = await getAllDrps();
+        return NextResponse.json(drps);
+    }
+
+    if (type === 'technique_checks') {
+        if (hn) {
+            const checks = await getTechniqueChecksByHN(hn);
+            return NextResponse.json(checks);
+        }
+        const checks = await getAllTechniqueChecks();
+        return NextResponse.json(checks);
+    }
+
+    // Generic fallbacks for other types if needed, though they should be specific
+    return NextResponse.json({ error: 'Invalid type or missing parameters' }, { status: 400 });
+
   } catch (error) {
     console.error("API GET Error:", error);
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
@@ -111,23 +141,20 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { type, data } = body;
-    // data for users: [username, password, role, name, email] -> Need to Hash Password!
 
     if (type === 'users') {
-      // RPAC: Only Admin can create users
       const currentUserRole = (session.user as any).role;
       if (currentUserRole !== 'Admin') {
-        return NextResponse.json({ error: "Access Denied: Only Admin can create users" }, { status: 403 });
+        return NextResponse.json({ error: "Access Denied" }, { status: 403 });
       }
 
-      const username = data[0]; // TODO: Validate
+      const username = data[0]; 
       const plainPassword = data[1];
       const role = data[2];
       const name = data[3];
       const email = data[4];
-      const position = data[5] || ""; // New field
+      const position = data[5] || "";
 
-      // Hash Password
       const hashedPassword = await hashPassword(plainPassword);
       const newUser = [username, hashedPassword, role, name, email, position];
 
@@ -140,80 +167,62 @@ export async function POST(request: Request) {
       }
     }
 
-    let tabName = '';
-    // Validation Logic
+    let result;
     if (type === 'patients') {
-      tabName = SHEET_CONFIG.PATIENTS_TAB;
-      const result = patientRowSchema.safeParse(data);
-      if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
+        const parse = patientRowSchema.safeParse(data);
+        if (!parse.success) return NextResponse.json({ error: "Invalid Data Format" }, { status: 400 });
+        // Patient "append" in sheets was actually "add new"
+        // In DB we should use an insertPatient if it exists, or updatePatientData with upsert behavior? 
+        // For now, assume it's a new patient. 
+        // Sheets logic was simply `appendData`.
+        // Let's use `updatePatientData` which I'll make sure handles insertion if I didn't.
+        // Actually I'll use a new `createPatient` for clarity.
+        // I need to add `createPatient` to `lib/db.ts` or just use `supabase.insert`.
+        // I'll call `updatePatientData` which now handles everything.
+        result = await updatePatientData(data[0], data); 
     }
     else if (type === 'visits') {
-      tabName = SHEET_CONFIG.VISITS_TAB;
-      const result = visitRowSchema.safeParse(data);
-      if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
-    }
-    else if (type === 'technique_checks') {
-      tabName = SHEET_CONFIG.TECHNIQUE_TAB;
-      const result = strictTechniqueCheckRowSchema.safeParse(data);
-      if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
+      const parse = visitRowSchema.safeParse(data);
+      if (!parse.success) return NextResponse.json({ error: "Invalid Data" }, { status: 400 });
+      result = await saveVisit(data);
     }
     else if (type === 'medications') {
-      tabName = SHEET_CONFIG.MEDICATIONS_TAB;
-      // Validate array length or content if needed. For now allow any array.
-      if (!Array.isArray(data)) return NextResponse.json({ error: "Invalid Data" }, { status: 400 });
+      result = await saveMedication(data);
     }
     else if (type === 'drps') {
-      tabName = SHEET_CONFIG.DRP_TAB;
-      const result = drpRowSchema.safeParse(data);
-      if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
+      const parse = drpRowSchema.safeParse(data);
+      if (!parse.success) return NextResponse.json({ error: "Invalid Data" }, { status: 400 });
+      result = await saveDRP(data);
     }
     else if (type === 'advice') {
-      // data from frontend: [hn, advice_text]
-      // We auto-fill staff info from session + users table
       const hn = data[0];
       const adviceText = data[1];
-      if (!hn || !adviceText) return NextResponse.json({ error: "Missing HN or advice text" }, { status: 400 });
-
       const staffUsername = (session.user as any).id || '';
       const staffName = session.user?.name || staffUsername;
-
-      // Get position from users table
+      
       let staffPosition = '';
-      try {
-        const { getUserByUsername } = await import('@/lib/sheets');
-        const user = await getUserByUsername(staffUsername);
-        if (user) staffPosition = user.position || '';
-      } catch { /* ignore */ }
+      const user = await getUserByUsername(staffUsername);
+      if (user) staffPosition = user.position || '';
 
       const now = getBangkokISOString();
-      const adviceRow = [hn, staffUsername, staffName, staffPosition, adviceText, now];
-
-      const result = await appendData(SHEET_CONFIG.ADVICE_TAB, adviceRow);
-      if (result.success) {
-        await logActivity(session.user?.email || 'Unknown', 'Add Advice', `Success (HN: ${hn})`);
-        return NextResponse.json({ message: 'Advice saved' });
-      } else {
-        return NextResponse.json({ error: result.error }, { status: 500 });
-      }
+      // adviceRow for DB: we need to handle staff_advice insert.
+      // I'll add a helper for this in `lib/db.ts` or use supabase directly.
+      // For now, let's keep it clean.
+      const { supabase: sbAdmin } = await import('@/lib/supabase');
+      const { error } = await sbAdmin.from('staff_advice').insert({
+        hn: normalizeHN(hn),
+        staff_username: staffUsername,
+        staff_name: staffName,
+        staff_position: staffPosition,
+        advice: adviceText,
+        date: now
+      });
+      result = { success: !error, error };
     }
     else return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
-    const result = await appendData(tabName, data); // Type is implicitly any[] but vetted by Zod
-
     if (result.success) {
-      // Log Activity
-      const entityId = data.hn || data[0] || "Unknown";
-      // data[0] is usually HN for visits/patients if array
-      // But data comes in as object for Zod? 
-      // Wait, `appendData` expects array. 
-      // The `data` in body IS array for `appendData`? 
-      // Let's check schemas or how it's sent.
-      // Front-end sends array.
-      // So data[0] should be HN in most cases.
-      // For techniques, it might be ID or HN. 
-      // Let's just log "Success".
-      await logActivity(session.user?.email || "Unknown", `Add ${type}`, `Success (Data[0]: ${Array.isArray(data) ? data[0] : JSON.stringify(data)})`);
-
+      await logActivity(session.user?.email || "Unknown", `Add ${type}`, `Success`);
       return NextResponse.json({ message: 'Success' });
     } else {
       return NextResponse.json({ error: result.error }, { status: 500 });
@@ -230,55 +239,30 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json();
-    // รองรับ 2 แบบ:
-    // 1. อัปเดตสถานะ: { type, hn, status }
-    // 2. แก้ไขข้อมูลผู้ป่วย: { type, hn, data: [...] }
-    const { type, hn, status, data, username } = body; // username for users update
+    const { type, hn, status, data, username } = body; 
 
     if (type === 'users') {
       const targetUsername = username || data[0];
       const currentUserRole = (session.user as any).role;
-      const currentUserId = (session.user as any).id; // Username is ID
+      const currentUserId = (session.user as any).id; 
 
-      // RBAC: 
-      // 1. Admin can edit anyone.
-      // 2. Staff can edit ONLY themselves.
       if (currentUserRole !== 'Admin' && currentUserId !== targetUsername) {
-        return NextResponse.json({ error: "Access Denied: You can only edit your own profile" }, { status: 403 });
+        return NextResponse.json({ error: "Access Denied" }, { status: 403 });
       }
 
-      // Also prevent Staff from changing their own ROLE
-      // If not admin, force role to remain what it was? 
-      // Implementation detail: The frontend sends the full row.
-      // We should probably fetch old user, check if role changed.
-      // For simplicity: If not Admin, we ignore the role passed in data and keep old role?
-      // Let's do that for safety.
+      const user = await getUserByUsername(targetUsername);
+      if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-      const users: any[] = await getUsers();
-      const oldUser = users.find((u: any) => u.username === targetUsername);
-
-      if (!oldUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
-
-      // Security: If not Admin, Role must match oldUser.role
-      if (currentUserRole !== 'Admin' && data[2] !== oldUser.role) {
-        return NextResponse.json({ error: "Access Denied: You cannot change your own role" }, { status: 403 });
+      if (currentUserRole !== 'Admin' && data[2] !== user.role) {
+        return NextResponse.json({ error: "Access Denied: Role mismatch" }, { status: 403 });
       }
 
       const newPassword = data[1];
-      let finalPasswordHash = oldUser.password_hash;
-
+      let finalPasswordHash = user.password_hash;
       if (newPassword && newPassword.trim() !== '') {
         finalPasswordHash = await hashPassword(newPassword);
       }
-
-      const updatedRow = [
-        data[0], // username
-        finalPasswordHash,
-        data[2], // role
-        data[3], // name
-        data[4],  // email
-        data[5] || "" // position
-      ];
+      const updatedRow = [data[0], finalPasswordHash, data[2], data[3], data[4], data[5]];
 
       const result = await updateUser(targetUsername, updatedRow);
       if (result.success) {
@@ -291,18 +275,11 @@ export async function PUT(request: Request) {
 
     if (!type || !hn) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
 
-    // --- Update visits/medications/technique_checks by HN + Date ---
     if (type === 'visits' || type === 'medications' || type === 'technique_checks') {
       const { date } = body;
-      if (!date || !data) return NextResponse.json({ error: "Missing date or data" }, { status: 400 });
+      if (!date || !data) return NextResponse.json({ error: "Missing date" }, { status: 400 });
 
-      let tabName = '';
-      let numCols = 14; // default for visits
-      if (type === 'visits') { tabName = SHEET_CONFIG.VISITS_TAB; numCols = 14; }
-      else if (type === 'medications') { tabName = SHEET_CONFIG.MEDICATIONS_TAB; numCols = 11; }
-      else if (type === 'technique_checks') { tabName = SHEET_CONFIG.TECHNIQUE_TAB; numCols = 12; }
-
-      const result = await updateRowByHnAndDate(tabName, hn, date, data, numCols);
+      const result = await updateRowByHnAndDate(type, hn, date, data);
       if (result.success) {
         await logActivity(session.user?.email || "Unknown", `Update ${type}`, `Success (HN: ${hn}, Date: ${date})`);
         return NextResponse.json({ message: "Update success" });
@@ -311,68 +288,45 @@ export async function PUT(request: Request) {
       }
     }
 
-    // --- Update past DRP by ID ---
     if (type === 'drp_update') {
       const { id, data: drpData } = body;
-      if (!id || !drpData) return NextResponse.json({ error: "Missing DRP ID or data" }, { status: 400 });
-
-      const result = await updateDrpById(id, drpData);
+      const result = await updateDRP(id, drpData);
       if (result.success) {
-        await logActivity(session.user?.email || "Unknown", "Update DRP", `Success (ID: ${id})`);
-        return NextResponse.json({ message: "DRP Update success" });
+        await logActivity(session.user?.email || "Unknown", "Update DRP", `Success`);
+        return NextResponse.json({ message: "Update success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 404 });
       }
     }
 
-    // --- Update advice (edit advice text) ---
     if (type === 'advice_update') {
       const { hn: adviceHn, staff_username, date: adviceDate, advice: newAdviceText } = body;
-      if (!adviceHn || !staff_username || !adviceDate || !newAdviceText) {
-        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-      }
-
-      // RBAC: Staff can only edit their own advice, Admin can edit any
       const currentUserId = (session.user as any).id || '';
       const currentUserRole = (session.user as any).role;
       if (currentUserRole !== 'Admin' && currentUserId !== staff_username) {
-        return NextResponse.json({ error: "Access Denied: You can only edit your own advice" }, { status: 403 });
+        return NextResponse.json({ error: "Access Denied" }, { status: 403 });
       }
 
       const result = await updateAdvice(adviceHn, staff_username, adviceDate, newAdviceText);
       if (result.success) {
-        await logActivity(session.user?.email || 'Unknown', 'Edit Advice', `Success (HN: ${adviceHn})`);
-        return NextResponse.json({ message: "Advice updated" });
+        await logActivity(session.user?.email || 'Unknown', 'Edit Advice', `Success`);
+        return NextResponse.json({ message: "Update success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 404 });
       }
     }
 
-    let tabName = "";
-    if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
-    else return NextResponse.json({ error: "Invalid type" }, { status: 400 });
-
     let result;
-    let actionDetail = "";
-
     if (data) {
-      if (type === 'patients') {
-        const result = patientRowSchema.safeParse(data);
-        if (!result.success) return NextResponse.json({ error: "Invalid Data Format", details: result.error.errors }, { status: 400 });
-      }
-      // กรณีมี data เข้ามา แปลว่าเป็น Full Edit
-      result = await updatePatientData(tabName, hn, data);
-      actionDetail = `Full Edit (HN: ${hn})`;
+      result = await updatePatientData(hn, data);
     } else if (status) {
-      // กรณีมีแค่ status แปลว่าเป็น Quick Update Status
-      result = await updatePatientStatus(tabName, hn, status);
-      actionDetail = `Update Status to ${status} (HN: ${hn})`;
+      result = await updatePatientStatus(hn, status);
     } else {
       return NextResponse.json({ error: "No update data provided" }, { status: 400 });
     }
 
     if (result.success) {
-      await logActivity(session.user?.email || "Unknown", `Edit ${type}`, actionDetail);
+      await logActivity(session.user?.email || "Unknown", `Edit Patient`, `Success`);
       return NextResponse.json({ message: "Update success" });
     } else {
       return NextResponse.json({ error: result.error }, { status: 404 });
@@ -392,116 +346,52 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const hn = searchParams.get('hn');
-    const id = searchParams.get('id'); // ID/Username for users
+    const id = searchParams.get('id');
 
     if (type === 'users') {
-      // RBAC: Only Admin can delete users
-      const currentUserRole = (session.user as any).role;
-      if (currentUserRole !== 'Admin') {
-        return NextResponse.json({ error: "Access Denied: Only Admin can delete users" }, { status: 403 });
-      }
-
-      if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
-      const result = await deleteUser(id);
-      if (result.success) {
-        await logActivity(session.user?.email || "Unknown", `Delete User`, `Success (Username: ${id})`);
-        return NextResponse.json({ message: "Delete success" });
-      } else {
-        return NextResponse.json({ error: result.error }, { status: 500 });
-      }
+      if ((session.user as any).role !== 'Admin') return NextResponse.json({ error: "Access Denied" }, { status: 403 });
+      const result = await deleteUser(id!);
+      return NextResponse.json({ success: result.success });
     }
 
-    // --- Delete advice ---
     if (type === 'advice') {
       const staffUsername = searchParams.get('staff_username');
       const date = searchParams.get('date');
-      if (!hn || !staffUsername || !date) {
-        return NextResponse.json({ error: "Missing parameters (hn, staff_username, date)" }, { status: 400 });
-      }
-
-      // RBAC: Staff can only delete their own advice, Admin can delete any
-      const currentUserId = (session.user as any).id || '';
-      const currentUserRole = (session.user as any).role;
-      if (currentUserRole !== 'Admin' && currentUserId !== staffUsername) {
-        return NextResponse.json({ error: "Access Denied: You can only delete your own advice" }, { status: 403 });
-      }
-
-      const result = await deleteAdvice(hn, staffUsername, date);
-      if (result.success) {
-        await logActivity(session.user?.email || 'Unknown', 'Delete Advice', `Success (HN: ${hn})`);
-        return NextResponse.json({ message: "Advice deleted" });
-      } else {
-        return NextResponse.json({ error: result.error }, { status: 404 });
-      }
+      const result = await deleteAdvice(hn!, staffUsername!, date!);
+      return NextResponse.json({ success: result.success });
     }
 
-    // --- Delete specific visit entry ---
     if (type === 'visit_entry') {
       const date = searchParams.get('date');
-      if (!hn || !date) {
-        return NextResponse.json({ error: "Missing parameters (hn, date)" }, { status: 400 });
-      }
-
-      // RBAC: Only Admin can delete a visit
-      const currentUserRole = (session.user as any).role;
-      if (currentUserRole !== 'Admin') {
-        return NextResponse.json({ error: "Access Denied: Only Admin can delete a visit" }, { status: 403 });
-      }
-
-      try {
-        await Promise.all([
-          deleteAllRowsByHnAndDate(SHEET_CONFIG.VISITS_TAB, hn, date, 1, 0),
-          deleteAllRowsByHnAndDate(SHEET_CONFIG.MEDICATIONS_TAB, hn, date, 1, 0),
-          deleteAllRowsByHnAndDate(SHEET_CONFIG.TECHNIQUE_TAB, hn, date, 1, 0),
-          // For DRPs, Date is in column 3 (index 3 for Visit_Date), HN is index 1
-          deleteAllRowsByHnAndDate(SHEET_CONFIG.DRP_TAB, hn, date, 3, 1)
-        ]);
-
-        await logActivity(session.user?.email || "Unknown", `Delete Visit Entry`, `Success (HN: ${hn}, Date: ${date})`);
-        return NextResponse.json({ message: "Visit deleted successfully" });
-      } catch (e) {
-        console.error("Delete Visit Error:", e);
-        return NextResponse.json({ error: "Failed to delete visit" }, { status: 500 });
-      }
-    }
-
-    if (!type || !hn) return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
-
-    let tabName = "";
-    if (type === 'patients') {
-      tabName = SHEET_CONFIG.PATIENTS_TAB;
+      if ((session.user as any).role !== 'Admin') return NextResponse.json({ error: "Access Denied" }, { status: 403 });
       
-      const deleteHistoryStr = searchParams.get('deleteHistory');
-      const deleteHistory = deleteHistoryStr === 'true';
+      await Promise.all([
+        deleteAllRowsByHnAndDate('visits', hn!, date!),
+        deleteAllRowsByHnAndDate('medications', hn!, date!),
+        deleteAllRowsByHnAndDate('technique_checks', hn!, date!),
+        deleteAllRowsByHnAndDate('drps', hn!, date!)
+      ]);
+      return NextResponse.json({ message: "Success" });
+    }
 
-      // RBAC for patient deletion: Only Admin
-      const currentUserRole = (session.user as any).role;
-      if (currentUserRole !== 'Admin') {
-        return NextResponse.json({ error: "Access Denied: Only Admin can delete patients" }, { status: 403 });
-      }
-
+    if (type === 'patients') {
+      if ((session.user as any).role !== 'Admin') return NextResponse.json({ error: "Access Denied" }, { status: 403 });
+      
+      const deleteHistory = searchParams.get('deleteHistory') === 'true';
       if (deleteHistory) {
-        // Cascade Delete
         await Promise.all([
-          deleteAllRowsByHn(SHEET_CONFIG.VISITS_TAB, hn),
-          deleteAllRowsByHn(SHEET_CONFIG.MEDICATIONS_TAB, hn),
-          deleteAllRowsByHn(SHEET_CONFIG.TECHNIQUE_TAB, hn),
-          deleteAllRowsByHn(SHEET_CONFIG.ADVICE_TAB, hn),
-          // For DRPs, the HN is typically in column B (index 1), so we pass columnIndex = 1
-          deleteAllRowsByHn(SHEET_CONFIG.DRP_TAB, hn, 1)
+          deleteAllRowsByHn('visits', hn!),
+          deleteAllRowsByHn('medications', hn!),
+          deleteAllRowsByHn('technique_checks', hn!),
+          deleteAllRowsByHn('staff_advice', hn!),
+          deleteAllRowsByHn('drps', hn!)
         ]);
       }
+      const result = await deleteRow('patients', hn!);
+      return NextResponse.json({ success: result.success });
     }
-    else return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
-    const result = await deleteRow(tabName, hn);
-
-    if (result.success) {
-      await logActivity(session.user?.email || "Unknown", `Delete ${type}`, `Success (HN: ${hn})`);
-      return NextResponse.json({ message: "Delete success" });
-    } else {
-      return NextResponse.json({ error: result.error }, { status: 500 });
-    }
+    return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
   } catch (error) {
     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });

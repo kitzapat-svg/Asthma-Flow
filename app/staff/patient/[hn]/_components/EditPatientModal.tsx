@@ -185,7 +185,7 @@ export function EditPatientModal({ patient, onClose, onSaved }: EditPatientModal
                         </div>
                         <div>
                             <label className="block text-sm font-bold mb-1">เบอร์โทร</label>
-                            <input type="tel" value={editFormData.phone} onChange={e => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
+                            <input type="tel" value={editFormData.phone || ''} onChange={e => setEditFormData({ ...editFormData, phone: e.target.value })} className="w-full px-3 py-2 border rounded dark:bg-zinc-800 dark:border-zinc-600" />
                         </div>
                     </div>
 

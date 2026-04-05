@@ -82,10 +82,10 @@ export default function PatientListPage() {
         let latestControlLevel: string | null = null;
 
         // Sort visits by date descending
-        pVisits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        pVisits.sort((a, b) => new Date(b.visit_date ?? b.date ?? '').getTime() - new Date(a.visit_date ?? a.date ?? '').getTime());
 
         if (pVisits.length > 0) {
-          lastVisit = new Date(pVisits[0].date);
+          lastVisit = new Date(pVisits[0].visit_date ?? pVisits[0].date ?? '');
           latestControlLevel = pVisits[0].control_level || null;
 
           // Check for explicit next appointment fields

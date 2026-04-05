@@ -1,32 +1,26 @@
 import { NextResponse } from 'next/server';
-import { getSheetData, logActivity } from '@/lib/sheets';
+import { 
+    getPatientByToken, 
+    getVisitHistory, 
+    getLatestMedication, 
+    getAdvice, 
+    logActivity 
+} from '@/lib/db';
 import { normalizeHN } from '@/lib/helpers';
 import { Patient, Visit } from '@/lib/types';
 import { patientRateLimiter } from '@/lib/rate-limit';
 
-
-
-const SHEET_CONFIG = {
-    PATIENTS_TAB: 'patients',
-    VISITS_TAB: 'visits',
-    ADVICE_TAB: 'staff_advice',
-};
-
-
-
-// --- PUBLIC Patient API (ไม่ต้อง auth — ผู้ป่วยเข้าผ่าน QR Code) ---
-// ต้องยืนยันวันเดือนปีเกิดก่อนจึงจะดูข้อมูลได้
+// --- PUBLIC Patient API ---
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const token = searchParams.get('token');
-        const dobInput = searchParams.get('dob'); // DD/MM/YYYY (พ.ศ.)
+        const dobInput = searchParams.get('dob'); 
 
         if (!token) {
             return NextResponse.json({ error: 'Missing token parameter' }, { status: 400 });
         }
 
-        // --- Rate Limiting Check ---
         if (patientRateLimiter.isBlocked(token)) {
             const remainingMins = patientRateLimiter.getRemainingTime(token);
             return NextResponse.json({ 
@@ -34,15 +28,11 @@ export async function GET(request: Request) {
             }, { status: 429 });
         }
 
-        // 1. ค้นหาผู้ป่วยจาก token
-        const patients = await getSheetData(SHEET_CONFIG.PATIENTS_TAB) as any[];
-        const patient = patients.find((p: Patient) => p.public_token === token);
-
+        const patient = await getPatientByToken(token);
         if (!patient) {
             return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
         }
 
-        // 2. ถ้ายังไม่ได้ส่ง DOB → ส่งแค่ชื่อมาสก์กลับไปให้แสดงบนหน้า verify
         if (!dobInput) {
             const firstName = patient.first_name || '';
             const maskedName = firstName.charAt(0) + '***';
@@ -52,18 +42,13 @@ export async function GET(request: Request) {
             });
         }
 
-        // 3. ตรวจสอบ DOB
-        // รองรับ input เป็น DD/MM/YYYY (พ.ศ.) หรือ DD/MM/YYYY (ค.ศ.)
         const patientDob = new Date(patient.dob);
         const [dayStr, monthStr, yearStr] = dobInput.split('/');
         let inputYear = parseInt(yearStr);
         const inputMonth = parseInt(monthStr);
         const inputDay = parseInt(dayStr);
 
-        // ถ้าเป็น พ.ศ. (ปี > 2400) ให้แปลงเป็น ค.ศ.
-        if (inputYear > 2400) {
-            inputYear -= 543;
-        }
+        if (inputYear > 2400) inputYear -= 543;
 
         const dobMatch =
             patientDob.getFullYear() === inputYear &&
@@ -71,39 +56,20 @@ export async function GET(request: Request) {
             patientDob.getDate() === inputDay;
 
         if (!dobMatch) {
-            // --- Rate Limiting Increment & Audit Logging ---
             patientRateLimiter.increment(token);
             await logActivity("System", "DOB Verify Failed", `Token: ${token}`);
-
             return NextResponse.json({ error: 'วันเดือนปีเกิดไม่ถูกต้อง', verified: false }, { status: 403 });
         }
 
-        // --- Reset Rate Limiting & Audit Logging ---
         patientRateLimiter.reset(token);
         await logActivity("System", "Patient View", `Token: ${token}, HN: ${patient.hn}`);
 
-        // 4. DOB ถูกต้อง → ดึง visits เฉพาะของผู้ป่วยคนนี้
-        const allVisits = await getSheetData(SHEET_CONFIG.VISITS_TAB) as any[];
-        const patientVisits = allVisits
-            .filter((v: Visit) => normalizeHN(v.hn) === normalizeHN(patient.hn))
-            .sort((a: Visit, b: Visit) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const [visits, medication, advice] = await Promise.all([
+            getVisitHistory(patient.hn),
+            getLatestMedication(patient.hn),
+            getAdvice(patient.hn)
+        ]);
 
-        // 5. ดึงข้อมูลยา (Medication) ล่าสุด
-        const { getLatestMedication } = await import('@/lib/sheets');
-        const medication = await getLatestMedication(patient.hn);
-
-        // 6. ดึงคำแนะนำจากเจ้าหน้าที่
-        let adviceList: any[] = [];
-        try {
-            const allAdvice = await getSheetData(SHEET_CONFIG.ADVICE_TAB) as any[];
-            if (Array.isArray(allAdvice)) {
-                adviceList = allAdvice
-                    .filter((a: any) => normalizeHN(a.hn || '') === normalizeHN(patient.hn))
-                    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            }
-        } catch { /* ignore if tab doesn't exist yet */ }
-
-        // 7. ส่งคืนข้อมูล
         const safePatient = {
             hn: patient.hn,
             prefix: patient.prefix,
@@ -116,9 +82,9 @@ export async function GET(request: Request) {
         return NextResponse.json({
             verified: true,
             patient: safePatient,
-            visits: patientVisits,
-            medication: medication,
-            advice: adviceList,
+            visits,
+            medication,
+            advice,
         });
     } catch (error) {
         console.error('Public Patient API Error:', error);

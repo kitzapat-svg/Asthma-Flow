@@ -13,7 +13,8 @@ export interface Patient {
 
 export interface Visit {
     hn: string;
-    date: string;
+    visit_date: string;  // Supabase column name
+    date?: string;       // alias kept for backwards compat
     pefr: string;
     control_level: string;
     controller: string;
@@ -27,8 +28,15 @@ export interface Visit {
 export interface TechniqueCheck {
     hn: string;
     date: string;
-    steps: string[];
-    total_score: string;
+    step1: string;
+    step2: string;
+    step3: string;
+    step4: string;
+    step5: string;
+    step6: string;
+    step7: string;
+    step8: string;
+    score: number;
     note: string;
 }
 

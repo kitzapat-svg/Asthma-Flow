@@ -1,8 +1,7 @@
-
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
-import { getMedicationList, addMedicationItem, deleteMedicationItem } from '@/lib/sheets';
+import { getMedicationList, addMedicationItem, deleteMedicationItem } from '@/lib/db';
 
 export async function GET() {
     try {
@@ -19,7 +18,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { type, name } = body; // type: 'Controller' | 'Reliever'
+        const { type, name } = body; 
 
         if (!type || !name) {
             return NextResponse.json({ error: 'Missing type or name' }, { status: 400 });

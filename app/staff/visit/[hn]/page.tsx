@@ -223,13 +223,20 @@ function RecordVisitPageInner() {
         const medData = await resMed.json();
 
         // 3. Med List Options
-        const resList = await fetch('/api/medication-list');
-        const listData = await resList.json();
-        if (listData.controllers && listData.controllers.length > 0) {
-          setMedOptions(prev => ({ ...prev, controllers: listData.controllers }));
-        }
-        if (listData.relievers && listData.relievers.length > 0) {
-          setMedOptions(prev => ({ ...prev, relievers: listData.relievers }));
+        try {
+          const resList = await fetch('/api/medication-list');
+          if (resList.ok) {
+            const listData = await resList.json();
+            console.log('[Medication List] Fetched:', listData);
+            if (listData.controllers || listData.relievers) {
+              setMedOptions({
+                controllers: listData.controllers && listData.controllers.length > 0 ? listData.controllers : medOptions.controllers,
+                relievers: listData.relievers && listData.relievers.length > 0 ? listData.relievers : medOptions.relievers
+              });
+            }
+          }
+        } catch (err) {
+          console.error('[Medication List] Fetch Error:', err);
         }
 
         // Determine which date to check for existing visit
@@ -239,7 +246,7 @@ function RecordVisitPageInner() {
 
         // Check appointment timing: compare today with the most recent previous visit's next_appt
         if (Array.isArray(visitData) && visitData.length > 0 && !dateParam) {
-          const getDate = (v: any) => v.date || v.Date || '';
+          const getDate = (v: any) => v.visit_date || v.date || v.Date || '';
           const getNextAppt = (v: any) => v.next_appt || v['Next Appt'] || v['next appt'] || v.NextAppt || '';
 
           const sorted = [...visitData].sort((a: any, b: any) => new Date(getDate(b)).getTime() - new Date(getDate(a)).getTime());
@@ -270,7 +277,7 @@ function RecordVisitPageInner() {
 
         // Check if there's already a visit for the target date
         if (Array.isArray(visitData)) {
-          const targetVisit = visitData.find((v: any) => v.date === targetDate);
+          const targetVisit = visitData.find((v: any) => (v.visit_date || v.date) === targetDate);
           if (targetVisit) {
             // Edit Mode — populate form with existing data
             setIsEditMode(true);
@@ -292,12 +299,13 @@ function RecordVisitPageInner() {
                 const resTech = await fetch(`/api/db?type=technique_checks&hn=${params.hn}`);
                 const techData = await resTech.json();
                 if (Array.isArray(techData)) {
-                  const matchedTech = techData.find((t: any) => t.date === targetDate);
+                  const matchedTech = techData.find((t: any) => (t.date || t.Date) === targetDate);
                   if (matchedTech) {
-                    const steps = matchedTech.steps || [];
-                    if (Array.isArray(steps) && steps.length === 8) {
-                      setChecklist(steps.map((s: string) => s === '1'));
-                    }
+                    const steps = [
+                      matchedTech.step1, matchedTech.step2, matchedTech.step3, matchedTech.step4,
+                      matchedTech.step5, matchedTech.step6, matchedTech.step7, matchedTech.step8
+                    ];
+                    setChecklist(steps.map((s: any) => String(s) === '1'));
                     setValue('technique_note', matchedTech.note || '');
                   }
                 }
@@ -359,13 +367,15 @@ function RecordVisitPageInner() {
           setValue('reliever_name', medData.reliever_name || 'Salbutamol');
           setValue('reliever_label', medData.reliever_label || '1 puff prn');
           // Only pre-fill medication note if this is actually the data for the target date (Edit Mode)
-          const isSameDate = (medData.date === targetDate) || (medData.Date === targetDate);
+          const medDataDate = medData.visit_date || medData.date || medData.Date || '';
+          const isSameDate = medDataDate === targetDate;
           setValue('medication_note', isSameDate ? (medData.note || '') : '');
           setAutoFilled(true);
         } else {
           // Fallback to visit history
           if (Array.isArray(visitData) && visitData.length > 0) {
-            const history = visitData.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const getDate = (v: any) => v.visit_date || v.date || v.Date || '';
+            const history = visitData.sort((a: any, b: any) => new Date(getDate(b)).getTime() - new Date(getDate(a)).getTime());
             if (history[0]) {
               setValue('c1_name', history[0].controller || 'Seretide');
               setValue('reliever_name', history[0].reliever || 'Salbutamol');

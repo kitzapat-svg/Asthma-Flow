@@ -14,6 +14,8 @@ import { Patient, Visit } from '@/lib/types';
 import { toBangkokDateString } from '@/lib/date-utils';
 import { FadeContent } from '@/components/animated/fade-content';
 import { ImportVisits } from './_components/ImportVisits';
+import { MedicationManagement } from './_components/MedicationManagement';
+import { Pill } from 'lucide-react';
 
 type AttendanceStatus = 'On-time' | 'Early' | 'Late' | 'Missed' | 'Unknown';
 
@@ -43,7 +45,7 @@ export default function DataManagementPage() {
   });
   const [endDate, setEndDate] = useState(() => toBangkokDateString(new Date()));
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentTab, setCurrentTab] = useState<'summary' | 'import'>('summary');
+  const [currentTab, setCurrentTab] = useState<'summary' | 'import' | 'meds'>('summary');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -97,7 +99,11 @@ export default function DataManagementPage() {
     });
 
     Object.keys(visitsByHn).forEach(hn => {
-      const pVisits = visitsByHn[hn].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const pVisits = visitsByHn[hn].sort((a, b) => {
+        const dateA = a.visit_date ?? a.date ?? '';
+        const dateB = b.visit_date ?? b.date ?? '';
+        return new Date(dateA).getTime() - new Date(dateB).getTime();
+      });
       const patient = patients.find(p => p.hn === hn);
       const name = patient ? `${patient.prefix}${patient.first_name} ${patient.last_name}` : `HN: ${hn}`;
 
@@ -112,7 +118,7 @@ export default function DataManagementPage() {
           // Find the ACTUAL visit that responded to this appointment
           // It's usually the next visit for this patient
           const actualVisit = pVisits[index + 1];
-          const visitDate = actualVisit ? actualVisit.date : null;
+          const visitDate = actualVisit ? (actualVisit.visit_date ?? actualVisit.date ?? null) : null;
 
           let status: AttendanceStatus = 'Unknown';
           let diffDays: number | null = null;
@@ -208,6 +214,13 @@ export default function DataManagementPage() {
         >
           นำเข้าข้อมูล (Import)
           {currentTab === 'import' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#D97736]" />}
+        </button>
+        <button 
+          onClick={() => setCurrentTab('meds')}
+          className={`px-6 py-3 font-bold text-sm transition-all relative ${currentTab === 'meds' ? 'text-[#D97736]' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          จัดการรายการยา
+          {currentTab === 'meds' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#D97736]" />}
         </button>
       </div>
 
@@ -308,8 +321,10 @@ export default function DataManagementPage() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : currentTab === 'import' ? (
         <ImportVisits patients={patients} />
+      ) : (
+        <MedicationManagement />
       )}
     </div>
   );

@@ -87,7 +87,7 @@ export default function StatsPage() {
       oneWeekAgo.setDate(now.getDate() - 7);
 
       const weeklyCount = validVisits.filter(v => {
-        const d = new Date(v.date);
+        const d = new Date(v.visit_date ?? v.date ?? '');
         return d >= oneWeekAgo && d <= now;
       }).length;
       setWeeklyVisits(weeklyCount);
@@ -95,7 +95,7 @@ export default function StatsPage() {
       // 2. Monthly Visits (This Month)
       const startOfCurrentMonth = startOfMonth(now);
       const monthlyCount = validVisits.filter(v => {
-        const d = new Date(v.date);
+        const d = new Date(v.visit_date ?? v.date ?? '');
         return d >= startOfCurrentMonth && d <= now;
       }).length;
       setMonthlyVisits(monthlyCount);
@@ -127,7 +127,8 @@ export default function StatsPage() {
   const getFirstVisitsMap = (allVisits: Visit[]) => {
     const firstVisits: Record<string, Date> = {};
     allVisits.forEach(v => {
-      const d = new Date(v.date);
+      const dateStr = v.visit_date ?? v.date ?? '';
+      const d = new Date(dateStr);
       if (!firstVisits[v.hn] || d < firstVisits[v.hn]) {
         firstVisits[v.hn] = d;
       }
@@ -285,7 +286,7 @@ export default function StatsPage() {
       checks.forEach(c => {
         // The data from Google Sheets API returns objects with headers as keys,
         for (let idx = 0; idx < MDI_STEPS.length; idx++) {
-          const key = `step_${idx + 1}` as keyof TechniqueCheck;
+          const key = `step${idx + 1}` as keyof TechniqueCheck;
           const val = c[key] as any;
 
           // Form sends "1" for checked, "0" for unchecked.
@@ -351,7 +352,7 @@ export default function StatsPage() {
 
       // Count visits in this week
       const visitCount = visits.filter(v => {
-        const vd = new Date(v.date);
+        const vd = new Date(v.visit_date ?? v.date ?? '');
         return vd >= start && vd <= end;
       }).length;
 
@@ -384,7 +385,7 @@ export default function StatsPage() {
 
       // Count visits in this month
       const visitCount = visits.filter(v => {
-        const vd = new Date(v.date);
+        const vd = new Date(v.visit_date ?? v.date ?? '');
         return vd >= start && vd <= end;
       }).length;
 
