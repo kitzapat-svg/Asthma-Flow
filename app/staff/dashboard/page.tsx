@@ -154,22 +154,20 @@ export default function StatsPage() {
     const nextTueStr = format(nextTue, 'yyyy-MM-dd');
 
     // Filter visits that have next_appt on this date
-    // We need to check all visits. If any visit has `next_appt` = `nextTueStr`, then that patient is coming.
-    // Ideally we should check if that appointment wasn't already fulfilled or simpler: just check unique patients with that appt date.
-
-    // Group by HN to ensure unique listing
+    // Normalize HN to ensure unique results regardless of padding
     const patientsWithAppt = new Set<string>();
 
     visits.forEach(v => {
-      if (v.next_appt === nextTueStr) {
-        patientsWithAppt.add(v.hn);
+      const dbNextAppt = String(v.next_appt || '').trim();
+      if (dbNextAppt === nextTueStr) {
+        patientsWithAppt.add(normalizeHN(v.hn));
       }
     });
 
-    const apptDetails = Array.from(patientsWithAppt).map(hn => {
-      const p = patients.find(pat => normalizeHN(pat.hn) === normalizeHN(hn));
+    const apptDetails = Array.from(patientsWithAppt).map(normHn => {
+      const p = patients.find(pat => normalizeHN(pat.hn) === normHn);
       return {
-        hn: hn,
+        hn: normHn, // Use normalized HN for consistent display
         name: p ? `${p.prefix}${p.first_name} ${p.last_name}` : 'Unknown',
         time: '13:00 - 16:00' // Default Clinic Time
       };
@@ -188,7 +186,7 @@ export default function StatsPage() {
     const grouped: Record<number, DRP[]> = {};
 
     drpList.forEach(d => {
-      const dateStr = d.date || d.visit_date;
+      const dateStr = d.visit_date || d.created_date || d.date;
       if (!dateStr) return;
       const parsed = new Date(dateStr);
       if (isNaN(parsed.getTime())) return;

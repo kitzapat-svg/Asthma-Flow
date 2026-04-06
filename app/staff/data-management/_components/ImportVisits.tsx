@@ -1,22 +1,27 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { FileUp, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X, Database } from "lucide-react";
+import { FileUp, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X, Database, SkipForward, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { importVisitsAction } from "../_actions/import-visits";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import iconv from "iconv-lite";
+import { Visit } from "@/lib/types";
+
+type RowStatus = "import" | "has_appt" | "no_patient";
 
 interface ImportPreview {
   hn: string;
   visitDate: string;
   nextAppt: string;
   originalHN: string;
+  name: string;
+  status: RowStatus;
 }
 
-export function ImportVisits({ patients }: { patients: any[] }) {
+export function ImportVisits({ patients, visits }: { patients: any[]; visits: Visit[] }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview[]>([]);
   const [isParsing, setIsParsing] = useState(false);
@@ -38,16 +43,39 @@ export function ImportVisits({ patients }: { patients: any[] }) {
       let data: any[] = [];
 
       if (selected.name.endsWith(".csv")) {
-        // Read as buffer to decode Thai encoding
-        const uint8 = new Uint8Array(buffer);
-        const decoded = iconv.decode(Buffer.from(uint8), "win874");
+        const decoder = new TextDecoder("windows-874");
+        const decoded = decoder.decode(buffer);
         const result = Papa.parse(decoded, { header: true, skipEmptyLines: true });
         data = result.data;
       } else {
         const workbook = XLSX.read(buffer, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        data = XLSX.utils.sheet_to_json(sheet);
+        // defval: '' ensures rows with empty cells are NOT dropped
+        data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
       }
+
+      // Clean keys and values (remove BOM, extra spaces, and quotes)
+      data = data.map(row => {
+        const cleanedRow: any = {};
+        Object.keys(row).forEach(key => {
+          const cleanKey = key.replace(/^[\uFEFF\u200B]+|[\uFEFF\u200B]+$/g, '').replace(/^"|"$/g, '').trim();
+          let val = row[key];
+          if (typeof val === 'string') {
+            val = val.replace(/^"|"$/g, '').trim();
+          }
+          cleanedRow[cleanKey] = val;
+        });
+        return cleanedRow;
+      });
+
+      // Normalize column aliases from HOSxP variants
+      // e.g. "วันรับบริการ" → "วันที่รับบริการ"
+      data = data.map(row => {
+        if ('วันรับบริการ' in row && !('วันที่รับบริการ' in row)) {
+          row['วันที่รับบริการ'] = row['วันรับบริการ'];
+        }
+        return row;
+      });
 
       // Check headers
       const firstRow = data[0] || {};
@@ -60,19 +88,51 @@ export function ImportVisits({ patients }: { patients: any[] }) {
         return;
       }
 
-      // Create limited preview (max 20 rows)
-      const previewRows = data.slice(0, 20).map(row => {
+      const formatDateValue = (val: any) => {
+        if (!val || String(val).trim() === '-' || String(val).trim() === '') return "-";
+        if (typeof val === 'number') {
+          const excelDate = new Date(Math.round((val - 25569) * 86400 * 1000));
+          return excelDate.toISOString().split("T")[0];
+        }
+        return String(val).split('T')[0];
+      };
+
+      // Build a lookup: "normHN|visitDate" -> next_appt value
+      const visitApptMap = new Map<string, string | null>();
+      visits.forEach(v => {
+        const normHn = String(v.hn).trim().replace(/^0+/, '');
+        const vDate = v.visit_date ?? (v as any).date ?? '';
+        visitApptMap.set(`${normHn}|${vDate}`, v.next_appt ?? null);
+      });
+
+      // Create preview (all rows, no artificial limit)
+      const previewRows = data.map(row => {
         const rawHn = String(row.HN);
-        const normHn = String(rawHn).trim().replace(/^0+/, '');
+        const normHn = rawHn.trim().replace(/^0+/, '');
         const patient = patients.find(p => String(p.hn).trim().replace(/^0+/, '') === normHn);
-        const name = patient ? `${patient.prefix}${patient.first_name} ${patient.last_name}` : "- (ไม่พบข้อมูลในระบบ)";
-        
+        const visitDate = formatDateValue(row.วันที่รับบริการ);
+        const nextAppt = formatDateValue(row.วันนัดถัดไป);
+        const name = patient
+          ? `${patient.prefix}${patient.first_name} ${patient.last_name}`
+          : "- (ไม่พบข้อมูลในระบบ)";
+
+        let status: RowStatus = "import";
+        if (!patient) {
+          status = "no_patient";
+        } else {
+          const existingAppt = visitApptMap.get(`${normHn}|${visitDate}`);
+          if (existingAppt && existingAppt !== '-' && existingAppt !== '') {
+            status = "has_appt";
+          }
+        }
+
         return {
           hn: normHn.padStart(7, '0'),
-          visitDate: String(row.วันที่รับบริการ).split('T')[0],
-          nextAppt: String(row.วันนัดถัดไป || "-").split('T')[0],
+          visitDate,
+          nextAppt,
           originalHN: rawHn,
-          name
+          name,
+          status,
         };
       });
 
@@ -97,7 +157,7 @@ export function ImportVisits({ patients }: { patients: any[] }) {
       const res = await importVisitsAction(formData);
       if (res.success) {
         toast.success(`นำเข้าสำเร็จ!`, {
-          description: `เพิ่มใหม่ ${res.summary?.insertCount} รายการ, อัปเดต ${res.summary?.updateCount} รายการ (ข้าม ${res.summary?.skipCount} รายการ)`,
+          description: `เพิ่มใหม่ ${res.summary?.insertCount} รายการ, อัปเดต ${res.summary?.updateCount} รายการ, มีวันนัดแล้ว ${res.summary?.hasApptCount} รายการ (ข้าม ${res.summary?.skipCount} รายการ)`,
           duration: 6000
         });
         setFile(null);
@@ -117,6 +177,10 @@ export function ImportVisits({ patients }: { patients: any[] }) {
     setPreview([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  const importCount = preview.filter(r => r.status === "import").length;
+  const hasApptCount = preview.filter(r => r.status === "has_appt").length;
+  const noPatientCount = preview.filter(r => r.status === "no_patient").length;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -168,6 +232,28 @@ export function ImportVisits({ patients }: { patients: any[] }) {
             </button>
           </div>
 
+          {/* Summary Badges */}
+          {preview.length > 0 && (
+            <div className="px-6 pt-5 flex flex-wrap gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-xs font-bold">
+                <CheckCircle size={12} />
+                จะนำเข้า {importCount} รายการ
+              </div>
+              {hasApptCount > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-full text-xs font-bold">
+                  <SkipForward size={12} />
+                  มีวันนัดอยู่แล้ว {hasApptCount} รายการ (จะข้าม)
+                </div>
+              )}
+              {noPatientCount > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 rounded-full text-xs font-bold">
+                  <UserX size={12} />
+                  ไม่พบในระบบ {noPatientCount} รายการ (จะข้าม)
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Preview Table */}
           <div className="p-6 space-y-4">
             <div className="flex items-center justify-between">
@@ -184,6 +270,7 @@ export function ImportVisits({ patients }: { patients: any[] }) {
               <table className="w-full text-left text-sm">
                 <thead className="bg-gray-50 dark:bg-zinc-800/50">
                   <tr className="border-b">
+                    <th className="p-3 font-black text-muted-foreground uppercase text-[10px]">สถานะ</th>
                     <th className="p-3 font-black text-muted-foreground uppercase text-[10px]">ผู้ป่วย</th>
                     <th className="p-3 font-black text-muted-foreground uppercase text-[10px]">HN (Original)</th>
                     <th className="p-3 font-black text-[#D97736] uppercase text-[10px]">HN (Cleaned)</th>
@@ -192,8 +279,20 @@ export function ImportVisits({ patients }: { patients: any[] }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {preview.map((row: any, i) => (
-                    <tr key={i} className="font-mono">
+                  {preview.map((row, i) => (
+                    <tr
+                      key={i}
+                      className={`font-mono transition-colors ${
+                        row.status === "has_appt"
+                          ? "bg-amber-50/60 dark:bg-amber-900/10 opacity-70"
+                          : row.status === "no_patient"
+                          ? "bg-rose-50/60 dark:bg-rose-900/10 opacity-60"
+                          : "hover:bg-black/[0.015] dark:hover:bg-white/[0.015]"
+                      }`}
+                    >
+                      <td className="p-3">
+                        <StatusBadge status={row.status} />
+                      </td>
                       <td className="p-3 font-bold text-xs">{row.name}</td>
                       <td className="p-3 text-muted-foreground">{row.originalHN}</td>
                       <td className="p-3">{row.hn}</td>
@@ -203,7 +302,7 @@ export function ImportVisits({ patients }: { patients: any[] }) {
                   ))}
                   {preview.length === 0 && !isParsing && (
                     <tr>
-                      <td colSpan={4} className="p-10 text-center italic text-muted-foreground">ไม่มีข้อมูลแสดงผล</td>
+                      <td colSpan={6} className="p-10 text-center italic text-muted-foreground">ไม่มีข้อมูลแสดงผล</td>
                     </tr>
                   )}
                 </tbody>
@@ -213,8 +312,8 @@ export function ImportVisits({ patients }: { patients: any[] }) {
             <div className="pt-4 flex gap-3">
               <Button 
                 onClick={handleConfirm} 
-                disabled={isImporting || isParsing}
-                className="bg-[#D97736] hover:bg-[#b05d28] text-white flex-1 font-bold h-12 shadow-lg shadow-orange-500/10"
+                disabled={isImporting || isParsing || importCount === 0}
+                className="bg-[#D97736] hover:bg-[#b05d28] text-white flex-1 font-bold h-12 shadow-lg shadow-orange-500/10 disabled:opacity-40"
               >
                 {isImporting ? (
                   <>
@@ -224,7 +323,7 @@ export function ImportVisits({ patients }: { patients: any[] }) {
                 ) : (
                   <>
                     <Database className="mr-2" size={20} />
-                    ยืนยันการนำเข้าข้อมูล
+                    {importCount > 0 ? `ยืนยันการนำเข้า (${importCount} รายการ)` : "ไม่มีรายการที่จะนำเข้า"}
                   </>
                 )}
               </Button>
@@ -249,11 +348,33 @@ export function ImportVisits({ patients }: { patients: any[] }) {
         </h4>
         <ul className="text-xs text-blue-700/80 dark:text-blue-400 space-y-2 list-disc pl-4">
           <li><strong>หัวตารางต้องเป๊ะ:</strong> ระบบจะมองหาคอลัมน์ชื่อ <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded font-bold">HN</code>, <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded font-bold">วันที่รับบริการ</code> และ <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded font-bold">วันนัดถัดไป</code></li>
-          <li><strong>รูปแบบไฟล์ CSV:</strong> รองรับการเข้ารหัสแบบ <code className="font-bold">TIS-620</code> หรือ <code className="font-bold">CP874</code> ที่ส่งออกมาจาก HOSxP โดยตรง (แก้ปัญหาภาษาไทยอ่านไม่ออก)</li>
-          <li><strong>การจัดการข้อมูล:</strong> ระบบจะอัปเดตเฉพาะ "วันนัดถัดไป" หากพบว่ามีประวัติ HN และวันที่มาตรวจนั้นอยู่แล้ว หากยังไม่มีจะสร้างรายการใหม่ให้โดยอัตโนมัติ</li>
-          <li><strong>ความปลอดภัย:</strong> เฉพาะ HN ที่ระบุว่ามีตัวตนในฐานข้อมูลผู้ป่วยของระบบเท่านั้นที่จะถูกนําเข้า</li>
+          <li><strong>รูปแบบไฟล์ CSV:</strong> รองรับการเข้ารหัสแบบ <code className="font-bold">TIS-620</code> หรือ <code className="font-bold">CP874</code> ที่ส่งออกมาจาก HOSxP โดยตรง</li>
+          <li><strong>ข้ามอัตโนมัติ:</strong> รายการที่มีวันนัดถัดไปบันทึกไว้ในระบบอยู่แล้ว หรือ HN ไม่พบในฐานข้อมูลจะ<strong>ไม่ถูก</strong>นำเข้า</li>
+          <li><strong>ความปลอดภัย:</strong> เฉพาะ HN ที่มีตัวตนในฐานข้อมูลผู้ป่วยเท่านั้นที่จะถูกนำเข้า</li>
         </ul>
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: RowStatus }) {
+  if (status === "import") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-[10px] font-black uppercase">
+        <CheckCircle size={10} /> นำเข้า
+      </span>
+    );
+  }
+  if (status === "has_appt") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded text-[10px] font-black uppercase">
+        <SkipForward size={10} /> มีวันนัดแล้ว
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded text-[10px] font-black uppercase">
+      <UserX size={10} /> ไม่พบในระบบ
+    </span>
   );
 }

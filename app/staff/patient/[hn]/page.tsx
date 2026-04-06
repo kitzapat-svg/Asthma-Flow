@@ -89,8 +89,8 @@ export default function PatientDetailPage() {
                             return normalizeHN(dHn) === normalizeHN(params.hn);
                         })
                         .sort((a, b) => {
-                            const dateA = a.date || a.Date || '';
-                            const dateB = b.date || b.Date || '';
+                            const dateA = a.visit_date || a.VisitDate || a.created_date || a.date || a.Date || '';
+                            const dateB = b.visit_date || b.VisitDate || b.created_date || b.date || b.Date || '';
                             return new Date(dateB).getTime() - new Date(dateA).getTime();
                         });
                     setDrpHistory(drpList);
@@ -289,7 +289,7 @@ export default function PatientDetailPage() {
                                         const drpCause = drp.cause || drp.Cause || '-';
                                         const drpIntervention = drp.intervention || drp.Intervention || '-';
                                         const drpOutcome = drp.outcome || drp.Outcome || '';
-                                        const drpVisitDate = drp.visit_date || drp.VisitDate || drp.date || drp.Date || '';
+                                        const drpVisitDate = drp.visit_date || drp.VisitDate || drp.created_date || drp.date || drp.Date || '';
                                         const dateDisplay = drpVisitDate ? new Date(drpVisitDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
 
                                         return (

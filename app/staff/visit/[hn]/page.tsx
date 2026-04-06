@@ -677,7 +677,7 @@ function RecordVisitPageInner() {
                   const drpIntervention = drp.intervention || drp.Intervention || '-';
                   const drpOutcome = drp.outcome || drp.Outcome || '';
                   const drpNote = drp.note || drp.Note || '';
-                  const drpVisitDate = drp.visit_date || drp.visitdate || drp.VisitDate || drp.date || drp.Date || '';
+                  const drpVisitDate = drp.visit_date || drp.visitdate || drp.VisitDate || drp.created_date || drp.date || drp.Date || '';
                   const dateDisplay = drpVisitDate ? new Date(drpVisitDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
                   return (
                     <li key={drp.id || drp.ID || i} className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/30 rounded-md p-2 flex flex-col md:flex-row md:items-start justify-between gap-3">

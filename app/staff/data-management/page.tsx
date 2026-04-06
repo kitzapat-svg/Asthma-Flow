@@ -322,7 +322,7 @@ export default function DataManagementPage() {
           </div>
         </div>
       ) : currentTab === 'import' ? (
-        <ImportVisits patients={patients} />
+        <ImportVisits patients={patients} visits={visits} />
       ) : (
         <MedicationManagement />
       )}

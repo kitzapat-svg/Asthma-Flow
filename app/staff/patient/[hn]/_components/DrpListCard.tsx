@@ -33,7 +33,7 @@ export function DrpListCard({ drpHistory }: { drpHistory: any[] }) {
         const drpCause = drp.cause || drp.Cause || '-';
         const drpIntervention = drp.intervention || drp.Intervention || '-';
         const drpOutcome = drp.outcome || drp.Outcome || '';
-        const drpVisitDate = drp.visit_date || drp.visitdate || drp.VisitDate || drp.date || drp.Date || '';
+        const drpVisitDate = drp.visit_date || drp.visitdate || drp.VisitDate || drp.created_date || drp.date || drp.Date || '';
         const outcomeStyle = getOutcomeStyle(drpOutcome);
         const isUnresolved = !isResolved(drpOutcome);
 

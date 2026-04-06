@@ -20,7 +20,7 @@ import iconv from "iconv-lite";
 function normalizeDate(dateVal: any): string | null {
   if (!dateVal) return null;
   if (typeof dateVal === "number") {
-    const excelDate = new Date((dateVal - 25569) * 86400 * 1000);
+    const excelDate = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
     return excelDate.toISOString().split("T")[0];
   }
   const str = String(dateVal).trim();
@@ -55,16 +55,42 @@ export async function importVisitsAction(formData: FormData) {
 
     if (file.name.endsWith(".csv")) {
       const decoded = iconv.decode(buffer, "win874");
-      const result = Papa.parse(decoded, { header: true, skipEmptyLines: true });
+      const result = Papa.parse(decoded, { 
+        header: true, 
+        skipEmptyLines: true,
+        delimiter: "" // auto detection
+      });
       rawData = result.data;
     } else {
       const workbook = XLSX.read(buffer, { type: "buffer" });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      rawData = XLSX.utils.sheet_to_json(worksheet);
+      rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
     }
 
     if (rawData.length === 0) return { success: false, error: "Empty file" };
+
+    rawData = rawData.map(row => {
+      const cleanedRow: any = {};
+      Object.keys(row).forEach(key => {
+        const cleanKey = key.replace(/^[\uFEFF\u200B]+|[\uFEFF\u200B]+$/g, '').replace(/^"|"$/g, '').trim();
+        let val = row[key];
+        if (typeof val === 'string') {
+          val = val.replace(/^"|"$/g, '').trim();
+        }
+        cleanedRow[cleanKey] = val;
+      });
+      return cleanedRow;
+    });
+
+    // Normalize column aliases from HOSxP variants
+    // "วันรับบริการ" → "วันที่รับบริการ"
+    rawData = rawData.map(row => {
+      if ('วันรับบริการ' in row && !('วันที่รับบริการ' in row)) {
+        row['วันที่รับบริการ'] = row['วันรับบริการ'];
+      }
+      return row;
+    });
 
     const headers = Object.keys(rawData[0]);
     const required = ["HN", "วันที่รับบริการ", "วันนัดถัดไป"];
@@ -79,11 +105,18 @@ export async function importVisitsAction(formData: FormData) {
     ]);
 
     const patientHns = new Set(allPatients.map((p: any) => normalizeHN(p.hn)));
-    const visitKeySet = new Set(allVisits.map((v: any) => `${normalizeHN(v.hn)}|${v.visit_date}`));
+
+    // Build a map: "normHN|visitDate" -> existing visit
+    const visitMap = new Map<string, any>();
+    allVisits.forEach((v: any) => {
+      const key = `${normalizeHN(v.hn)}|${v.visit_date}`;
+      visitMap.set(key, v);
+    });
 
     let insertCount = 0;
     let updateCount = 0;
     let skipCount = 0;
+    let hasApptCount = 0;
 
     for (const row of rawData) {
       const systemHn = normalizeHN(String(row["HN"]).trim());
@@ -91,51 +124,59 @@ export async function importVisitsAction(formData: FormData) {
       const visitDate = normalizeDate(row["วันที่รับบริการ"]);
       const nextAppt = normalizeDate(row["วันนัดถัดไป"]) || "";
 
+      // Skip if HN not in system or no visit date
       if (!systemHn || !visitDate || !patientHns.has(systemHn)) {
         skipCount++;
         continue;
       }
 
       const key = `${systemHn}|${visitDate}`;
+      const existing = visitMap.get(key);
 
-      if (visitKeySet.has(key)) {
-        const existing = allVisits.find((v: any) => `${normalizeHN(v.hn)}|${v.visit_date}` === key);
-        if (existing) {
-          const updatedRow = [
-            cleanHn,
-            visitDate,
-            existing.pefr || "0",
-            existing.control_level || "-",
-            existing.controller || "-",
-            existing.reliever || "-",
-            existing.adherence || "0",
-            existing.drp || "-",
-            existing.advice || "-",
-            existing.technique_check || "-",
-            nextAppt, 
-            existing.note || "อัปเดตจาก HOSxP",
-            existing.is_new_case ? 'TRUE' : 'FALSE',
-            existing.inhaler_score || "0"
-          ];
-          await updateRowByHnAndDate("visits", cleanHn, visitDate, updatedRow);
-          updateCount++;
+      if (existing) {
+        // If visit already has next_appt recorded — skip, don't overwrite
+        const alreadyHasAppt = existing.next_appt && existing.next_appt.trim() !== '' && existing.next_appt !== '-';
+        if (alreadyHasAppt) {
+          hasApptCount++;
+          continue;
         }
+
+        // Visit exists but no next_appt yet — update
+        const updatedRow = [
+          cleanHn,
+          visitDate,
+          existing.pefr || "0",
+          existing.control_level || "-",
+          existing.controller || "-",
+          existing.reliever || "-",
+          existing.adherence || "0",
+          existing.drp || "-",
+          existing.advice || "-",
+          existing.technique_check || "-",
+          nextAppt,
+          existing.note || "อัปเดตจาก HOSxP",
+          existing.is_new_case ? 'TRUE' : 'FALSE',
+          existing.inhaler_score || "0"
+        ];
+        await updateRowByHnAndDate("visits", cleanHn, visitDate, updatedRow);
+        updateCount++;
       } else {
+        // No visit record at all — create new
         const newRow = [
           cleanHn,
           visitDate,
-          "0",          
-          "-",          
-          "-",          
-          "-",          
-          "0",          
-          "-",          
-          "-",          
-          "-",          
-          nextAppt,     
-          "นำเข้าจาก HOSxP", 
-          "FALSE",      
-          "0"           
+          "0",
+          "-",
+          "-",
+          "-",
+          "0",
+          "-",
+          "-",
+          "-",
+          nextAppt,
+          "นำเข้าจาก HOSxP",
+          "FALSE",
+          "0"
         ];
         await saveVisit(newRow);
         insertCount++;
@@ -145,12 +186,12 @@ export async function importVisitsAction(formData: FormData) {
     await logActivity(
       session.user?.email || "Admin",
       "Bulk Import",
-      `Success: ${insertCount} inserts, ${updateCount} updates, ${skipCount} skipped.`
+      `Success: ${insertCount} inserts, ${updateCount} updates, ${skipCount} skipped (no patient), ${hasApptCount} skipped (already has appt).`
     );
 
     return { 
       success: true, 
-      summary: { insertCount, updateCount, skipCount } 
+      summary: { insertCount, updateCount, skipCount, hasApptCount } 
     };
 
   } catch (error: any) {

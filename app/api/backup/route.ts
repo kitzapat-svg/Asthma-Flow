@@ -15,7 +15,27 @@ export async function GET(request: Request) {
   }
 
   try {
-    console.log('Starting DB Backup to Google Sheets...');
+    console.log('Starting DB Backup and Cleanup...');
+
+    // 1.5. Clean up Audit Logs (> 90 days)
+    // Fallback if pg_cron is not enabled in DB
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const isoDate = ninetyDaysAgo.toISOString();
+
+    console.log(`Cleaning up logs older than: ${isoDate}`);
+    
+    // Cleanup new audit_logs
+    await supabaseAdmin
+      .from('audit_logs')
+      .delete()
+      .lt('created_at', isoDate);
+
+    // Cleanup legacy logs
+    await supabaseAdmin
+      .from('logs')
+      .delete()
+      .lt('timestamp', isoDate);
 
     const backupTasks = [
       {

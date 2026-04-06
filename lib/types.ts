@@ -85,7 +85,8 @@ export interface Medication {
 export interface DRP {
     id: string; // 0
     hn: string; // 1
-    date: string; // 2
+    date?: string; // backwards compatibility
+    created_date?: string;
     visit_date: string; // 3
     category: string; // 4
     type: string; // 5
@@ -93,4 +94,5 @@ export interface DRP {
     intervention: string; // 7
     outcome: string; // 8
     note: string; // 9
+    created_at?: string;
 }
