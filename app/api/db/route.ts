@@ -16,6 +16,7 @@ import {
   updateDRP, 
   updatePatientStatus, 
   updatePatientData, 
+  createPatientData,
   updateRowByHnAndDate, 
   deleteRow,
   deleteAllRowsByHn,
@@ -183,8 +184,8 @@ export async function POST(request: Request) {
         // Let's use `updatePatientData` which I'll make sure handles insertion if I didn't.
         // Actually I'll use a new `createPatient` for clarity.
         // I need to add `createPatient` to `lib/db.ts` or just use `supabase.insert`.
-        // I'll call `updatePatientData` which now handles everything.
-        result = await updatePatientData(data[0], data); 
+        // Now using `createPatientData`.
+        result = await createPatientData(data); 
     }
     else if (type === 'visits') {
       const parse = visitRowSchema.safeParse(data);
@@ -397,6 +398,14 @@ export async function DELETE(request: Request) {
     if (type === 'users') {
       if ((session.user as any).role !== 'Admin') return NextResponse.json({ error: "Access Denied" }, { status: 403 });
       const result = await deleteUser(id!);
+      if (result.success) {
+        await logAudit({
+          action_type: 'DELETE',
+          module: 'USER',
+          actor_id: session.user?.email || "Unknown",
+          payload: { deletedUserId: id }
+        });
+      }
       return NextResponse.json({ success: result.success });
     }
 
@@ -404,6 +413,15 @@ export async function DELETE(request: Request) {
       const staffUsername = searchParams.get('staff_username');
       const date = searchParams.get('date');
       const result = await deleteAdvice(hn!, staffUsername!, date!);
+      if (result.success) {
+        await logAudit({
+          action_type: 'DELETE',
+          module: 'VISIT',
+          actor_id: session.user?.email || "Unknown",
+          target_hn: hn!,
+          payload: { event: 'Deleted Staff Advice', date }
+        });
+      }
       return NextResponse.json({ success: result.success });
     }
 
@@ -417,6 +435,13 @@ export async function DELETE(request: Request) {
         deleteAllRowsByHnAndDate('technique_checks', hn!, date!),
         deleteAllRowsByHnAndDate('drps', hn!, date!)
       ]);
+      await logAudit({
+        action_type: 'DELETE',
+        module: 'VISIT',
+        actor_id: session.user?.email || "Unknown",
+        target_hn: hn!,
+        payload: { event: 'Deleted Visit Entry', date }
+      });
       return NextResponse.json({ message: "Success" });
     }
 
@@ -434,6 +459,15 @@ export async function DELETE(request: Request) {
         ]);
       }
       const result = await deleteRow('patients', hn!);
+      if (result.success) {
+        await logAudit({
+          action_type: 'DELETE',
+          module: 'PATIENT',
+          actor_id: session.user?.email || "Unknown",
+          target_hn: hn!,
+          payload: { event: 'Deleted Patient', deleteHistory }
+        });
+      }
       return NextResponse.json({ success: result.success });
     }
 

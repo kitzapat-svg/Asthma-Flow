@@ -47,7 +47,16 @@ export const authOptions: AuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider === 'credentials') return true;
+      if (account?.provider === 'credentials') {
+        const actor = user.name || user.email || 'Admin User';
+        await logAudit({
+          action_type: "AUTH",
+          module: "AUTH",
+          actor_id: actor,
+          payload: { status: "Success", provider: "credentials" }
+        });
+        return true;
+      }
 
       const email = user.email;
       if (!email) return false;

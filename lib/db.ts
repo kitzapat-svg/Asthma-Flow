@@ -77,6 +77,25 @@ export async function updatePatientData(hn: string, data: any) {
     return { success: !error, error };
 }
 
+export async function createPatientData(data: any[]) {
+    const payload = {
+        hn: normalizeHN(data[0]),
+        prefix: data[1],
+        first_name: data[2],
+        last_name: data[3],
+        dob: data[4] || null,
+        best_pefr: parseInt(data[5]) || 0,
+        height: parseFloat(data[6]) || 0,
+        status: data[7],
+        public_token: data[8],
+        phone: data[9]
+    };
+    const { error } = await supabase
+        .from('patients')
+        .insert(payload);
+    return { success: !error, error };
+}
+
 // --- Visit Functions ---
 
 export async function saveVisit(data: any[]) {
