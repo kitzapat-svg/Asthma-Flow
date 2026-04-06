@@ -6,9 +6,9 @@ import {
   getPatients, 
   getAllVisits, 
   updateRowByHnAndDate, 
-  saveVisit, 
-  logActivity 
+  saveVisit
 } from "@/lib/db";
+import { logAudit } from "@/lib/logger";
 import { normalizeHN } from "@/lib/helpers";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -183,11 +183,16 @@ export async function importVisitsAction(formData: FormData) {
       }
     }
 
-    await logActivity(
-      session.user?.email || "Admin",
-      "Bulk Import",
-      `Success: ${insertCount} inserts, ${updateCount} updates, ${skipCount} skipped (no patient), ${hasApptCount} skipped (already has appt).`
-    );
+    await logAudit({
+      action_type: "IMPORT",
+      module: "VISIT",
+      actor_id: session.user?.email || "Admin",
+      payload: { 
+        status: "Success", 
+        filename: file.name,
+        summary: { insertCount, updateCount, skipCount, hasApptCount } 
+      }
+    });
 
     return { 
       success: true, 

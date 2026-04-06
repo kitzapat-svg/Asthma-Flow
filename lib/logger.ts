@@ -18,7 +18,7 @@ export type AuditLogPayload = {
 
 export type AuditLogEntry = {
     action_type: 'CREATE' | 'UPDATE' | 'DELETE' | 'IMPORT' | 'AUTH' | 'BATCH';
-    module: 'PATIENT' | 'VISIT' | 'USER' | 'MEDICATION' | 'SYSTEM';
+    module: 'PATIENT' | 'VISIT' | 'USER' | 'MEDICATION' | 'SYSTEM' | 'AUTH';
     actor_id: string; // email or user ID
     target_hn?: string;
     payload?: AuditLogPayload;
@@ -36,7 +36,7 @@ export async function logAudit(entry: AuditLogEntry) {
 
     try {
         // 2. Insert into Supabase using Admin client (bypasses RLS for system integrity)
-        const { error } = await supabaseAdmin.from('audit_logs').insert({
+        const { error } = await supabaseAdmin.from('logs').insert({
             action_type: entry.action_type,
             module: entry.module,
             actor_id: entry.actor_id,

@@ -3,9 +3,9 @@ import {
     getPatientByToken, 
     getVisitHistory, 
     getLatestMedication, 
-    getAdvice, 
-    logActivity 
+    getAdvice,
 } from '@/lib/db';
+import { logAudit } from '@/lib/logger';
 import { normalizeHN } from '@/lib/helpers';
 import { Patient, Visit } from '@/lib/types';
 import { patientRateLimiter } from '@/lib/rate-limit';
@@ -57,12 +57,23 @@ export async function GET(request: Request) {
 
         if (!dobMatch) {
             patientRateLimiter.increment(token);
-            await logActivity("System", "DOB Verify Failed", `Token: ${token}`);
+            await logAudit({
+                action_type: 'AUTH',
+                module: 'PATIENT',
+                actor_id: 'System/Guest',
+                payload: { event: 'DOB Verify Failed', token }
+            });
             return NextResponse.json({ error: 'วันเดือนปีเกิดไม่ถูกต้อง', verified: false }, { status: 403 });
         }
 
         patientRateLimiter.reset(token);
-        await logActivity("System", "Patient View", `Token: ${token}, HN: ${patient.hn}`);
+        await logAudit({
+            action_type: 'AUTH',
+            module: 'PATIENT',
+            actor_id: 'System/Guest',
+            target_hn: patient.hn,
+            payload: { event: 'Patient View Success', token }
+        });
 
         const [visits, medication, advice] = await Promise.all([
             getVisitHistory(patient.hn),

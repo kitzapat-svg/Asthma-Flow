@@ -311,11 +311,19 @@ export async function deleteAdvice(hn: string, staffUsername: string, date: stri
     return { success: !error, error };
 }
 
+import { logAudit } from './logger';
+
 // --- Logging ---
 
 export async function logActivity(email: string, action: string, details: string) {
-    const { error } = await supabaseAdmin.from('logs').insert({ email, action, details });
-    return { success: !error, error };
+    // Map legacy parameters to new AuditLogEntry structure
+    await logAudit({
+        action_type: (action.toUpperCase() as any) || 'UPDATE',
+        module: 'SYSTEM',
+        actor_id: email,
+        payload: { details }
+    });
+    return { success: true };
 }
 
 // --- Generic Row Updates & Deletes ---

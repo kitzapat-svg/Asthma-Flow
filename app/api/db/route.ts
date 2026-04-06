@@ -17,20 +17,20 @@ import {
   updatePatientStatus, 
   updatePatientData, 
   updateRowByHnAndDate, 
-  deleteRow, 
-  deleteAllRowsByHn, 
-  deleteAllRowsByHnAndDate, 
-  logActivity, 
-  getUsers, 
-  createUser, 
-  updateUser, 
-  deleteUser, 
-  updateAdvice, 
-  deleteAdvice,
+  deleteRow,
+  deleteAllRowsByHn,
+  deleteAllRowsByHnAndDate,
   getMedicationList,
   getPatientByHN,
-  getUserByUsername
+  getUserByUsername,
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  updateAdvice,
+  deleteAdvice
 } from '@/lib/db';
+import { logAudit } from '@/lib/logger';
 import { normalizeHN } from '@/lib/helpers';
 import { hashPassword } from '@/lib/auth';
 import { getBangkokISOString } from '@/lib/date-utils';
@@ -160,7 +160,12 @@ export async function POST(request: Request) {
 
       const result = await createUser(newUser);
       if (result.success) {
-        await logActivity(session.user?.email || "Unknown", `Add User`, `Success (Username: ${username})`);
+        await logAudit({
+          action_type: 'CREATE',
+          module: 'USER',
+          actor_id: session.user?.email || "Unknown",
+          payload: { username, role, name }
+        });
         return NextResponse.json({ message: 'User created' });
       } else {
         return NextResponse.json({ error: result.error }, { status: 500 });
@@ -222,7 +227,13 @@ export async function POST(request: Request) {
     else return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
     if (result.success) {
-      await logActivity(session.user?.email || "Unknown", `Add ${type}`, `Success`);
+      await logAudit({
+        action_type: 'CREATE',
+        module: type.toUpperCase() as any,
+        actor_id: session.user?.email || "Unknown",
+        target_hn: data[0],
+        payload: { type }
+      });
       return NextResponse.json({ message: 'Success' });
     } else {
       return NextResponse.json({ error: result.error }, { status: 500 });
@@ -266,7 +277,20 @@ export async function PUT(request: Request) {
 
       const result = await updateUser(targetUsername, updatedRow);
       if (result.success) {
-        await logActivity(session.user?.email || "Unknown", `Edit User`, `Success (Username: ${targetUsername})`);
+        await logAudit({
+          action_type: 'UPDATE',
+          module: 'USER',
+          actor_id: session.user?.email || "Unknown",
+          payload: { 
+            targetUsername, 
+            updatedData: { 
+              name: data[3], 
+              email: data[4], 
+              role: data[2], 
+              position: data[5] 
+            } 
+          }
+        });
         return NextResponse.json({ message: "Update success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 500 });
@@ -281,7 +305,13 @@ export async function PUT(request: Request) {
 
       const result = await updateRowByHnAndDate(type, hn, date, data);
       if (result.success) {
-        await logActivity(session.user?.email || "Unknown", `Update ${type}`, `Success (HN: ${hn}, Date: ${date})`);
+        await logAudit({
+          action_type: 'UPDATE',
+          module: type.toUpperCase() as any,
+          actor_id: session.user?.email || "Unknown",
+          target_hn: hn,
+          payload: { date }
+        });
         return NextResponse.json({ message: "Update success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 404 });
@@ -292,7 +322,12 @@ export async function PUT(request: Request) {
       const { id, data: drpData } = body;
       const result = await updateDRP(id, drpData);
       if (result.success) {
-        await logActivity(session.user?.email || "Unknown", "Update DRP", `Success`);
+        await logAudit({
+          action_type: 'UPDATE',
+          module: 'VISIT',
+          actor_id: session.user?.email || "Unknown",
+          payload: { id, event: 'DRP Outcome Update' }
+        });
         return NextResponse.json({ message: "Update success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 404 });
@@ -309,7 +344,12 @@ export async function PUT(request: Request) {
 
       const result = await updateAdvice(adviceHn, staff_username, adviceDate, newAdviceText);
       if (result.success) {
-        await logActivity(session.user?.email || 'Unknown', 'Edit Advice', `Success`);
+        await logAudit({
+          action_type: 'UPDATE',
+          module: 'VISIT',
+          actor_id: session.user?.email || "Unknown",
+          payload: { targetHn: adviceHn, event: 'Staff Advice Update' }
+        });
         return NextResponse.json({ message: "Update success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 404 });
@@ -326,7 +366,13 @@ export async function PUT(request: Request) {
     }
 
     if (result.success) {
-      await logActivity(session.user?.email || "Unknown", `Edit Patient`, `Success`);
+      await logAudit({
+        action_type: 'UPDATE',
+        module: 'PATIENT',
+        actor_id: session.user?.email || "Unknown",
+        target_hn: hn,
+        payload: { event: status ? 'Status Change' : 'Patient Data Edit' }
+      });
       return NextResponse.json({ message: "Update success" });
     } else {
       return NextResponse.json({ error: result.error }, { status: 404 });

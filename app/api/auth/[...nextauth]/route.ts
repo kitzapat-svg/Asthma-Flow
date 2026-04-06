@@ -2,7 +2,8 @@ import NextAuth, { AuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { authRateLimiter } from "@/lib/rate-limit";
-import { logActivity, getUserByUsername } from "@/lib/db";
+import { getUserByUsername } from "@/lib/db";
+import { logAudit } from "@/lib/logger";
 import { verifyPassword } from "@/lib/auth";
 
 export const authOptions: AuthOptions = {
@@ -59,11 +60,21 @@ export const authOptions: AuthOptions = {
       const isAllowed = allowedEmails.includes(email);
 
       if (isAllowed) {
-        await logActivity(email, "Login", "Success");
+        await logAudit({
+          action_type: "AUTH",
+          module: "AUTH",
+          actor_id: email,
+          payload: { status: "Success", provider: account?.provider }
+        });
         authRateLimiter.reset(email);
         return true;
       } else {
-        await logActivity(email, "Login", "Denied");
+        await logAudit({
+          action_type: "AUTH",
+          module: "AUTH",
+          actor_id: email,
+          payload: { status: "Denied", reason: "Email not allowed", provider: account?.provider }
+        });
         authRateLimiter.increment(email); 
         return false; 
       }
