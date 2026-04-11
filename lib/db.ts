@@ -272,7 +272,7 @@ export async function getUsers() {
 }
 
 export async function getUserByUsername(username: string) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
         .from('users')
         .select('*')
         .eq('username', username)

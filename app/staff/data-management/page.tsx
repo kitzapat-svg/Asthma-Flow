@@ -51,15 +51,16 @@ export default function DataManagementPage() {
     if (status === 'unauthenticated') {
       router.push('/auth/signin');
     } else if (status === 'authenticated') {
-      const role = (session?.user as any)?.role;
-      if (role !== 'Admin') {
+      const user = session?.user as any;
+      if (user?.role !== 'Admin') {
         toast.error("คุณไม่มีสิทธิ์เข้าถึงหน้านี้");
         router.push('/staff/patients');
       } else {
         fetchData();
       }
     }
-  }, [status, router, session]);
+    // Only fetch data when status changes to authenticated
+  }, [status, router]); 
 
   const fetchData = async () => {
     try {

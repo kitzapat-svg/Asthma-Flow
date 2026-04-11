@@ -54,12 +54,28 @@ export async function importVisitsAction(formData: FormData) {
     let rawData: any[] = [];
 
     if (file.name.endsWith(".csv")) {
-      const decoded = iconv.decode(buffer, "win874");
-      const result = Papa.parse(decoded, { 
+      // Try UTF-8 first
+      let decoded = iconv.decode(buffer, "utf8");
+      let result = Papa.parse(decoded, { 
         header: true, 
         skipEmptyLines: true,
         delimiter: "" // auto detection
       });
+
+      // Check for Thai headers in UTF-8
+      const headers = Object.keys(result.data[0] || {});
+      const hasThaiHeaders = headers.some(h => h.includes("วันที่") || h.includes("วันนัด"));
+
+      if (!hasThaiHeaders) {
+        // Fallback to Windows-874
+        decoded = iconv.decode(buffer, "win874");
+        result = Papa.parse(decoded, { 
+          header: true, 
+          skipEmptyLines: true,
+          delimiter: "" 
+        });
+      }
+
       rawData = result.data;
     } else {
       const workbook = XLSX.read(buffer, { type: "buffer" });

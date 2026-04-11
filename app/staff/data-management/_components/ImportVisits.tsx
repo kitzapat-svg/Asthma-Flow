@@ -43,9 +43,22 @@ export function ImportVisits({ patients, visits }: { patients: any[]; visits: Vi
       let data: any[] = [];
 
       if (selected.name.endsWith(".csv")) {
-        const decoder = new TextDecoder("windows-874");
-        const decoded = decoder.decode(buffer);
-        const result = Papa.parse(decoded, { header: true, skipEmptyLines: true });
+        // Try UTF-8 first
+        let decoder = new TextDecoder("utf-8");
+        let decoded = decoder.decode(buffer);
+        let result = Papa.parse(decoded, { header: true, skipEmptyLines: true });
+
+        // Check if we got valid headers in UTF-8
+        const headers = Object.keys(result.data[0] || {});
+        const hasThaiHeaders = headers.some(h => h.includes("วันที่") || h.includes("วันนัด"));
+
+        if (!hasThaiHeaders) {
+          // If no Thai headers found, likely it's Windows-874 (TIS-620)
+          decoder = new TextDecoder("windows-874");
+          decoded = decoder.decode(buffer);
+          result = Papa.parse(decoded, { header: true, skipEmptyLines: true });
+        }
+
         data = result.data;
       } else {
         const workbook = XLSX.read(buffer, { type: "array" });
@@ -149,7 +162,7 @@ export function ImportVisits({ patients, visits }: { patients: any[]; visits: Vi
   const handleConfirm = async () => {
     if (!file) return;
     setIsImporting(true);
-    
+
     const formData = new FormData();
     formData.append("file", file);
 
@@ -185,7 +198,7 @@ export function ImportVisits({ patients, visits }: { patients: any[]; visits: Vi
   return (
     <div className="space-y-6 animate-fade-in">
       {!file ? (
-        <div 
+        <div
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
           onDrop={async (e) => {
@@ -200,15 +213,15 @@ export function ImportVisits({ patients, visits }: { patients: any[]; visits: Vi
           </div>
           <h3 className="text-xl font-bold mb-2">ลากไฟล์ CSV หรือ Excel มาที่นี่</h3>
           <p className="text-muted-foreground max-w-sm">
-            รองรับไฟล์ .csv (TIS-620), .xls, .xlsx จากระบบ HOSxP<br/>
+            รองรับไฟล์ .csv (UTF-8, TIS-620), .xls, .xlsx จาก HOSxP<br />
             (ต้องมีหัวตาราง: HN, วันที่รับบริการ, วันนัดถัดไป)
           </p>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            className="hidden" 
-            accept=".csv, .xls, .xlsx" 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            accept=".csv, .xls, .xlsx"
           />
         </div>
       ) : (
@@ -224,7 +237,7 @@ export function ImportVisits({ patients, visits }: { patients: any[]; visits: Vi
                 <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB • พร้อมนำเข้า</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={reset}
               className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full text-muted-foreground"
             >
@@ -282,13 +295,12 @@ export function ImportVisits({ patients, visits }: { patients: any[]; visits: Vi
                   {preview.map((row, i) => (
                     <tr
                       key={i}
-                      className={`font-mono transition-colors ${
-                        row.status === "has_appt"
+                      className={`font-mono transition-colors ${row.status === "has_appt"
                           ? "bg-amber-50/60 dark:bg-amber-900/10 opacity-70"
                           : row.status === "no_patient"
-                          ? "bg-rose-50/60 dark:bg-rose-900/10 opacity-60"
-                          : "hover:bg-black/[0.015] dark:hover:bg-white/[0.015]"
-                      }`}
+                            ? "bg-rose-50/60 dark:bg-rose-900/10 opacity-60"
+                            : "hover:bg-black/[0.015] dark:hover:bg-white/[0.015]"
+                        }`}
                     >
                       <td className="p-3">
                         <StatusBadge status={row.status} />
@@ -310,8 +322,8 @@ export function ImportVisits({ patients, visits }: { patients: any[]; visits: Vi
             </div>
 
             <div className="pt-4 flex gap-3">
-              <Button 
-                onClick={handleConfirm} 
+              <Button
+                onClick={handleConfirm}
                 disabled={isImporting || isParsing || importCount === 0}
                 className="bg-[#D97736] hover:bg-[#b05d28] text-white flex-1 font-bold h-12 shadow-lg shadow-orange-500/10 disabled:opacity-40"
               >
@@ -348,7 +360,7 @@ export function ImportVisits({ patients, visits }: { patients: any[]; visits: Vi
         </h4>
         <ul className="text-xs text-blue-700/80 dark:text-blue-400 space-y-2 list-disc pl-4">
           <li><strong>หัวตารางต้องเป๊ะ:</strong> ระบบจะมองหาคอลัมน์ชื่อ <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded font-bold">HN</code>, <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded font-bold">วันที่รับบริการ</code> และ <code className="bg-blue-100 dark:bg-blue-900/40 px-1 rounded font-bold">วันนัดถัดไป</code></li>
-          <li><strong>รูปแบบไฟล์ CSV:</strong> รองรับการเข้ารหัสแบบ <code className="font-bold">TIS-620</code> หรือ <code className="font-bold">CP874</code> ที่ส่งออกมาจาก HOSxP โดยตรง</li>
+          <li><strong>รูปแบบไฟล์ CSV:</strong> รองรับการเข้ารหัสทั้ง <code className="font-bold">UTF-8</code> และ <code className="font-bold">TIS-620 / CP874</code></li>
           <li><strong>ข้ามอัตโนมัติ:</strong> รายการที่มีวันนัดถัดไปบันทึกไว้ในระบบอยู่แล้ว หรือ HN ไม่พบในฐานข้อมูลจะ<strong>ไม่ถูก</strong>นำเข้า</li>
           <li><strong>ความปลอดภัย:</strong> เฉพาะ HN ที่มีตัวตนในฐานข้อมูลผู้ป่วยเท่านั้นที่จะถูกนำเข้า</li>
         </ul>
