@@ -49,6 +49,7 @@ export interface VisitDisplay {
     reliever: string;
     technique_check: string;
     note: string;
+    next_appt?: string;
 }
 
 export interface InhalerStatus {
