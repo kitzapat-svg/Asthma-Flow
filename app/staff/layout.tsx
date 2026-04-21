@@ -33,7 +33,7 @@ export default function StaffLayout({
   }, [pathname]);
 
   return (
-    <div className="min-h-screen bg-background font-sans transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-background font-sans transition-colors duration-300">
       {/* --- MENU BAR ด้านบน (Retro Static + Glassmorphism blend) --- */}
       <div className="sticky top-0 z-50 px-4 pt-4 print:hidden">
         <nav className="mx-auto max-w-7xl flex h-16 items-center justify-between px-6 bg-background/90 backdrop-blur-md retro-box-static">
@@ -208,9 +208,26 @@ export default function StaffLayout({
       </div>
 
       {/* --- CONTENT AREA --- */}
-      <main className="max-w-7xl mx-auto p-6">
+      <main className="max-w-7xl mx-auto w-full p-6 flex-1">
         {children}
       </main>
+
+      {/* --- FOOTER --- */}
+      <footer className="mt-auto py-6 px-6 border-t-2 border-border bg-secondary/30 print:hidden">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm font-bold text-muted-foreground uppercase tracking-wide">
+            &copy; {new Date().getFullYear()} Asthma Flow.
+          </p>
+          <div className="text-right flex flex-col items-center sm:items-end">
+            <a href="#" className="text-[13px] font-bold text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
+              คลิกที่นี่เพื่อดูรายละเอียดการ update
+            </a>
+            <p className="text-[13px] font-medium text-muted-foreground mt-1 tracking-wide">
+              Version: 1.4 - Update: 21-04-2026 22:05
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

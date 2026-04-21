@@ -177,6 +177,19 @@ export async function getTechniqueChecksByHN(hn: string) {
     return data;
 }
 
+export async function saveTechniqueCheck(data: any[]) {
+    const payload = {
+        hn: normalizeHN(data[0]),
+        date: data[1],
+        step1: data[2], step2: data[3], step3: data[4], step4: data[5],
+        step5: data[6], step6: data[7], step7: data[8], step8: data[9],
+        score: parseInt(data[10]) || 0,
+        note: data[11]
+    };
+    const { error } = await supabase.from('technique_checks').insert(payload);
+    return { success: !error, error };
+}
+
 // --- DRP Functions ---
 
 export async function saveDRP(data: any[]) {
@@ -353,6 +366,7 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
 
     if (tabName === 'visits') {
         const payload = {
+            visit_date: data[1], // Allow date update
             pefr: parseInt(data[2]) || 0,
             control_level: data[3],
             controller: data[4],
@@ -370,6 +384,7 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
         error = res.error;
     } else if (tabName === 'medications') {
         const payload = {
+            date: data[1], // Allow date update
             c1_name: data[2],
             c1_puffs: data[3],
             c1_freq: data[4],
@@ -389,8 +404,26 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
             score: parseInt(data[10]) || 0,
             note: data[11]
         };
-        const res = await supabase.from('technique_checks').update(payload).match({ hn: normalizedHn, date });
-        error = res.error;
+        
+        // Check if existing record exists for this date
+        const { data: existing } = await supabase.from('technique_checks').select('id').match({ hn: normalizedHn, date }).maybeSingle();
+        
+        if (existing) {
+            // Update existing record, also updating date if needed
+            const res = await supabase.from('technique_checks').update({
+                date: data[1], // Update date
+                ...payload
+            }).match({ hn: normalizedHn, date });
+            error = res.error;
+        } else {
+            // Create new record for the NEW date (data[1])
+            const res = await supabase.from('technique_checks').insert({
+                hn: normalizedHn,
+                date: data[1], 
+                ...payload
+            });
+            error = res.error;
+        }
     }
 
     return { success: !error, error };

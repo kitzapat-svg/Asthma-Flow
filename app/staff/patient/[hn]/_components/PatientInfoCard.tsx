@@ -6,10 +6,11 @@ import { Patient } from './types';
 interface PatientInfoCardProps {
     patient: Patient;
     age: number;
+    nextAppt?: string | null;
     onEdit: () => void;
 }
 
-export function PatientInfoCard({ patient, age, onEdit }: PatientInfoCardProps) {
+export function PatientInfoCard({ patient, age, nextAppt, onEdit }: PatientInfoCardProps) {
     return (
         <div className="bg-white dark:bg-zinc-900 p-6 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none transition-colors relative">
             <button
@@ -44,6 +45,14 @@ export function PatientInfoCard({ patient, age, onEdit }: PatientInfoCardProps) 
                 <div><p className="text-[#6B6560] dark:text-zinc-500 flex items-center gap-1"><Ruler size={14} /> ส่วนสูง</p><p className="font-bold text-lg">{patient.height || "-"} cm</p></div>
                 <div><p className="text-[#6B6560] dark:text-zinc-500 flex items-center gap-1"><Activity size={14} /> Best PEFR</p><p className="font-bold text-lg">{patient.best_pefr || "-"} L/min</p></div>
             </div>
+            {nextAppt && (
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                    <p className="text-[#6B6560] dark:text-zinc-500 flex items-center gap-1 mb-1 text-sm"><Calendar size={14} /> นัดครั้งถัดไป</p>
+                    <p className="font-bold text-lg text-[#D97736]">
+                        {new Date(nextAppt).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

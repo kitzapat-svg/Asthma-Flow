@@ -41,8 +41,9 @@ export default function StatsPage() {
   const [selectedStat, setSelectedStat] = useState<'weekly' | 'monthly' | null>(null);
 
   // New Features State
-  const [nextTuesdayDate, setNextTuesdayDate] = useState<Date | null>(null);
-  const [nextTuesdayAppts, setNextTuesdayAppts] = useState<{ hn: string, name: string, time: string }[]>([]);
+  const [selectedTuesday, setSelectedTuesday] = useState<Date | null>(null);
+  const [tuesdayOptions, setTuesdayOptions] = useState<Date[]>([]);
+  const [tuesdayAppts, setTuesdayAppts] = useState<{ hn: string, name: string, time: string }[]>([]);
 
   const [fiscalYearStats, setFiscalYearStats] = useState<any[]>([]);
   const [selectedFy, setSelectedFy] = useState<number>(new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0)); // Default to current FY (Oct starts new FY)
@@ -107,8 +108,20 @@ export default function StatsPage() {
       ).length;
       setNewPatients(newPatientsCount);
 
-      // --- 4. Next Tuesday Appointments ---
-      calculateNextTuesdayAppts(validVisits, validPatients);
+      // --- 4. Tuesday Appointments ---
+      const today = new Date();
+      const currentDay = getDay(today);
+      const daysUntilTue = (2 - currentDay + 7) % 7;
+      const nextTue = addDays(today, daysUntilTue);
+      setSelectedTuesday(nextTue);
+
+      const options = [];
+      for(let i = -4; i <= 4; i++) {
+         options.push(addDays(nextTue, i * 7));
+      }
+      setTuesdayOptions(options);
+
+      calculateTuesdayAppts(validVisits, validPatients, nextTue);
 
       // --- 5. Fiscal Year Stats (Inhaler Teaching) ---
       calculateFiscalYearStats(validTech);
@@ -136,44 +149,33 @@ export default function StatsPage() {
     return firstVisits;
   };
 
-  const calculateNextTuesdayAppts = (visits: Visit[], patients: Patient[]) => {
-    const today = new Date();
-    const currentDay = getDay(today); // 0=Sun, 1=Mon, 2=Tue...
-
-    // Logic: Find next Tuesday. 
-    // If today is Tuesday (2), do we show today? Or next week? 
-    // Usually "Next Tuesday" implies upcoming. If today is Tue, let's show Today + Next Week? No, usually just upcoming.
-    // Let's assume: If today is Tue, show Today. If passed or not Tue, show next Tue.
-
-    let daysUntilTue = (2 - currentDay + 7) % 7;
-    // If daysUntilTue is 0 (Today is Tue), we keep it 0 to show today's appts.
-
-    const nextTue = addDays(today, daysUntilTue);
-    setNextTuesdayDate(nextTue);
-
-    const nextTueStr = format(nextTue, 'yyyy-MM-dd');
-
-    // Filter visits that have next_appt on this date
-    // Normalize HN to ensure unique results regardless of padding
+  const calculateTuesdayAppts = (allVisits: Visit[], allPatients: Patient[], date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
     const patientsWithAppt = new Set<string>();
 
-    visits.forEach(v => {
+    allVisits.forEach(v => {
       const dbNextAppt = String(v.next_appt || '').trim();
-      if (dbNextAppt === nextTueStr) {
+      if (dbNextAppt === dateStr) {
         patientsWithAppt.add(normalizeHN(v.hn));
       }
     });
 
     const apptDetails = Array.from(patientsWithAppt).map(normHn => {
-      const p = patients.find(pat => normalizeHN(pat.hn) === normHn);
+      const p = allPatients.find(pat => normalizeHN(pat.hn) === normHn);
       return {
-        hn: normHn, // Use normalized HN for consistent display
+        hn: normHn,
         name: p ? `${p.prefix}${p.first_name} ${p.last_name}` : 'Unknown',
-        time: '13:00 - 16:00' // Default Clinic Time
+        time: '13:00 - 16:00'
       };
     });
 
-    setNextTuesdayAppts(apptDetails);
+    setTuesdayAppts(apptDetails);
+  };
+
+  const handleTuesdayChange = (dateStr: string) => {
+    const newDate = new Date(dateStr);
+    setSelectedTuesday(newDate);
+    calculateTuesdayAppts(visits, patients, newDate);
   };
 
   const getFiscalYear = (date: Date) => {
@@ -527,20 +529,28 @@ export default function StatsPage() {
         {/* 1. Next Tuesday Appointments */}
         <FadeContent delay={0.3} className="stat-card bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800 lg:col-span-5">
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-800 dark:text-orange-200">
-            <CalendarDays size={20} /> ผู้ป่วยนัดอังคารหน้า
+            <CalendarDays size={20} /> ผู้ป่วยนัด (วันอังคาร)
           </h3>
           <div className="flex justify-between items-center mb-4">
-            <p className="text-sm font-bold text-orange-600 dark:text-orange-300 bg-white dark:bg-black/20 w-fit px-3 py-1 rounded-full border border-orange-100">
-              📅 {nextTuesdayDate ? format(nextTuesdayDate, 'd MMM yyyy', { locale: th }) : '-'}
-            </p>
-            <span className="text-sm font-bold bg-orange-200 text-orange-800 px-3 py-1 rounded-full">
-              {nextTuesdayAppts.length} คน
+            <select
+              className="text-sm font-bold text-orange-600 dark:text-orange-300 bg-white dark:bg-black/20 w-fit px-3 py-1.5 rounded-full border border-orange-200 outline-none cursor-pointer"
+              value={selectedTuesday ? format(selectedTuesday, 'yyyy-MM-dd') : ''}
+              onChange={(e) => handleTuesdayChange(e.target.value)}
+            >
+              {tuesdayOptions.map(d => (
+                <option key={d.toISOString()} value={format(d, 'yyyy-MM-dd')}>
+                  📅 {format(d, 'd MMM yyyy', { locale: th })} {isSameDay(d, new Date()) ? '(วันนี้)' : ''}
+                </option>
+              ))}
+            </select>
+            <span className="text-sm font-bold bg-orange-200 text-orange-800 px-3 py-1 rounded-full shrink-0">
+              {tuesdayAppts.length} คน
             </span>
           </div>
 
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-            {nextTuesdayAppts.length > 0 ? (
-              nextTuesdayAppts.map((appt, i) => (
+            {tuesdayAppts.length > 0 ? (
+              tuesdayAppts.map((appt, i) => (
                 <div key={i} className="bg-white dark:bg-zinc-800 p-3 rounded-lg border border-orange-100 dark:border-zinc-700 flex justify-between items-center shadow-sm">
                   <div>
                     <p className="font-bold text-foreground">{appt.name}</p>

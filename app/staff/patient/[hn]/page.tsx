@@ -224,6 +224,20 @@ export default function PatientDetailPage() {
     const inhalerStatus = getInhalerStatus(visitHistory);
     const unresolvedDrps = getUnresolvedDrps(drpHistory);
 
+    // Calculate furthest appointment
+    const validApptDates = visitHistory
+        .map(v => v.next_appt)
+        .filter((d) => d && d !== '-' && d.trim() !== '')
+        .map(d => new Date(d as string))
+        .filter(d => !isNaN(d.getTime()));
+
+    let furthestApptStr: string | null = null;
+    if (validApptDates.length > 0) {
+        const maxDate = new Date(Math.max(...validApptDates.map(d => d.getTime())));
+        furthestApptStr = maxDate.toISOString(); 
+    }
+
+
     return (
         <div className="min-h-screen bg-[#FEFCF8] dark:bg-black font-sans text-[#2D2A26] dark:text-white transition-colors duration-300 print:min-h-0 print:h-auto">
             {/* Screen Content (Hidden on Print) */}
@@ -253,7 +267,7 @@ export default function PatientDetailPage() {
                 <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column */}
                     <div className="space-y-6">
-                        <PatientInfoCard patient={patient} age={age} onEdit={() => setShowEditModal(true)} />
+                        <PatientInfoCard patient={patient} age={age} nextAppt={furthestApptStr} onEdit={() => setShowEditModal(true)} />
                         <QRCodeCard publicToken={patient.public_token} />
                         <InhalerReviewCard inhalerStatus={inhalerStatus} onShowHistory={() => setShowTechniqueModal(true)} />
                         {adviceList.length > 0 && (

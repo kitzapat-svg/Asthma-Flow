@@ -182,6 +182,7 @@ function RecordVisitPageInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'drp_update',
+          hn: params.hn,
           id: drpId,
           data: { intervention, outcome, note }
         })
@@ -282,7 +283,7 @@ function RecordVisitPageInner() {
             // Edit Mode — populate form with existing data
             setIsEditMode(true);
             setEditDate(targetDate);
-            setValue('pefr', targetVisit.pefr === '-' ? '' : (targetVisit.pefr || ''));
+            setValue('pefr', targetVisit.pefr === '-' || targetVisit.pefr === 0 ? '' : String(targetVisit.pefr || ''));
             setValue('no_pefr', targetVisit.pefr === '-');
             setValue('control_level', targetVisit.control_level || 'Well Controlled');
             setValue('adherence', (targetVisit.adherence || '100%').replace('%', ''));

@@ -9,6 +9,7 @@ import {
   getDrpsByHN,
   getAllTechniqueChecks,
   getTechniqueChecksByHN,
+  saveTechniqueCheck,
   getLatestMedication, 
   saveVisit, 
   saveMedication, 
@@ -194,6 +195,9 @@ export async function POST(request: Request) {
     }
     else if (type === 'medications') {
       result = await saveMedication(data);
+    }
+    else if (type === 'technique_checks') {
+      result = await saveTechniqueCheck(data);
     }
     else if (type === 'drps') {
       const parse = drpRowSchema.safeParse(data);
