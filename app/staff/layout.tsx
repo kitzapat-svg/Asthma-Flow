@@ -219,9 +219,7 @@ export default function StaffLayout({
             &copy; {new Date().getFullYear()} Asthma Flow.
           </p>
           <div className="text-right flex flex-col items-center sm:items-end">
-            <a href="#" className="text-[13px] font-bold text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
-              คลิกที่นี่เพื่อดูรายละเอียดการ update
-            </a>
+
             <p className="text-[13px] font-medium text-muted-foreground mt-1 tracking-wide">
               Version: 1.4 - Update: 21-04-2026 22:05
             </p>
