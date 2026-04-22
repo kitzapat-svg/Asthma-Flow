@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Users, PieChart, ChevronDown, UserCog, Wind, Menu, X, User, Database } from "lucide-react";
+import { LogOut, Users, PieChart, ChevronDown, UserCog, Wind, Menu, X, User, Database, Activity } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useState, useRef, useEffect } from "react";
@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const staffNavItems = [
   { href: "/staff/patients", icon: Users, label: "รายชื่อผู้ป่วย" },
   { href: "/staff/dashboard", icon: PieChart, label: "แดชบอร์ด & สถิติ" },
+  { href: "/staff/today-pefr", icon: Activity, label: "Record PEFR" },
 ];
 
 export default function StaffLayout({
@@ -221,7 +222,7 @@ export default function StaffLayout({
           <div className="text-right flex flex-col items-center sm:items-end">
 
             <p className="text-[13px] font-medium text-muted-foreground mt-1 tracking-wide">
-              Version: 1.4 - Update: 21-04-2026 22:05
+              Version: 1.4.1 - Update: 22-04-2026 21:25
             </p>
           </div>
         </div>
