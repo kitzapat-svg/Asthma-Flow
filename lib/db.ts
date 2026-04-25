@@ -256,18 +256,40 @@ export async function getLatestMedication(hn: string): Promise<Medication | null
 
 // --- Medication List Functions ---
 
+export interface MedicationListItem {
+    name: string;
+    generic_name: string;
+    type: 'Controller' | 'Reliever';
+}
+
 export async function getMedicationList() {
     const { data, error } = await supabase.from('medication_list').select('*');
     if (error) throw error;
-    
-    const controllers = data.filter((r: any) => r.type === 'Controller').map((r: any) => r.name);
-    const relievers = data.filter((r: any) => r.type === 'Reliever').map((r: any) => r.name);
 
-    return { controllers, relievers };
+    // Full objects for management UI
+    const controllerItems: MedicationListItem[] = data
+        .filter((r: any) => r.type === 'Controller')
+        .map((r: any) => ({ name: r.name, generic_name: r.generic_name || '', type: 'Controller' as const }));
+    const relieverItems: MedicationListItem[] = data
+        .filter((r: any) => r.type === 'Reliever')
+        .map((r: any) => ({ name: r.name, generic_name: r.generic_name || '', type: 'Reliever' as const }));
+
+    // Backward-compatible string arrays for dropdowns
+    const controllers = controllerItems.map(r => r.name);
+    const relievers = relieverItems.map(r => r.name);
+
+    return { controllers, relievers, controllerItems, relieverItems };
 }
 
-export async function addMedicationItem(type: 'Controller' | 'Reliever', name: string) {
-    const { error } = await supabase.from('medication_list').insert({ type, name });
+export async function addMedicationItem(type: 'Controller' | 'Reliever', name: string, generic_name?: string) {
+    const { error } = await supabase.from('medication_list').insert({ type, name, generic_name: generic_name || '' });
+    return { success: !error, error };
+}
+
+export async function updateMedicationItem(oldName: string, newName: string, generic_name?: string) {
+    const payload: Record<string, string> = { name: newName };
+    if (generic_name !== undefined) payload.generic_name = generic_name;
+    const { error } = await supabase.from('medication_list').update(payload).eq('name', oldName);
     return { success: !error, error };
 }
 
