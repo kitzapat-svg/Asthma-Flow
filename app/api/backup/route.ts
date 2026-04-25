@@ -9,33 +9,36 @@ export async function GET(request: Request) {
   // 1. Auth Check (for Cron job)
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get('secret') || request.headers.get('x-cron-auth');
+  const authHeader = request.headers.get('authorization');
 
-  if (AUTH_SECRET && secret !== AUTH_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Check Vercel Cron Secret (Standard)
+  const vercelCronSecret = process.env.CRON_SECRET;
+  const isVercelCronAuthorized = vercelCronSecret && authHeader === `Bearer ${vercelCronSecret}`;
+  
+  // Check Custom Secret (Legacy/Manual)
+  const isCustomAuthorized = AUTH_SECRET && secret === AUTH_SECRET;
+
+  // Require authentication if any secret is configured
+  if (vercelCronSecret || AUTH_SECRET) {
+    if (!isVercelCronAuthorized && !isCustomAuthorized) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {
     console.log('Starting DB Backup and Cleanup...');
 
     // 1.5. Clean up Audit Logs (> 90 days)
-    // Fallback if pg_cron is not enabled in DB
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     const isoDate = ninetyDaysAgo.toISOString();
 
     console.log(`Cleaning up logs older than: ${isoDate}`);
     
-    // Cleanup new audit_logs
-    await supabaseAdmin
-      .from('audit_logs')
-      .delete()
-      .lt('created_at', isoDate);
-
-    // Cleanup legacy logs
     await supabaseAdmin
       .from('logs')
       .delete()
-      .lt('timestamp', isoDate);
+      .lt('created_at', isoDate);
 
     const backupTasks = [
       {
@@ -80,8 +83,8 @@ export async function GET(request: Request) {
       },
       {
         tab: 'logs',
-        headers: ['timestamp', 'email', 'action', 'details'],
-        query: supabaseAdmin.from('logs').select('timestamp, email, action, details').order('timestamp', { ascending: false }).limit(2000)
+        headers: ['id', 'action_type', 'module', 'actor_id', 'target_hn', 'payload', 'created_at', 'formatted_time_th'],
+        query: supabaseAdmin.from('logs').select('id, action_type, module, actor_id, target_hn, payload, created_at, formatted_time_th').order('created_at', { ascending: false }).limit(2000)
       }
     ];
 
@@ -93,20 +96,20 @@ export async function GET(request: Request) {
       
       if (error) {
         console.error(`Error fetching ${task.tab}:`, error);
-        results.push({ tab: task.tab, success: false, error });
+        results.push({ tab: task.tab, success: false, error: error.message });
         continue;
       }
 
       const rows = data.map((item: any) => task.headers.map(h => {
           const val = item[h];
-          // Format dates to string for sheets
           if (val instanceof Date) return val.toISOString();
           if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+          if (typeof val === 'object' && val !== null) return JSON.stringify(val);
           return val ?? '';
       }));
 
       const syncResult = await syncTableToSheet(task.tab, task.headers, rows);
-      results.push({ tab: task.tab, ...syncResult });
+      results.push({ tab: task.tab, rows: rows.length, ...syncResult });
     }
 
     const successCount = results.filter(r => r.success).length;
