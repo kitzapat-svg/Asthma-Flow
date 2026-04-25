@@ -88,28 +88,48 @@ export async function GET(request: Request) {
       }
     ];
 
+    // Helper function to fetch all rows (handle pagination)
+    async function fetchAllRows(query: any) {
+      let allData: any[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await query.range(from, from + step - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          from += step;
+          if (data.length < step) hasMore = false;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allData;
+    }
+
     const results = [];
 
     for (const task of backupTasks) {
       console.log(`Backing up ${task.tab}...`);
-      const { data, error } = await task.query;
-      
-      if (error) {
-        console.error(`Error fetching ${task.tab}:`, error);
+      try {
+        const data = await fetchAllRows(task.query);
+        
+        const rows = data.map((item: any) => task.headers.map(h => {
+            const val = item[h];
+            if (val instanceof Date) return val.toISOString();
+            if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+            if (typeof val === 'object' && val !== null) return JSON.stringify(val);
+            return val ?? '';
+        }));
+
+        const syncResult = await syncTableToSheet(task.tab, task.headers, rows);
+        results.push({ tab: task.tab, rows: rows.length, ...syncResult });
+      } catch (error: any) {
+        console.error(`Error fetching/syncing ${task.tab}:`, error);
         results.push({ tab: task.tab, success: false, error: error.message });
-        continue;
       }
-
-      const rows = data.map((item: any) => task.headers.map(h => {
-          const val = item[h];
-          if (val instanceof Date) return val.toISOString();
-          if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
-          if (typeof val === 'object' && val !== null) return JSON.stringify(val);
-          return val ?? '';
-      }));
-
-      const syncResult = await syncTableToSheet(task.tab, task.headers, rows);
-      results.push({ tab: task.tab, rows: rows.length, ...syncResult });
     }
 
     const successCount = results.filter(r => r.success).length;
