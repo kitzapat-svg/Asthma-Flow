@@ -11,6 +11,7 @@ import {
   getTechniqueChecksByHN,
   saveTechniqueCheck,
   getLatestMedication, 
+  getMedicationByDate,
   saveVisit, 
   saveMedication, 
   saveDRP, 
@@ -80,6 +81,13 @@ export async function GET(request: Request) {
       if (!hn) return NextResponse.json({ error: "Missing HN" }, { status: 400 });
       const med = await getLatestMedication(hn);
       return NextResponse.json(med || {}); 
+    }
+
+    if (type === 'medications_by_date') {
+      const date = searchParams.get('date');
+      if (!hn || !date) return NextResponse.json({ error: "Missing HN or date" }, { status: 400 });
+      const med = await getMedicationByDate(hn, date);
+      return NextResponse.json(med || null);
     }
 
     if (type === 'medication_list') {

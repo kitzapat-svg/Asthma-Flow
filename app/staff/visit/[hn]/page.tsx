@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FieldError, useWatch, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -119,6 +119,8 @@ function RecordVisitPageInner() {
   const [autoFilled, setAutoFilled] = useState(false);
   const [resolvingDrp, setResolvingDrp] = useState<any | null>(null);
   const [resolveLoading, setResolveLoading] = useState(false);
+  
+  const isInitializing = useRef(false);
 
   // Watchers: เฝ้าดูค่าเพื่อทำ Logic อัตโนมัติ
   const isRelative = useWatch({ control, name: 'is_relative_pickup' });
@@ -137,6 +139,7 @@ function RecordVisitPageInner() {
 
   // Logic 1: ถ้าญาติมาแทน -> เทคนิคพ่นยาต้องเป็น "ไม่" และ ความร่วมมือเป็น "0"
   useEffect(() => {
+    if (isInitializing.current) return;
     if (isRelative) {
       setValue('technique_check', 'ไม่');
       setValue('adherence', '0');
@@ -145,6 +148,7 @@ function RecordVisitPageInner() {
 
   // Logic 2: ถ้าไม่ได้เป่า -> เคลียร์ค่า PEFR
   useEffect(() => {
+    if (isInitializing.current) return;
     if (noPefr) setValue('pefr', '');
   }, [noPefr, setValue]);
 
@@ -254,9 +258,9 @@ function RecordVisitPageInner() {
           // Find the most recent visit that is NOT today (to get its next_appt)
           const prevVisit = sorted.find((v: any) => getDate(v) !== todayStr);
           const nextApptValue = prevVisit ? getNextAppt(prevVisit) : '';
-          
+
           console.log('[Appt Check] prevVisit date:', prevVisit ? getDate(prevVisit) : 'none', '| next_appt:', nextApptValue, '| today:', todayStr);
-          
+
           if (prevVisit && nextApptValue) {
             const scheduled = new Date(nextApptValue);
             const today = new Date(todayStr);
@@ -277,21 +281,34 @@ function RecordVisitPageInner() {
         }
 
         // Check if there's already a visit for the target date
+        let isEditModeActive = false;
+
         if (Array.isArray(visitData)) {
           const targetVisit = visitData.find((v: any) => (v.visit_date || v.date) === targetDate);
           if (targetVisit) {
+            isEditModeActive = true;
             // Edit Mode — populate form with existing data
+            isInitializing.current = true;
             setIsEditMode(true);
             setEditDate(targetDate);
-            setValue('pefr', targetVisit.pefr === '-' || targetVisit.pefr === 0 ? '' : String(targetVisit.pefr || ''));
-            setValue('no_pefr', targetVisit.pefr === '-');
+            
+            const savedNoPefr = targetVisit.pefr === '-' || targetVisit.pefr === null || targetVisit.no_pefr === true || targetVisit.no_pefr === 'TRUE';
+            setValue('no_pefr', savedNoPefr);
+            setValue('pefr', savedNoPefr ? '' : (targetVisit.pefr === '-' || targetVisit.pefr === 0 ? '' : String(targetVisit.pefr || '')));
+            
+            const savedIsRelative = targetVisit.is_relative_pickup === true || targetVisit.is_relative_pickup === 'TRUE' || targetVisit.is_relative_pickup === 'true' || String(targetVisit.note || '').includes('ญาติรับยาแทน');
+            setValue('is_relative_pickup', savedIsRelative);
+
+            setValue('is_new_case', targetVisit.is_new_case === true || targetVisit.is_new_case === 'TRUE');
+            
             setValue('control_level', targetVisit.control_level || 'Well Controlled');
             setValue('adherence', (targetVisit.adherence || '100%').replace('%', ''));
             setValue('advice', targetVisit.advice || '-');
             setValue('technique_check', targetVisit.technique_check || 'ไม่');
             setValue('next_appt', targetVisit.next_appt || '');
             setValue('note', targetVisit.note || '-');
-            setValue('is_new_case', targetVisit.is_new_case === 'TRUE');
+
+            setTimeout(() => { isInitializing.current = false; }, 50);
 
             // Parse inhaler score for technique checklist
             if (targetVisit.technique_check === 'ทำ') {
@@ -346,42 +363,69 @@ function RecordVisitPageInner() {
           }
         }
 
-        // Set medication data (same logic, but meds also come from today's edit)
-        if (medData && medData.date) {
-          // Check if medData date is today — if yes, it's from today's visit
-          setValue('c1_name', medData.c1_name || 'Seretide');
-          setValue('c1_puffs', medData.c1_puffs || '1');
-          setValue('c1_freq', medData.c1_freq || 'BID');
-
-          if (medData.c2_name) {
-            setValue('show_c2', true);
-            setValue('c2_name', medData.c2_name);
-            setValue('c2_puffs', medData.c2_puffs || '1');
-            setValue('c2_freq', medData.c2_freq || 'OD');
-          } else {
-            setValue('show_c2', false);
-            setValue('c2_name', '');
-            setValue('c2_puffs', '');
-            setValue('c2_freq', 'OD');
-          }
-
-          setValue('reliever_name', medData.reliever_name || 'Salbutamol');
-          setValue('reliever_label', medData.reliever_label || '1 puff prn');
-          // Only pre-fill medication note if this is actually the data for the target date (Edit Mode)
-          const medDataDate = medData.visit_date || medData.date || medData.Date || '';
-          const isSameDate = medDataDate === targetDate;
-          setValue('medication_note', isSameDate ? (medData.note || '') : '');
-          setAutoFilled(true);
+        // Set medication data
+        if (isEditModeActive) {
+            // โหมดแก้ไข (Edit Mode): ดึงข้อมูลยาตรงตามที่เคยบันทึกไว้ใน Visit วันนั้น
+            try {
+              const resMedByDate = await fetch(`/api/db?type=medications_by_date&hn=${params.hn}&date=${targetDate}&t=${Date.now()}`, { cache: 'no-store' });
+              const medByDate = await resMedByDate.json();
+              if (medByDate && medByDate.c1_name) {
+                setValue('c1_name', medByDate.c1_name || 'Seretide');
+                setValue('c1_puffs', medByDate.c1_puffs || '1');
+                setValue('c1_freq', medByDate.c1_freq || 'BID');
+                if (medByDate.c2_name) {
+                  setValue('show_c2', true);
+                  setValue('c2_name', medByDate.c2_name);
+                  setValue('c2_puffs', medByDate.c2_puffs || '1');
+                  setValue('c2_freq', medByDate.c2_freq || 'OD');
+                } else {
+                  setValue('show_c2', false);
+                  setValue('c2_name', '');
+                  setValue('c2_puffs', '');
+                  setValue('c2_freq', 'OD');
+                }
+                setValue('reliever_name', medByDate.reliever_name || 'Salbutamol');
+                setValue('reliever_label', medByDate.reliever_label || '1 puff prn');
+                setValue('medication_note', medByDate.note || '');
+                setAutoFilled(true);
+              }
+            } catch { /* ignore */ }
         } else {
-          // Fallback to visit history
-          if (Array.isArray(visitData) && visitData.length > 0) {
-            const getDate = (v: any) => v.visit_date || v.date || v.Date || '';
-            const history = visitData.sort((a: any, b: any) => new Date(getDate(b)).getTime() - new Date(getDate(a)).getTime());
-            if (history[0]) {
+            // โหมดเพิ่มใหม่ (New Visit): ดึงวิธีใช้ยาล่าสุดจากประวัติครั้งก่อนหน้ามาเป็นค่าเริ่มต้นให้ 
+            if (medData && medData.date) {
+              setValue('c1_name', medData.c1_name || 'Seretide');
+              setValue('c1_puffs', medData.c1_puffs || '1');
+              setValue('c1_freq', medData.c1_freq || 'BID');
+
+              if (medData.c2_name) {
+                setValue('show_c2', true);
+                setValue('c2_name', medData.c2_name);
+                setValue('c2_puffs', medData.c2_puffs || '1');
+                setValue('c2_freq', medData.c2_freq || 'OD');
+              } else {
+                setValue('show_c2', false);
+                setValue('c2_name', '');
+                setValue('c2_puffs', '');
+                setValue('c2_freq', 'OD');
+              }
+
+              setValue('reliever_name', medData.reliever_name || 'Salbutamol');
+              setValue('reliever_label', medData.reliever_label || '1 puff prn');
+              setValue('medication_note', '');
+              setAutoFilled(true);
+            }
+        }
+        
+        // Fallback to visit history
+        if (!isEditModeActive && Array.isArray(visitData) && visitData.length > 0) {
+          const getDate = (v: any) => v.visit_date || v.date || v.Date || '';
+          const history = [...visitData].sort((a: any, b: any) => new Date(getDate(b)).getTime() - new Date(getDate(a)).getTime());
+          if (history[0]) {
+            if (!medData || !medData.date) {
               setValue('c1_name', history[0].controller || 'Seretide');
               setValue('reliever_name', history[0].reliever || 'Salbutamol');
-              setLatestControlLevel(history[0].control_level || '');
             }
+            setLatestControlLevel(history[0].control_level || '');
           }
         }
 
@@ -615,31 +659,27 @@ function RecordVisitPageInner() {
 
         {/* Appointment Timing Alert Banner */}
         {appointmentInfo && (
-          <div className={`rounded-lg p-4 mb-6 flex items-center gap-3 animate-in fade-in border-2 ${
-            appointmentInfo.type === 'early'
+          <div className={`rounded-lg p-4 mb-6 flex items-center gap-3 animate-in fade-in border-2 ${appointmentInfo.type === 'early'
               ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-300 dark:border-sky-700'
               : 'bg-rose-50 dark:bg-rose-900/20 border-rose-300 dark:border-rose-700'
-          }`}>
-            <div className={`p-2 rounded-lg shrink-0 text-white ${
-              appointmentInfo.type === 'early' ? 'bg-sky-500' : 'bg-rose-500'
             }`}>
+            <div className={`p-2 rounded-lg shrink-0 text-white ${appointmentInfo.type === 'early' ? 'bg-sky-500' : 'bg-rose-500'
+              }`}>
               <CalendarClock size={18} />
             </div>
             <div className="flex-1">
-              <h4 className={`font-bold text-sm ${
-                appointmentInfo.type === 'early'
+              <h4 className={`font-bold text-sm ${appointmentInfo.type === 'early'
                   ? 'text-sky-800 dark:text-sky-300'
                   : 'text-rose-800 dark:text-rose-300'
-              }`}>
+                }`}>
                 {appointmentInfo.type === 'early'
                   ? `📅 ผู้ป่วยมาก่อนนัด ${appointmentInfo.diffDays} วัน`
                   : `📅 ผู้ป่วยมาหลังนัด ${appointmentInfo.diffDays} วัน`}
               </h4>
-              <p className={`text-xs mt-0.5 ${
-                appointmentInfo.type === 'early'
+              <p className={`text-xs mt-0.5 ${appointmentInfo.type === 'early'
                   ? 'text-sky-600 dark:text-sky-400'
                   : 'text-rose-600 dark:text-rose-400'
-              }`}>
+                }`}>
                 วันนัดเดิม: {new Date(appointmentInfo.scheduledDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
             </div>
@@ -954,14 +994,14 @@ function RecordVisitPageInner() {
                       {isRelative ? 'ไม่ได้ประเมิน' : `${adherence}%`}
                     </span>
                   </label>
-                  <input 
-                    type="range" 
-                    {...register("adherence")} 
+                  <input
+                    type="range"
+                    {...register("adherence")}
                     disabled={isRelative}
-                    min="0" 
-                    max="100" 
-                    step="10" 
-                    className={`w-full ${isRelative ? 'accent-gray-400 cursor-not-allowed opacity-50' : 'accent-[#D97736]'}`} 
+                    min="0"
+                    max="100"
+                    step="10"
+                    className={`w-full ${isRelative ? 'accent-gray-400 cursor-not-allowed opacity-50' : 'accent-[#D97736]'}`}
                   />
                 </div>
                 <div className="mt-auto pt-8">
@@ -1107,7 +1147,7 @@ function RecordVisitPageInner() {
           <div className="flex gap-4">
             {isEditMode && session?.user && (session.user as any).role === 'Admin' && (
               <Button type="button" onClick={handleDeleteVisit} disabled={loading || saveSuccess || isDeleting} className="w-1/3 font-bold text-lg h-14 border-2 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:border-red-800 dark:text-red-400 transition-all flex justify-center gap-2">
-                 {isDeleting ? <><RefreshCw size={20} className="animate-spin" /> กำลังลบ...</> : <><Trash2 size={20} /> ลบ Visit นี้</>}
+                {isDeleting ? <><RefreshCw size={20} className="animate-spin" /> กำลังลบ...</> : <><Trash2 size={20} /> ลบ Visit นี้</>}
               </Button>
             )}
             <Button type="submit" disabled={loading || saveSuccess || isDeleting} className={`flex-1 font-bold text-lg h-14 border-2 border-border transition-all flex justify-center gap-2 ${saveSuccess ? 'bg-green-600 text-white shadow-none border-green-700' : isEditMode ? 'bg-amber-600 text-white shadow-[4px_4px_0px_0px_#888] hover:bg-amber-700 hover:shadow-none active:translate-y-0.5' : 'bg-foreground text-background shadow-[4px_4px_0px_0px_#888] hover:bg-primary hover:text-white hover:shadow-none active:translate-y-0.5'}`}>

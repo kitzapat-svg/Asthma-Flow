@@ -254,6 +254,17 @@ export async function getLatestMedication(hn: string): Promise<Medication | null
     return data as any;
 }
 
+export async function getMedicationByDate(hn: string, date: string): Promise<Medication | null> {
+    const { data, error } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('hn', normalizeHN(hn))
+        .eq('date', date)
+        .maybeSingle();
+    if (error) return null;
+    return data as any;
+}
+
 // --- Medication List Functions ---
 
 export interface MedicationListItem {
