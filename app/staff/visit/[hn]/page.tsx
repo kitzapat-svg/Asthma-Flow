@@ -1,11 +1,11 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FieldError, useWatch, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { AlertCircle, AlertTriangle, ArrowLeft, Send, CheckCircle, Activity, LayoutDashboard, Search, FileText, Pill, Plus, X, Trash2, CalendarDays, RefreshCw, Stethoscope, Users, RefreshCcw, ClipboardList, Save, CalendarClock } from 'lucide-react';
+import { AlertCircle, AlertTriangle, ArrowLeft, Send, CheckCircle, Activity, LayoutDashboard, Search, FileText, Pill, Plus, X, Trash2, CalendarDays, RefreshCw, Stethoscope, Users, RefreshCcw, ClipboardList, Save, CalendarClock, ChevronLeft, ChevronRight, MessageSquareText } from 'lucide-react';
 import { MDI_STEPS } from '@/lib/types';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
@@ -80,6 +80,10 @@ function RecordVisitPageInner() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editDate, setEditDate] = useState<string | null>(null); // date being edited (null = today)
   const [appointmentInfo, setAppointmentInfo] = useState<{ scheduledDate: string; diffDays: number; type: 'early' | 'late' | 'on-time' } | null>(null);
+  const [staffAdvice, setStaffAdvice] = useState<any[]>([]);
+  const [adviceIndex, setAdviceIndex] = useState(0);
+  const [adviceAutoPaused, setAdviceAutoPaused] = useState(false);
+  const adviceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const searchParams = useSearchParams();
   const dateParam = searchParams.get('date'); // e.g. ?date=2026-01-15
 
@@ -435,7 +439,58 @@ function RecordVisitPageInner() {
 
     fetchData();
     fetchExistingDrps();
+    // Fetch staff advice
+    const fetchAdvice = async () => {
+      try {
+        const res = await fetch(`/api/db?type=advice&hn=${params.hn}`);
+        const data = await res.json();
+        if (Array.isArray(data)) setStaffAdvice(data);
+      } catch (err) { console.error('Failed to fetch advice:', err); }
+    };
+    fetchAdvice();
   }, [params.hn, setValue]);
+
+  // Auto-scroll advice carousel
+  useEffect(() => {
+    if (adviceAutoPaused || staffAdvice.length <= 1) {
+      if (adviceTimerRef.current) clearInterval(adviceTimerRef.current);
+      return;
+    }
+    adviceTimerRef.current = setInterval(() => {
+      setAdviceIndex(prev => (prev + 1) % staffAdvice.length);
+    }, 10000);
+    return () => { if (adviceTimerRef.current) clearInterval(adviceTimerRef.current); };
+  }, [staffAdvice.length, adviceAutoPaused]);
+
+  const handleAdviceNav = useCallback((dir: 'prev' | 'next') => {
+    setAdviceAutoPaused(true);
+    setAdviceIndex(prev => {
+      if (dir === 'prev') return prev === 0 ? staffAdvice.length - 1 : prev - 1;
+      return (prev + 1) % staffAdvice.length;
+    });
+  }, [staffAdvice.length]);
+
+  const handleDeleteAdvice = useCallback(async (advice: any) => {
+    if (!confirm('ยืนยันการลบคำแนะนำนี้?')) return;
+    try {
+      const res = await fetch(
+        `/api/db?type=advice&hn=${params.hn}&staff_username=${encodeURIComponent(advice.staff_username)}&date=${encodeURIComponent(advice.date)}`,
+        { method: 'DELETE' }
+      );
+      if (res.ok) {
+        toast.success('ลบคำแนะนำเรียบร้อยแล้ว');
+        setStaffAdvice(prev => {
+          const updated = prev.filter(a => !(a.staff_username === advice.staff_username && a.date === advice.date));
+          if (adviceIndex >= updated.length && updated.length > 0) setAdviceIndex(updated.length - 1);
+          else if (updated.length === 0) setAdviceIndex(0);
+          return updated;
+        });
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'ไม่สามารถลบคำแนะนำได้');
+      }
+    } catch { toast.error('เกิดข้อผิดพลาดในการลบ'); }
+  }, [params.hn, adviceIndex]);
 
   // Autosave Draft Logic
   useEffect(() => {
@@ -1008,6 +1063,79 @@ function RecordVisitPageInner() {
                   <label className="text-sm font-bold mb-2 block">Note (Medication/DRP)</label>
                   <input type="text" {...register("medication_note")} className={inputClass()} />
                 </div>
+
+                {/* Staff Advice Carousel */}
+                {staffAdvice.length > 0 && (
+                  <div className="mt-6 bg-teal-50/70 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-800 rounded-lg p-4 animate-in fade-in">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-bold text-sm flex items-center gap-2 text-teal-800 dark:text-teal-300">
+                        <MessageSquareText size={16} />
+                        คำแนะนำจากเจ้าหน้าที่
+                        <span className="text-[10px] bg-teal-200/60 dark:bg-teal-800/60 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 rounded-full font-bold">
+                          {staffAdvice.length}
+                        </span>
+                      </h4>
+                      {staffAdvice.length > 1 && (
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => handleAdviceNav('prev')} className="p-1 rounded hover:bg-teal-200/50 dark:hover:bg-teal-800/50 text-teal-600 dark:text-teal-400 transition-colors">
+                            <ChevronLeft size={16} />
+                          </button>
+                          <span className="text-[10px] font-bold text-teal-500 dark:text-teal-500 min-w-[32px] text-center">
+                            {adviceIndex + 1}/{staffAdvice.length}
+                          </span>
+                          <button type="button" onClick={() => handleAdviceNav('next')} className="p-1 rounded hover:bg-teal-200/50 dark:hover:bg-teal-800/50 text-teal-600 dark:text-teal-400 transition-colors">
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {(() => {
+                      const adv = staffAdvice[adviceIndex];
+                      if (!adv) return null;
+                      const advDate = adv.date ? new Date(adv.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
+                      const advTime = adv.date ? new Date(adv.date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+                      const currentUserId = (session?.user as any)?.id || '';
+                      const currentUserRole = (session?.user as any)?.role || '';
+                      const canDelete = currentUserRole === 'Admin' || currentUserId === adv.staff_username;
+                      return (
+                        <div key={`${adv.staff_username}-${adv.date}`} className="animate-in fade-in slide-in-from-right-2 duration-300">
+                          <p className="text-sm text-teal-900 dark:text-teal-100 leading-relaxed bg-white/60 dark:bg-zinc-800/40 rounded-md px-3 py-2.5 border border-teal-100 dark:border-teal-800/50">
+                            {adv.advice}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="text-[11px] text-teal-600 dark:text-teal-500 flex items-center gap-2">
+                              <span className="font-bold">{adv.staff_name || adv.staff_username}</span>
+                              {adv.staff_position && <span className="opacity-70">({adv.staff_position})</span>}
+                              <span className="opacity-50">•</span>
+                              <span>{advDate} {advTime}</span>
+                            </div>
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAdvice(adv)}
+                                className="text-[10px] text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-400 font-bold flex items-center gap-0.5 transition-colors opacity-60 hover:opacity-100"
+                              >
+                                <Trash2 size={11} /> ลบ
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {staffAdvice.length > 1 && (
+                      <div className="flex justify-center gap-1 mt-3">
+                        {staffAdvice.map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => { setAdviceAutoPaused(true); setAdviceIndex(i); }}
+                            className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${i === adviceIndex ? 'bg-teal-500 w-4' : 'bg-teal-300/50 dark:bg-teal-700/50 hover:bg-teal-400/70'}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Right Column: DRP */}

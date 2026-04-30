@@ -31,7 +31,8 @@ import {
   updateUser,
   deleteUser,
   updateAdvice,
-  deleteAdvice
+  deleteAdvice,
+  getAdvice
 } from '@/lib/db';
 import { logAudit } from '@/lib/logger';
 import { normalizeHN } from '@/lib/helpers';
@@ -130,6 +131,12 @@ export async function GET(request: Request) {
         }
         const checks = await getAllTechniqueChecks();
         return NextResponse.json(checks);
+    }
+
+    if (type === 'advice') {
+        if (!hn) return NextResponse.json({ error: "Missing HN" }, { status: 400 });
+        const advice = await getAdvice(hn);
+        return NextResponse.json(advice);
     }
 
     // Generic fallbacks for other types if needed, though they should be specific
@@ -424,6 +431,12 @@ export async function DELETE(request: Request) {
     if (type === 'advice') {
       const staffUsername = searchParams.get('staff_username');
       const date = searchParams.get('date');
+      const currentUserId = (session.user as any).id || '';
+      const currentUserRole = (session.user as any).role;
+      // Only allow owner or Admin to delete advice
+      if (currentUserRole !== 'Admin' && currentUserId !== staffUsername) {
+        return NextResponse.json({ error: "Access Denied" }, { status: 403 });
+      }
       const result = await deleteAdvice(hn!, staffUsername!, date!);
       if (result.success) {
         await logAudit({
