@@ -23,6 +23,7 @@ export interface Visit {
     technique_check: string;
     next_appt?: string;
     advice?: string;
+    is_new_case?: boolean | string;
 }
 
 export interface TechniqueCheck {

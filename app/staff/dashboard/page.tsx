@@ -101,11 +101,12 @@ export default function StatsPage() {
       }).length;
       setMonthlyVisits(monthlyCount);
 
-      // 3. New Patients (First visit in this month)
-      const firstVisits = getFirstVisitsMap(validVisits);
-      const newPatientsCount = Object.values(firstVisits).filter(d =>
-        d >= startOfCurrentMonth && d <= now
-      ).length;
+      // 3. New Patients (This Month) based on is_new_case flag
+      const newPatientsCount = validVisits.filter(v => {
+        const d = new Date(v.visit_date ?? v.date ?? '');
+        const isNew = v.is_new_case === true || String(v.is_new_case).toUpperCase() === 'TRUE';
+        return d >= startOfCurrentMonth && d <= now && isNew;
+      }).length;
       setNewPatients(newPatientsCount);
 
       // --- 4. Tuesday Appointments ---
@@ -137,17 +138,6 @@ export default function StatsPage() {
   };
 
   // --- Helpers ---
-  const getFirstVisitsMap = (allVisits: Visit[]) => {
-    const firstVisits: Record<string, Date> = {};
-    allVisits.forEach(v => {
-      const dateStr = v.visit_date ?? v.date ?? '';
-      const d = new Date(dateStr);
-      if (!firstVisits[v.hn] || d < firstVisits[v.hn]) {
-        firstVisits[v.hn] = d;
-      }
-    });
-    return firstVisits;
-  };
 
   const calculateTuesdayAppts = (allVisits: Visit[], allPatients: Patient[], date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -330,7 +320,6 @@ export default function StatsPage() {
   const getWeeklyTrend = () => {
     const weeks = [];
     const now = new Date();
-    const firstVisits = getFirstVisitsMap(visits);
 
     for (let i = 7; i >= 0; i--) {
       const d = subDays(now, i * 7);
@@ -357,9 +346,11 @@ export default function StatsPage() {
       }).length;
 
       // Count new patients in this week
-      const newCount = Object.values(firstVisits).filter(vd =>
-        vd >= start && vd <= end
-      ).length;
+      const newCount = visits.filter(v => {
+        const vd = new Date(v.visit_date ?? v.date ?? '');
+        const isNew = v.is_new_case === true || String(v.is_new_case).toUpperCase() === 'TRUE';
+        return vd >= start && vd <= end && isNew;
+      }).length;
 
       weeks.push({
         name: label,
@@ -375,7 +366,6 @@ export default function StatsPage() {
   const getMonthlyTrend = () => {
     const months = [];
     const now = new Date();
-    const firstVisits = getFirstVisitsMap(visits);
 
     for (let i = 23; i >= 0; i--) {
       const d = subMonths(now, i);
@@ -390,9 +380,11 @@ export default function StatsPage() {
       }).length;
 
       // Count new patients in this month
-      const newCount = Object.values(firstVisits).filter(vd =>
-        vd >= start && vd <= end
-      ).length;
+      const newCount = visits.filter(v => {
+        const vd = new Date(v.visit_date ?? v.date ?? '');
+        const isNew = v.is_new_case === true || String(v.is_new_case).toUpperCase() === 'TRUE';
+        return vd >= start && vd <= end && isNew;
+      }).length;
 
       months.push({
         name: label,
