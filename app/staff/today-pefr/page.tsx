@@ -424,8 +424,10 @@ export default function RecordPefrPage() {
                 // Calculate percentage based on current input value or recorded value
                 const valToCalc = Number(draftVal);
                 let percentage = 0;
+                let percentageStr = "0";
                 if (!isNaN(valToCalc) && valToCalc > 0 && patient.predictedPefr > 0) {
-                  percentage = Math.round((valToCalc / patient.predictedPefr) * 100);
+                  percentage = (valToCalc / patient.predictedPefr) * 100;
+                  percentageStr = percentage.toFixed(2);
                 }
 
                 return (
@@ -519,7 +521,7 @@ export default function RecordPefrPage() {
                             <span className="text-border">|</span>
                             {percentage > 0 ? (
                               <span className={`font-black ${percentage >= 80 ? 'text-green-600 dark:text-green-400' : percentage >= 50 ? 'text-orange-600 dark:text-orange-400' : 'text-red-600 dark:text-red-400'}`}>
-                                {percentage}% เทียบกับค่าอ้างอิง
+                                {percentageStr}% เทียบกับค่าอ้างอิง
                               </span>
                             ) : (
                               <span className="text-muted-foreground/60 italic text-xs">รอระบุผล...</span>
