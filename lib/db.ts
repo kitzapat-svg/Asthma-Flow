@@ -248,10 +248,9 @@ export async function getLatestMedication(hn: string): Promise<Medication | null
         .select('*')
         .eq('hn', normalizeHN(hn))
         .order('date', { ascending: false })
-        .limit(1)
-        .single();
-    if (error) return null;
-    return data as any;
+        .limit(1);
+    if (error || !data || data.length === 0) return null;
+    return data[0] as any;
 }
 
 export async function getMedicationByDate(hn: string, date: string): Promise<Medication | null> {
@@ -260,9 +259,9 @@ export async function getMedicationByDate(hn: string, date: string): Promise<Med
         .select('*')
         .eq('hn', normalizeHN(hn))
         .eq('date', date)
-        .maybeSingle();
-    if (error) return null;
-    return data as any;
+        .limit(1);
+    if (error || !data || data.length === 0) return null;
+    return data[0] as any;
 }
 
 // --- Medication List Functions ---
@@ -428,8 +427,14 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
             reliever_label: data[9],
             note: data[10]
         };
-        const res = await supabase.from('medications').update(payload).match({ hn: normalizedHn, date });
-        error = res.error;
+        const { data: existing } = await supabase.from('medications').select('hn').match({ hn: normalizedHn, date: date }).limit(1);
+        if (existing && existing.length > 0) {
+            const res = await supabase.from('medications').update(payload).match({ hn: normalizedHn, date: date });
+            error = res.error;
+        } else {
+            const res = await supabase.from('medications').insert({ hn: normalizedHn, ...payload });
+            error = res.error;
+        }
     } else if (tabName === 'technique_checks') {
         const payload = {
             step1: data[2], step2: data[3], step3: data[4], step4: data[5],
@@ -439,9 +444,9 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
         };
         
         // Check if existing record exists for this date
-        const { data: existing } = await supabase.from('technique_checks').select('id').match({ hn: normalizedHn, date }).maybeSingle();
+        const { data: existing } = await supabase.from('technique_checks').select('id').match({ hn: normalizedHn, date }).limit(1);
         
-        if (existing) {
+        if (existing && existing.length > 0) {
             // Update existing record, also updating date if needed
             const res = await supabase.from('technique_checks').update({
                 date: data[1], // Update date
