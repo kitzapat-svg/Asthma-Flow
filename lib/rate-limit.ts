@@ -64,6 +64,15 @@ export class RateLimiter {
 
     return remaining > 0 ? Math.ceil(remaining / 60000) : 0;
   }
+
+  /**
+   * Get remaining attempts before blocking
+   */
+  getRemainingAttempts(identifier: string): number {
+    const data = this.attempts.get(identifier);
+    if (!data) return this.maxRetries;
+    return Math.max(0, this.maxRetries - data.count);
+  }
 }
 
 // Singleton instance for global use per server instance

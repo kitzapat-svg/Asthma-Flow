@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   UserPlus, Users, Activity, FileText, Search, X, Filter,
-  Calendar, ChevronRight, Clock, AlertCircle, CheckCircle
+  Calendar, ChevronRight, Clock, AlertCircle, CheckCircle, Printer
 } from 'lucide-react';
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -252,11 +252,18 @@ export default function PatientListPage() {
             <h2 className="text-3xl font-black text-[#2D2A26] dark:text-white">Overview</h2>
             <p className="text-muted-foreground mt-1">ภาพรวมผู้ป่วยคลินิกโรคหืด</p>
           </div>
-          <Link href="/staff/register">
-            <Button className="bg-primary text-white hover:bg-primary/90 dark:text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all font-bold gap-2 px-6">
-              <UserPlus size={18} /> ลงทะเบียนใหม่
-            </Button>
-          </Link>
+          <div className="flex gap-3">
+            <Link href="/staff/print-cards">
+              <Button variant="outline" className="border-2 border-border dark:border-zinc-700 bg-transparent text-foreground hover:bg-secondary font-bold gap-2 px-6">
+                <Printer size={18} /> พิมพ์บัตรประจำตัว
+              </Button>
+            </Link>
+            <Link href="/staff/register">
+              <Button className="bg-primary text-white hover:bg-primary/90 dark:text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all font-bold gap-2 px-6">
+                <UserPlus size={18} /> ลงทะเบียนใหม่
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Animated Stat Cards */}

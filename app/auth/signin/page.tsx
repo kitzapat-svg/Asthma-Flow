@@ -28,7 +28,17 @@ export default function SignInPage() {
       });
 
       if (result?.error) {
-        setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
+        if (result.error.startsWith("BLOCKED:")) {
+          const parts = result.error.split(":");
+          const minutes = parts[1] || "30";
+          setError(`บัญชีนี้ถูกล็อกชั่วคราวเป็นเวลา ${minutes} นาที เนื่องจากเข้าสู่ระบบผิดพลาดหลายครั้ง`);
+        } else if (result.error.startsWith("FAILED:")) {
+          const parts = result.error.split(":");
+          const attempts = parts[1] || "5";
+          setError(`ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (สามารถลองใหม่ได้อีก ${attempts} ครั้งก่อนถูกล็อกบัญชี)`);
+        } else {
+          setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
+        }
         setLoading(false);
       } else {
         router.push("/staff/patients");
@@ -159,7 +169,7 @@ export default function SignInPage() {
         {/* Footer Credit */}
         <div className="text-center mt-8 text-xs font-bold text-gray-400 dark:text-zinc-600 uppercase tracking-widest space-y-1">
           <p>Sawankhalok Hospital Asthma Clinic</p>
-          <p className="text-[10px] opacity-70">Version: 1.4.5 - Update: 18-05-2026</p>
+          <p className="text-[10px] opacity-70">Version: 1.4.6 - Update: 26-05-2026</p>
         </div>
       </div>
     </div>

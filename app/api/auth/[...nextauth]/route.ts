@@ -20,11 +20,25 @@ export const authOptions: AuthOptions = {
 
         if (!password || !username) return null;
 
+        // Check if the user is currently blocked by the rate limiter
+        if (authRateLimiter.isBlocked(username)) {
+          const remaining = authRateLimiter.getRemainingTime(username);
+          await logAudit({
+            action_type: "AUTH",
+            module: "AUTH",
+            actor_id: username,
+            payload: { status: "Blocked", reason: "Account temporarily locked due to brute force protection", remaining_minutes: remaining, provider: "credentials" }
+          });
+          throw new Error(`BLOCKED:${remaining}`);
+        }
+
         try {
           const user = await getUserByUsername(username);
           if (user && user.password_hash) {
             const isValid = await verifyPassword(password, user.password_hash);
             if (isValid) {
+              // Reset the rate limiter on success
+              authRateLimiter.reset(username);
               return {
                 id: user.username,
                 name: user.name || user.username,
@@ -38,10 +52,36 @@ export const authOptions: AuthOptions = {
         }
 
         if (username === 'admin' && password === process.env.ADMIN_PASSWORD) {
+          // Reset the rate limiter on success
+          authRateLimiter.reset(username);
           return { id: "admin", name: "Staff Admin", email: "staff@hospital.com", role: 'Admin' };
         }
 
-        return null;
+        // Increment the rate limiter and log the failure
+        authRateLimiter.increment(username);
+
+        // Check if this attempt triggered a block
+        const isNowBlocked = authRateLimiter.isBlocked(username);
+
+        await logAudit({
+          action_type: "AUTH",
+          module: "AUTH",
+          actor_id: username,
+          payload: { 
+            status: "Failed", 
+            reason: "Invalid username or password", 
+            provider: "credentials",
+            attempts_status: isNowBlocked ? "Locked out" : "Failed attempt logged"
+          }
+        });
+
+        if (isNowBlocked) {
+          const remaining = authRateLimiter.getRemainingTime(username);
+          throw new Error(`BLOCKED:${remaining}`);
+        } else {
+          const remainingAttempts = authRateLimiter.getRemainingAttempts(username);
+          throw new Error(`FAILED:${remainingAttempts}`);
+        }
       },
     })
   ],
