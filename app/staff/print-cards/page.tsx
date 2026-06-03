@@ -29,75 +29,85 @@ interface ThemeConfig {
   borderColor: string;
   titleColor: string;
   accentText: string;
+  accentColor: string;
   badgeBg: string;
   badgeText: string;
   qrBorder: string;
   qrBadgeBg: string;
+  qrBadgeText: string;
   footerLeftBg: string;
   footerLeftText: string;
-  inhalerColor: string;
+  footerRightBg: string;
 }
 
 const CARD_THEMES: ThemeConfig[] = [
   {
+    id: 'orange',
+    name: 'Warm Orange',
+    cardBg: 'bg-[#FAF6F0] dark:bg-zinc-900',
+    borderColor: 'border-[#f4e6da] dark:border-zinc-700',
+    titleColor: 'text-[#0F2942] dark:text-amber-100',
+    accentText: 'text-[#D2432C] dark:text-[#E0533C]',
+    accentColor: '#D2432C',
+    badgeBg: 'bg-[#F4EFEA] dark:bg-zinc-800',
+    badgeText: 'text-[#6B6560] dark:text-zinc-300',
+    qrBorder: 'border-[#f4e6da] dark:border-zinc-700',
+    qrBadgeBg: 'bg-[#fbeee4] dark:bg-amber-950/40',
+    qrBadgeText: 'text-[#8C3B20] dark:text-amber-300',
+    footerLeftBg: 'bg-[#dce6e1] dark:bg-[#20322b]',
+    footerLeftText: 'text-[#0F2942] dark:text-emerald-100',
+    footerRightBg: 'bg-[#D2432C] dark:bg-[#C23A25]'
+  },
+  {
     id: 'blue',
     name: 'Clinical Blue',
-    cardBg: 'bg-gradient-to-br from-white via-sky-50/50 to-sky-100/40 dark:from-zinc-900 dark:via-zinc-900 dark:to-sky-950/20',
-    borderColor: 'border-sky-500/20',
-    titleColor: 'text-sky-950 dark:text-sky-200',
-    accentText: 'text-sky-600 dark:text-sky-400',
-    badgeBg: 'bg-sky-50 border border-sky-100 dark:bg-sky-950/80',
-    badgeText: 'text-sky-800 dark:text-sky-300',
-    qrBorder: 'border-sky-300 dark:border-sky-800',
-    qrBadgeBg: 'bg-sky-500 hover:bg-sky-600',
-    footerLeftBg: 'bg-sky-950 dark:bg-sky-950/80',
-    footerLeftText: 'text-white',
-    inhalerColor: 'text-sky-400 dark:text-sky-700'
+    cardBg: 'bg-[#F5F9FC] dark:bg-zinc-900',
+    borderColor: 'border-[#d6e4f0] dark:border-zinc-700',
+    titleColor: 'text-[#0F2942] dark:text-sky-100',
+    accentText: 'text-[#1B75BC] dark:text-[#38bdf8]',
+    accentColor: '#1B75BC',
+    badgeBg: 'bg-[#EAF2F8] dark:bg-zinc-800',
+    badgeText: 'text-[#1B75BC] dark:text-zinc-300',
+    qrBorder: 'border-[#d6e4f0] dark:border-zinc-700',
+    qrBadgeBg: 'bg-[#e6f0fa] dark:bg-sky-950/40',
+    qrBadgeText: 'text-[#1B75BC] dark:text-sky-300',
+    footerLeftBg: 'bg-[#dce6eb] dark:bg-[#202b32]',
+    footerLeftText: 'text-[#0F2942] dark:text-sky-100',
+    footerRightBg: 'bg-[#1B75BC] dark:bg-[#155e96]'
   },
   {
     id: 'green',
     name: 'Clinical Green',
-    cardBg: 'bg-gradient-to-br from-white via-green-50/50 to-green-100/40 dark:from-zinc-900 dark:via-zinc-900 dark:to-green-950/20',
-    borderColor: 'border-green-500/20',
-    titleColor: 'text-green-950 dark:text-green-200',
-    accentText: 'text-green-600 dark:text-green-400',
-    badgeBg: 'bg-green-50 border border-green-100 dark:bg-green-950/80',
-    badgeText: 'text-green-800 dark:text-green-300',
-    qrBorder: 'border-green-300 dark:border-green-800',
-    qrBadgeBg: 'bg-green-700 hover:bg-green-800',
-    footerLeftBg: 'bg-green-900 dark:bg-green-950/80',
-    footerLeftText: 'text-white',
-    inhalerColor: 'text-green-400 dark:text-green-700'
+    cardBg: 'bg-[#F4F9F6] dark:bg-zinc-900',
+    borderColor: 'border-[#d6ebd6] dark:border-zinc-700',
+    titleColor: 'text-[#0F2942] dark:text-emerald-100',
+    accentText: 'text-[#0F8A5F] dark:text-[#34d399]',
+    accentColor: '#0F8A5F',
+    badgeBg: 'bg-[#EAF5F0] dark:bg-zinc-800',
+    badgeText: 'text-[#0F8A5F] dark:text-zinc-300',
+    qrBorder: 'border-[#d6ebd6] dark:border-zinc-700',
+    qrBadgeBg: 'bg-[#e6fae6] dark:bg-emerald-950/40',
+    qrBadgeText: 'text-[#0F8A5F] dark:text-emerald-300',
+    footerLeftBg: 'bg-[#dcebde] dark:bg-[#203223]',
+    footerLeftText: 'text-[#0F2942] dark:text-emerald-100',
+    footerRightBg: 'bg-[#0F8A5F] dark:bg-[#0a6645]'
   },
   {
     id: 'purple',
     name: 'Clinical Purple',
-    cardBg: 'bg-gradient-to-br from-white via-purple-50/50 to-purple-100/40 dark:from-zinc-900 dark:via-zinc-900 dark:to-purple-950/20',
-    borderColor: 'border-purple-500/20',
-    titleColor: 'text-purple-950 dark:text-purple-200',
-    accentText: 'text-purple-600 dark:text-purple-400',
-    badgeBg: 'bg-purple-50 border border-purple-100 dark:bg-purple-950/80',
-    badgeText: 'text-purple-800 dark:text-purple-300',
-    qrBorder: 'border-purple-300 dark:border-purple-800',
-    qrBadgeBg: 'bg-purple-600 hover:bg-purple-700',
-    footerLeftBg: 'bg-purple-900 dark:bg-purple-950/80',
-    footerLeftText: 'text-white',
-    inhalerColor: 'text-purple-400 dark:text-purple-700'
-  },
-  {
-    id: 'charcoal',
-    name: 'Luxury Charcoal',
-    cardBg: 'bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 dark:from-black dark:via-black dark:to-zinc-900',
-    borderColor: 'border-amber-500/20',
-    titleColor: 'text-amber-100',
-    accentText: 'text-amber-500',
-    badgeBg: 'bg-amber-950/40 border border-amber-900/30',
-    badgeText: 'text-amber-300',
-    qrBorder: 'border-amber-500/30',
-    qrBadgeBg: 'bg-amber-600 hover:bg-amber-700',
-    footerLeftBg: 'bg-zinc-950 border-r border-zinc-800',
-    footerLeftText: 'text-amber-100/80',
-    inhalerColor: 'text-amber-500/20 dark:text-amber-500/10'
+    cardBg: 'bg-[#F8F5FB] dark:bg-zinc-900',
+    borderColor: 'border-[#eedff4] dark:border-zinc-700',
+    titleColor: 'text-[#0F2942] dark:text-purple-100',
+    accentText: 'text-[#7C3AED] dark:text-[#c084fc]',
+    accentColor: '#7C3AED',
+    badgeBg: 'bg-[#F3EAF8] dark:bg-zinc-800',
+    badgeText: 'text-[#7C3AED] dark:text-zinc-300',
+    qrBorder: 'border-[#eedff4] dark:border-zinc-700',
+    qrBadgeBg: 'bg-[#fae6fa] dark:bg-purple-950/40',
+    qrBadgeText: 'text-[#7C3AED] dark:text-purple-300',
+    footerLeftBg: 'bg-[#ebdcfa] dark:bg-[#2b2032]',
+    footerLeftText: 'text-[#0F2942] dark:text-purple-100',
+    footerRightBg: 'bg-[#7C3AED] dark:bg-[#632ecb]'
   }
 ];
 
@@ -119,7 +129,7 @@ export default function PrintCardsPage() {
   
   // Options Customization
   const [showCutGuidelines, setShowCutGuidelines] = useState(true);
-  const [selectedTheme, setSelectedTheme] = useState<string>('blue');
+  const [selectedTheme, setSelectedTheme] = useState<string>('orange');
   const [origin, setOrigin] = useState('');
 
   useEffect(() => {
@@ -224,9 +234,9 @@ export default function PrintCardsPage() {
     return patientsOnDate.filter(p => selectedHns.has(normalizeHN(p.hn)));
   }, [patientsOnDate, selectedHns]);
 
-  // Pagination calculations: 10 cards per A4 page (2 columns x 5 rows)
+  // Pagination calculations: 8 cards per A4 page (2 columns x 4 rows)
   const paginatedPages = useMemo(() => {
-    const pageSize = 10;
+    const pageSize = 8;
     const pages: Patient[][] = [];
     for (let i = 0; i < selectedPatientsList.length; i += pageSize) {
       pages.push(selectedPatientsList.slice(i, i + pageSize));
@@ -283,10 +293,10 @@ export default function PrintCardsPage() {
             height: 297mm !important;
             page-break-after: always !important;
             box-sizing: border-box !important;
-            padding-top: 0.6cm !important;
-            padding-bottom: 0.9cm !important;
-            padding-left: 1.4cm !important;
-            padding-right: 1.4cm !important;
+            padding-top: 2.1cm !important;
+            padding-bottom: 2.1cm !important;
+            padding-left: 1.0cm !important;
+            padding-right: 1.0cm !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: flex-start !important;
@@ -295,12 +305,12 @@ export default function PrintCardsPage() {
             overflow: hidden !important;
           }
 
-          /* Cards spacing grid (Exactly 2 x 5) */
+          /* Cards spacing grid (Exactly 2 x 4) */
           .print-cards-grid {
             display: grid !important;
-            grid-template-columns: 8.6cm 8.6cm !important;
-            grid-template-rows: repeat(5, 5.4cm) !important;
-            gap: 0.3cm 1.0cm !important; /* 0.3cm row-gap, 1.0cm col-gap */
+            grid-template-columns: 9.0cm 9.0cm !important;
+            grid-template-rows: repeat(4, 6.0cm) !important;
+            gap: 0.5cm 1.0cm !important; /* 0.5cm row-gap, 1.0cm col-gap */
             justify-content: center !important;
             align-content: center !important;
             box-sizing: border-box !important;
@@ -308,8 +318,8 @@ export default function PrintCardsPage() {
 
           /* Direct exact dimensions for the printed card */
           .physical-card {
-            width: 8.6cm !important;
-            height: 5.4cm !important;
+            width: 9.0cm !important;
+            height: 6.0cm !important;
             box-sizing: border-box !important;
             background: white !important;
             overflow: hidden !important;
@@ -507,7 +517,7 @@ export default function PrintCardsPage() {
                 <Sparkles className="text-yellow-500 animate-pulse" size={20} /> หน้าตัวอย่างก่อนพิมพ์ (Print Preview Grid)
               </h3>
               <span className="text-xs text-muted-foreground font-mono">
-                {selectedPatientsList.length} cards | {Math.ceil(selectedPatientsList.length / 10)} sheets of A4
+                {selectedPatientsList.length} cards | {Math.ceil(selectedPatientsList.length / 8)} sheets of A4
               </span>
             </div>
 
@@ -526,18 +536,18 @@ export default function PrintCardsPage() {
                     {/* Header line inside sheet preview */}
                     <div className="w-full flex justify-between items-center border-b pb-1 mb-3 text-zinc-400 dark:text-zinc-500 font-mono text-xs select-none">
                       <span>📄 Asthma-Flow Alert Sheet (A4) - Page {pageIdx + 1} of {paginatedPages.length}</span>
-                      <span>10 Cards Alignment Layout</span>
+                      <span>8 Cards Alignment Layout</span>
                     </div>
 
                     {/* Cards grid template */}
-                    <div className="grid grid-cols-2 gap-x-[1.0cm] gap-y-[0.3cm] justify-center align-content-center w-full">
+                    <div className="grid grid-cols-2 gap-x-[1.0cm] gap-y-[0.5cm] justify-center align-content-center w-full">
                       {pagePatients.map(patient => (
                         <div 
                           key={patient.hn}
                           className="physical-card"
                           style={{
-                            width: '8.6cm',
-                            height: '5.4cm'
+                            width: '9.0cm',
+                            height: '6.0cm'
                           }}
                         >
                           <AlertCardInner 
@@ -602,11 +612,25 @@ interface AlertCardInnerProps {
 function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInnerProps) {
   const qrUrl = origin ? `${origin}/patient/${patient.public_token}` : `https://asthma-flow.vercel.app/patient/${patient.public_token}`;
 
+  const getThaiIssueDate = () => {
+    const months = [
+      "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+      "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+    ];
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const bangkokTime = new Date(utc + (3600000 * 7));
+    const day = bangkokTime.getDate();
+    const month = months[bangkokTime.getMonth()];
+    const year = bangkokTime.getFullYear() + 543;
+    return `${day} ${month} ${year}`;
+  };
+
   return (
     <div 
-      className={`w-full h-full p-2.5 flex flex-col justify-between text-black ${sarabun.className} box-sizing-border-box select-none overflow-hidden relative ${theme.cardBg} ${
+      className={`w-full h-full pt-3 px-4 pb-3 flex flex-col justify-between text-black ${sarabun.className} box-sizing-border-box select-none overflow-hidden relative ${theme.cardBg} ${
         dottedBorder ? 'border-2 border-dashed border-zinc-400' : 'border border-zinc-200'
-      }`}
+      } rounded-[18px] shadow-sm`}
       style={{
         boxSizing: 'border-box'
       }}
@@ -614,128 +638,191 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
       {/* 1. Header Row */}
       <div className="flex items-center justify-between shrink-0 select-none">
         {/* Brand logo details */}
-        <div className="flex items-center gap-1 shrink-0 select-none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-3.5 h-3.5 ${theme.accentText} shrink-0`}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
+        <div className="flex items-center gap-1.5 shrink-0 select-none">
+          <svg viewBox="0 0 40 30" className="w-8 h-6.5 shrink-0" fill="none">
+            {/* Wind curves */}
+            <path d="M4 11h8M2 15h11M5 19h6" stroke={theme.accentColor} strokeWidth="2.2" strokeLinecap="round" />
+            {/* Cloud outline */}
+            <path d="M12 19c-1.5 0-3-1-3-2.5s1.5-2.5 3-2.5c.2 0 .5 0 .7.1A4.5 4.5 0 0121 11a4 4 0 014 4c0 .3 0 .5-.1.8A3.5 3.5 0 0128 19H12z" fill="none" stroke="#0F2942" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="dark:stroke-white" />
           </svg>
           <div className="flex flex-col text-left">
-            <span className={`text-[8px] font-black tracking-tight leading-none ${theme.id === 'charcoal' ? 'text-white' : 'text-zinc-800 dark:text-white'}`}>
-              asthma<span className={theme.accentText}>flow</span>
+            <span className={`text-[13px] font-black tracking-tight leading-none text-[#0F2942] dark:text-white`}>
+              asthma<span style={{ color: theme.accentColor }}>flow</span>
             </span>
-            <span className="text-[4px] text-zinc-400 dark:text-zinc-500 font-bold leading-none mt-0.5 select-none">หายใจคล่อง ชีวิตดีขึ้น</span>
+            <span className="text-[6.5px] text-zinc-500 dark:text-zinc-400 font-bold italic leading-none mt-0.5 select-none">Breathe easier, live better.</span>
           </div>
         </div>
       </div>
 
       {/* 2. Middle Body Grid (Detail & Qrcode) */}
-      <div className="flex items-stretch justify-between flex-1 my-1 overflow-hidden select-none relative">
+      <div className="flex justify-between items-stretch flex-1 my-1.5 overflow-hidden select-none relative">
         
-        {/* Abstract inhaler background outline SVG */}
-        <svg viewBox="0 0 64 80" className={`absolute -right-2 bottom-0 w-11 h-auto opacity-[0.08] dark:opacity-20 pointer-events-none ${theme.inhalerColor}`}>
-          <path d="M22 8h20v40H22z" fill="currentColor" rx="4" />
-          <path d="M22 42h32v24H22z" fill="currentColor" rx="4" />
-          <path d="M30 2v6h4V2z" fill="currentColor" opacity="0.8" />
-          <circle cx="32" cy="18" r="6" fill="white" opacity="0.4" />
-          <path d="M30 48v8h12v-8z" fill="currentColor" opacity="0.9" />
-        </svg>
-
-        {/* Left Column - Patient credentials details (Only Name & HN) */}
-        <div className="w-[185px] flex flex-col justify-between text-left pr-2 select-none z-10">
+        {/* Left Column - Patient credentials details */}
+        <div className="w-[200px] flex flex-col justify-between text-left pr-1 select-none z-10">
           
           {/* Card title typography */}
           <div className="flex flex-col">
-            <h1 className={`text-[17px] font-black leading-none uppercase tracking-tight ${theme.id === 'charcoal' ? 'text-amber-100' : 'text-slate-800 dark:text-slate-100'}`}>
+            <h1 className="text-[24px] font-black leading-none uppercase tracking-tight text-[#0F2942] dark:text-white">
               ASTHMA
             </h1>
-            <h2 className={`text-[11px] font-black leading-none tracking-tight ${theme.accentText} uppercase`}>
+            <h2 className={`text-[16px] font-black leading-none tracking-tight ${theme.accentText} uppercase`}>
               FLOW ALERT CARD
             </h2>
-            <p className="text-[6.5px] font-bold text-zinc-400 dark:text-zinc-500 leading-none mt-0.5">
-              บัตรประจำตัวผู้ป่วยโรคหืด
-            </p>
-          </div>
-
-          {/* Emergency card shield icon advice */}
-          <div className="flex items-start gap-1 my-0.5">
-            <div className={`w-4.5 h-4.5 rounded-full flex items-center justify-center ${theme.badgeBg} shrink-0`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-2.5 h-2.5 ${theme.accentText}`}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-              </svg>
-            </div>
-            <div className="flex flex-col">
-              <span className={`text-[6px] font-black leading-none ${theme.id === 'charcoal' ? 'text-amber-300' : 'text-zinc-700 dark:text-zinc-300'}`}>
-                พกบัตรนี้เสมอ
-              </span>
-              <span className="text-[4.8px] text-zinc-400 dark:text-zinc-500 font-bold leading-tight mt-0.5">
-                เพื่อความปลอดภัยในการฉุกเฉิน แพทย์จะได้รับข้อมูลที่สำคัญอย่างรวดเร็ว
-              </span>
+            <div className="flex items-center gap-1.5 mt-0.5 text-zinc-300 dark:text-zinc-700">
+              <div className="h-[0.5px] w-5 bg-current"></div>
+              <p className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-none">
+                บัตรประจำตัวผู้ป่วยโรคหืด
+              </p>
+              <div className="h-[0.5px] w-5 bg-current"></div>
             </div>
           </div>
 
-          {/* Minimal Patient Details */}
-          <div className="space-y-1.5 mb-0.5">
-            {/* Full Name display */}
-            <div className="flex items-center gap-1.5">
-              <div className={`w-[18px] h-[18px] rounded-full flex items-center justify-center ${theme.badgeBg} shrink-0`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-2.5 h-2.5 ${theme.accentText}`}>
+          {/* Details stack */}
+          <div className="space-y-1.5 mt-1.5 flex-1 flex flex-col justify-end">
+            {/* Row 1: Danger Symptoms */}
+            <div className="flex items-start gap-2">
+              <div className="relative shrink-0">
+                <div className="w-[30px] h-[30px] rounded-full bg-[#dbeae3] dark:bg-emerald-950/60 flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-[18px] h-[18px] text-emerald-800 dark:text-emerald-200">
+                    <path d="M12 4v7M12 11c-1-1.5-3-3-6-3-3.3 0-5 2.5-5 5.5 0 5 4.5 7.5 8 9 1-.5 2-1 3-2.5M12 11c1-1.5 3-3 6-3 3.3 0 5 2.5 5 5.5 0 5-4.5 7.5-8 9-1-.5-2-1-3-2.5" />
+                  </svg>
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-[13px] h-[13px] bg-[#D2432C] rounded-full flex items-center justify-center border border-white text-white text-[9px] font-black leading-none select-none">
+                  +
+                </div>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[7.5px] text-zinc-500 dark:text-zinc-400 font-bold leading-none">อาการที่เสี่ยง</span>
+                <span className="text-[8.5px] font-black text-[#0F2942] dark:text-zinc-100 leading-tight mt-0.5">
+                  หายใจลำบาก ไอ แน่นหน้าอก หายใจมีเสียงหวีด
+                </span>
+              </div>
+            </div>
+
+            {/* Row 2: Full Name */}
+            <div className="flex items-center gap-2">
+              <div className={`w-[30px] h-[30px] rounded-full ${theme.badgeBg} flex items-center justify-center shrink-0`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={`w-[18px] h-[18px] ${theme.badgeText}`}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                 </svg>
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-[4.5px] text-zinc-400 dark:text-zinc-500 font-bold leading-none">ชื่อ-สกุล</span>
-                <span className={`text-[8.5px] font-black leading-tight truncate ${theme.id === 'charcoal' ? 'text-zinc-100' : 'text-zinc-950 dark:text-zinc-50'}`}>
+                <span className="text-[7.5px] text-zinc-500 dark:text-zinc-400 font-bold leading-none">ชื่อ-สกุล</span>
+                <span className="text-[11.5px] font-black text-[#0F2942] dark:text-zinc-100 leading-none mt-0.5 truncate">
                   {patient.prefix}{patient.first_name} {patient.last_name}
                 </span>
               </div>
             </div>
 
-            {/* HN identification display */}
-            <div className="flex items-center gap-1.5">
-              <div className={`w-[18px] h-[18px] rounded-full flex items-center justify-center ${theme.badgeBg} shrink-0`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-2.5 h-2.5 ${theme.accentText}`}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581a2.25 2.25 0 003.181 0l5.103-5.102a2.25 2.25 0 000-3.181l-9.58-9.581A2.25 2.25 0 009.568 3z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+            {/* Row 3: HN */}
+            <div className="flex items-center gap-2">
+              <div className={`w-[30px] h-[30px] rounded-full ${theme.badgeBg} flex items-center justify-center shrink-0`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={`w-[18px] h-[18px] ${theme.badgeText}`}>
+                  <rect width="18" height="14" x="3" y="5" rx="2" />
+                  <path d="M7 10h4M7 14h6M17 10v4" />
                 </svg>
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-[4.5px] text-zinc-400 dark:text-zinc-500 font-bold leading-none">HN</span>
-                <span className={`text-[8.5px] font-black font-mono leading-none ${theme.id === 'charcoal' ? 'text-amber-200' : 'text-zinc-800 dark:text-zinc-200'}`}>
+                <span className="text-[7.5px] text-zinc-500 dark:text-zinc-400 font-bold leading-none">HN</span>
+                <span className="text-[12.5px] font-black font-mono text-[#0F2942] dark:text-zinc-100 leading-none mt-0.5">
                   {patient.hn}
                 </span>
               </div>
             </div>
-          </div>
 
+            {/* Row 4: Issue Date */}
+            <div className="flex items-center gap-2">
+              <div className={`w-[30px] h-[30px] rounded-full ${theme.badgeBg} flex items-center justify-center shrink-0 relative`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={`w-[16px] h-[16px] ${theme.badgeText}`}>
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                  <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
+                </svg>
+                <div className="absolute -bottom-0.5 -right-0.5 w-[13px] h-[13px] bg-zinc-700 dark:bg-zinc-650 rounded-full flex items-center justify-center border border-white text-white">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" className="w-[8px] h-[8px]">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </div>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[7.5px] text-zinc-500 dark:text-zinc-400 font-bold leading-none">วันที่ออกบัตร</span>
+                <span className="text-[10px] font-black text-[#0F2942] dark:text-zinc-100 leading-none mt-0.5">
+                  {getThaiIssueDate()}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Right Column - QR Code details */}
-        <div className="flex flex-col justify-center items-center shrink-0 pr-1 select-none z-10">
-          <div className={`p-1 bg-white rounded-xl border-2 ${theme.qrBorder} shadow-sm shrink-0 flex items-center justify-center`}>
-            <QRCodeSVG value={qrUrl} size={62} />
+        <div className="flex flex-col justify-center items-center shrink-0 pl-2 select-none z-10">
+          <div className={`p-2 bg-white rounded-[16px] border-2 ${theme.qrBorder} shadow-sm shrink-0 flex items-center justify-center`}>
+            <QRCodeSVG value={qrUrl} size={76} />
           </div>
           
-          <div className={`mt-1.5 px-2 py-0.5 rounded-full text-white text-[5.5px] font-black ${theme.qrBadgeBg} shadow-sm select-none whitespace-nowrap`}>
-            สแกนเพื่อดูข้อมูลสุขภาพ
+          <div className={`mt-2.5 px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm select-none whitespace-nowrap ${theme.qrBadgeBg}`}>
+            <div className="w-[11px] h-[11px] rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke={theme.accentColor} strokeWidth="3.5" className="w-1.5 h-1.5">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+              </svg>
+            </div>
+            <span className={`text-[7.5px] font-black tracking-tight leading-none ${theme.qrBadgeText}`}>
+              สแกนเพื่อดูข้อมูลสุขภาพ
+            </span>
           </div>
+          <span className="text-[5.5px] text-zinc-400 dark:text-zinc-500 font-bold mt-1 leading-none whitespace-nowrap">
+            (ประวัติยา • แผนการรักษา • ข้อมูลติดต่อ)
+          </span>
         </div>
 
       </div>
 
       {/* 3. Bottom Slanted Split Footer Block */}
-      <div className="flex h-[28px] overflow-hidden select-none text-[6.5px] leading-none shrink-0 font-bold -mx-2.5 -mb-2.5 z-10">
-        <div className={`flex-1 flex items-center gap-1.5 pl-3.5 pr-2 ${theme.footerLeftBg} ${theme.footerLeftText}`}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3 text-white shrink-0">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
-          </svg>
-          <span>ฉันเป็นผู้ป่วยโรคหืด กรุณาให้ความช่วยเหลืออย่างเหมาะสม</span>
+      <div className="flex h-[36px] overflow-hidden select-none text-[6.5px] leading-none shrink-0 font-bold -mx-4 -mb-3 z-10 mt-1">
+        {/* Left Footer: Warning Advice */}
+        <div className={`flex-1 flex items-center gap-2 pl-4 pr-1 ${theme.footerLeftBg} ${theme.footerLeftText}`}>
+          <div className="shrink-0 flex items-center justify-center">
+            <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] shrink-0" fill="none">
+              <path d="M12 2L1 21h22L12 2z" fill="#D2432C" />
+              <path d="M12 8v5" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx="12" cy="16.5" r="1.5" fill="white" />
+            </svg>
+          </div>
+          <div className="flex flex-col text-left">
+            <span className="text-[8.5px] font-black leading-tight text-[#0F2942] dark:text-[#E2E8F0]">
+              ฉันเป็นผู้ป่วยโรคหืด
+            </span>
+            <span className="text-[6.8px] font-medium leading-none text-[#0F2942]/80 dark:text-[#CBD5E1] mt-0.5">
+              กรุณาให้ความช่วยเหลืออย่างเหมาะสม
+            </span>
+          </div>
         </div>
-        <div className={`w-[92px] flex items-center justify-center gap-1 pl-3 pr-2 relative text-white ${theme.id === 'charcoal' ? 'bg-amber-800' : 'bg-red-600'}`} style={{ clipPath: 'polygon(10px 0, 100% 0, 100% 100%, 0 100%)' }}>
-          <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 shrink-0">
-            <path d="M1.5 10.036a.75.75 0 0 1 .172-.034l2.236-.223a.75.75 0 0 1 .632.316l1.247 1.248 3.13-3.13-1.248-1.247a.75.75 0 0 1-.316-.633L7.58 4.1a.75.75 0 0 1 .034-.172l.45-1.353a.75.75 0 0 1 .672-.525l3.525-.353a.75.75 0 0 1 .802.63l.4 4a.75.75 0 0 1-.223.597l-2.001 2c-.443.443-.637 1.077-.492 1.688a10.024 10.024 0 0 0 4.195 4.195c.61.145 1.245-.049 1.688-.492l2-2.001a.75.75 0 0 1 .597-.223l4 .4a.75.75 0 0 1 .63.802l-.353 3.525a.75.75 0 0 1-.525.672l-1.353.45a.75.75 0 0 1-.172.034l-2.236.223a.75.75 0 0 1-.632-.316l-1.247-1.248-3.13 3.13 1.248 1.247a.75.75 0 0 1 .316.633l.223 2.236a.75.75 0 0 1-.034.172l-.45 1.353a.75.75 0 0 1-.672.525L6.6 23.953a.75.75 0 0 1-.802-.63l-.4-4a.75.75 0 0 1 .223-.597l2.001-2c.443-.443.637-1.077.492-1.688a10.024 10.024 0 0 0-4.195-4.195c-.61-.145-1.245.049-1.688.492l-2 2.001a.75.75 0 0 1-.597.223l-4-.4a.75.75 0 0 1-.63-.802l.353-3.525a.75.75 0 0 1 .525-.672l1.353-.45Z" />
-          </svg>
-          <div className="flex flex-col">
-            <span className="text-[7.2px] font-black">ฉุกเฉิน โทร 1669</span>
-            <span className="text-[4.5px] opacity-85 mt-0.5 leading-none">ตลอด 24 ชั่วโมง</span>
+
+        {/* Right Footer: Emergency Call */}
+        <div 
+          className={`w-[115px] flex flex-col justify-center items-center pl-3 pr-2 relative text-white ${theme.footerRightBg} shrink-0 -ml-5`} 
+          style={{ clipPath: 'polygon(12px 0, 100% 0, 100% 100%, 0 100%)' }}
+        >
+          <div className="flex items-center gap-1.5">
+            <div className="w-[15px] h-[15px] rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke={theme.accentColor} strokeWidth="3.5" className="w-2.5 h-2.5">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+              </svg>
+            </div>
+            <span className="text-[9.5px] font-black tracking-tight leading-none">ฉุกเฉิน โทร 1669</span>
+          </div>
+          
+          <div className="flex items-center justify-center gap-1 mt-0.5 text-white/90 w-full px-1">
+            <svg viewBox="0 0 40 10" className="w-5 h-2 opacity-80" stroke="currentColor" strokeWidth="1.2" fill="none">
+              <path d="M0 5 h10 l2 -3 l2 6 l2 -5 l2 2 h12" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="text-[5.5px] font-bold tracking-wider whitespace-nowrap">ตลอด 24 ชั่วโมง</span>
+            <svg viewBox="0 0 40 10" className="w-5 h-2 opacity-80" stroke="currentColor" strokeWidth="1.2" fill="none">
+              <path d="M0 5 h10 l2 -3 l2 6 l2 -5 l2 2 h12" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </div>
         </div>
       </div>

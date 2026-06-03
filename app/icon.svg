@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Shadow offset -->
+  <rect x="4" y="4" width="26" height="26" rx="6" fill="#3D3834" />
+  <!-- Main card -->
+  <rect x="2" y="2" width="26" height="26" rx="6" fill="#D97736" stroke="#3D3834" stroke-width="2" />
+  <!-- Lungs icon -->
+  <path d="M15 8v6" stroke="#FEFCF8" stroke-width="2" stroke-linecap="round" />
+  <path d="M11 11c-2.5 0-4.5 1-4.5 4s1 6 4.5 7c2 .7 4-1 4-3v-8" stroke="#FEFCF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M19 11c2.5 0 4.5 1 4.5 4s-1 6-4.5 7c-2 .7-4-1-4-3v-8" stroke="#FEFCF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+</svg>
