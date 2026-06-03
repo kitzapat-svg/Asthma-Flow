@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { QRCodeSVG } from 'qrcode.react';
-import { 
-  Printer, ChevronLeft, Calendar, Search, CheckSquare, 
+import {
+  Printer, ChevronLeft, Calendar, Search, CheckSquare,
   Square, AlertCircle, Heart, Phone, Sparkles, Check, Info, FileText
 } from 'lucide-react';
 import { getBangkokDateString, toBangkokDateString } from '@/lib/date-utils';
@@ -117,16 +117,16 @@ export default function PrintCardsPage() {
 
   // Selected Appt Date
   const [selectedDate, setSelectedDate] = useState<string>('');
-  
+
   // Data State
   const [patients, setPatients] = useState<Patient[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
-  
+
   // UI State
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedHns, setSelectedHns] = useState<Set<string>>(new Set());
-  
+
   // Options Customization
   const [showCutGuidelines, setShowCutGuidelines] = useState(true);
   const [selectedTheme, setSelectedTheme] = useState<string>('orange');
@@ -169,7 +169,7 @@ export default function PrintCardsPage() {
   // Find patients with appointments on the selected date
   const patientsOnDate = useMemo(() => {
     if (!selectedDate) return [];
-    
+
     // Find unique HNs scheduled for selectedDate
     const scheduledHns = new Set<string>();
     visits.forEach(v => {
@@ -180,7 +180,7 @@ export default function PrintCardsPage() {
 
     // Map scheduled HNs to actual Patient records
     const list = patients.filter(p => scheduledHns.has(normalizeHN(p.hn)));
-    
+
     // By default, auto-select all newly fetched patients
     const newSelected = new Set<string>();
     list.forEach(p => newSelected.add(normalizeHN(p.hn)));
@@ -249,7 +249,7 @@ export default function PrintCardsPage() {
 
   return (
     <div className={`space-y-8 pb-20 ${sarabun.className}`}>
-      
+
       {/* Dynamic @media print CSS injection */}
       <style jsx global>{`
         @media print {
@@ -337,7 +337,7 @@ export default function PrintCardsPage() {
 
       {/* --- UI INTERFACE (no-print) --- */}
       <div className="no-print space-y-6">
-        
+
         {/* Header Block */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -353,9 +353,9 @@ export default function PrintCardsPage() {
               <p className="text-muted-foreground mt-1">Asthma Flow Alert Cards Printer Portal</p>
             </div>
           </div>
-          
+
           {selectedPatientsList.length > 0 && (
-            <Button 
+            <Button
               onClick={handlePrint}
               className="bg-primary text-white hover:bg-primary/95 dark:text-white shadow-xl hover:-translate-y-0.5 transition-all font-bold gap-2 px-8 py-6 rounded-2xl text-lg shrink-0"
             >
@@ -366,16 +366,16 @@ export default function PrintCardsPage() {
 
         {/* Options grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
+
           {/* Controls - Left */}
           <div className="lg:col-span-4 space-y-6">
-            
+
             {/* Control card 1: Select date & settings */}
             <div className="glass-card p-6 space-y-5 rounded-3xl border border-border">
               <h3 className="font-bold text-lg border-b pb-2 flex items-center gap-2 text-foreground">
                 <Calendar size={18} className="text-primary" /> เลือกวันนัดตรวจ
               </h3>
-              
+
               <div className="space-y-2">
                 <label className="text-sm font-bold text-muted-foreground">วันที่มีนัดหมาย</label>
                 <div className="relative">
@@ -390,13 +390,13 @@ export default function PrintCardsPage() {
 
               <div className="border-t pt-4 space-y-4">
                 <h4 className="font-bold text-sm text-foreground">ตั้งค่าบัตรและหน้าพิมพ์</h4>
-                
+
                 {/* Guidelines Toggle */}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold flex items-center gap-1.5 text-muted-foreground">
                     <Info size={14} /> แสดงเส้นปะช่วยตัดการ์ด
                   </span>
-                  <button 
+                  <button
                     onClick={() => setShowCutGuidelines(!showCutGuidelines)}
                     className={`relative w-12 h-6 rounded-full p-1 transition-colors duration-300 focus:outline-none ${showCutGuidelines ? 'bg-primary' : 'bg-zinc-300 dark:bg-zinc-700'}`}
                   >
@@ -412,11 +412,10 @@ export default function PrintCardsPage() {
                       <button
                         key={theme.id}
                         onClick={() => setSelectedTheme(theme.id)}
-                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                          selectedTheme === theme.id 
-                            ? 'bg-primary text-white border-primary shadow-md scale-102' 
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${selectedTheme === theme.id
+                            ? 'bg-primary text-white border-primary shadow-md scale-102'
                             : 'bg-white dark:bg-zinc-800 text-muted-foreground hover:bg-secondary border-border'
-                        }`}
+                          }`}
                       >
                         {theme.name}
                       </button>
@@ -452,13 +451,13 @@ export default function PrintCardsPage() {
 
               {patientsOnDate.length > 0 && (
                 <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={handleSelectAll}
                     className="flex-1 text-center py-1.5 bg-secondary text-foreground hover:bg-secondary/80 rounded-lg text-xs font-bold border border-border"
                   >
                     เลือกทั้งหมด
                   </button>
-                  <button 
+                  <button
                     onClick={handleDeselectAll}
                     className="flex-1 text-center py-1.5 bg-secondary text-foreground hover:bg-secondary/80 rounded-lg text-xs font-bold border border-border"
                   >
@@ -476,14 +475,13 @@ export default function PrintCardsPage() {
                     const normalized = normalizeHN(p.hn);
                     const isChecked = selectedHns.has(normalized);
                     return (
-                      <div 
+                      <div
                         key={p.hn}
                         onClick={() => handleToggleSelect(p.hn)}
-                        className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                          isChecked 
-                            ? 'bg-primary/5 border-primary text-foreground' 
+                        className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${isChecked
+                            ? 'bg-primary/5 border-primary text-foreground'
                             : 'bg-transparent border-transparent hover:bg-secondary/50 text-muted-foreground'
-                        }`}
+                          }`}
                       >
                         {isChecked ? (
                           <CheckSquare className="text-primary shrink-0" size={18} />
@@ -524,8 +522,8 @@ export default function PrintCardsPage() {
             {selectedPatientsList.length > 0 ? (
               <div className="space-y-12 bg-zinc-100 dark:bg-zinc-950 p-6 sm:p-10 rounded-3xl border border-border border-dashed shadow-inner max-h-[850px] overflow-y-auto">
                 {paginatedPages.map((pagePatients, pageIdx) => (
-                  <div 
-                    key={pageIdx} 
+                  <div
+                    key={pageIdx}
                     className="relative bg-white dark:bg-zinc-900 border-2 shadow-2xl border-zinc-200 dark:border-zinc-800 mx-auto rounded-xl flex flex-col justify-start items-center p-[0.6cm] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] bg-[size:16px_16px]"
                     style={{
                       width: '210mm',
@@ -542,7 +540,7 @@ export default function PrintCardsPage() {
                     {/* Cards grid template */}
                     <div className="grid grid-cols-2 gap-x-[1.0cm] gap-y-[0.5cm] justify-center align-content-center w-full">
                       {pagePatients.map(patient => (
-                        <div 
+                        <div
                           key={patient.hn}
                           className="physical-card"
                           style={{
@@ -550,7 +548,7 @@ export default function PrintCardsPage() {
                             height: '6.0cm'
                           }}
                         >
-                          <AlertCardInner 
+                          <AlertCardInner
                             patient={patient}
                             theme={activeTheme}
                             origin={origin}
@@ -584,7 +582,7 @@ export default function PrintCardsPage() {
             <div className="print-cards-grid">
               {pagePatients.map(patient => (
                 <div key={patient.hn} className="physical-card">
-                  <AlertCardInner 
+                  <AlertCardInner
                     patient={patient}
                     theme={activeTheme}
                     origin={origin}
@@ -627,10 +625,9 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
   };
 
   return (
-    <div 
-      className={`w-full h-full pt-3 px-4 pb-3 flex flex-col justify-between text-black ${sarabun.className} box-sizing-border-box select-none overflow-hidden relative ${theme.cardBg} ${
-        dottedBorder ? 'border-2 border-dashed border-zinc-400' : 'border border-zinc-200'
-      } rounded-[18px] shadow-sm`}
+    <div
+      className={`w-full h-full pt-3 px-4 pb-3 flex flex-col justify-between text-black ${sarabun.className} box-sizing-border-box select-none overflow-hidden relative ${theme.cardBg} ${dottedBorder ? 'border-2 border-dashed border-zinc-400' : 'border border-zinc-200'
+        } rounded-[18px] shadow-sm`}
       style={{
         boxSizing: 'border-box'
       }}
@@ -656,10 +653,10 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
 
       {/* 2. Middle Body Grid (Detail & Qrcode) */}
       <div className="flex justify-between items-stretch flex-1 my-1.5 overflow-hidden select-none relative">
-        
+
         {/* Left Column - Patient credentials details */}
         <div className="w-[200px] flex flex-col justify-between text-left pr-1 select-none z-10">
-          
+
           {/* Card title typography */}
           <div className="flex flex-col">
             <h1 className="text-[24px] font-black leading-none uppercase tracking-tight text-[#0F2942] dark:text-white">
@@ -759,22 +756,22 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
 
         {/* Right Column - QR Code details */}
         <div className="flex flex-col justify-center items-center shrink-0 pl-2 select-none z-10">
-          <div className={`p-2 bg-white rounded-[16px] border-2 ${theme.qrBorder} shadow-sm shrink-0 flex items-center justify-center`}>
-            <QRCodeSVG value={qrUrl} size={76} />
+          <div className={`p-1.5 bg-white rounded-[14px] border-2 ${theme.qrBorder} shadow-sm shrink-0 flex items-center justify-center`}>
+            <QRCodeSVG value={qrUrl} size={70} />
           </div>
-          
-          <div className={`mt-2.5 px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm select-none whitespace-nowrap ${theme.qrBadgeBg}`}>
-            <div className="w-[11px] h-[11px] rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
+
+          <div className={`mt-1.5 px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm select-none whitespace-nowrap ${theme.qrBadgeBg}`}>
+            <div className="w-[9px] h-[9px] rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
               <svg viewBox="0 0 24 24" fill="none" stroke={theme.accentColor} strokeWidth="3.5" className="w-1.5 h-1.5">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
               </svg>
             </div>
-            <span className={`text-[7.5px] font-black tracking-tight leading-none ${theme.qrBadgeText}`}>
+            <span className={`text-[7px] font-black tracking-tight leading-none ${theme.qrBadgeText}`}>
               สแกนเพื่อดูข้อมูลสุขภาพ
             </span>
           </div>
-          <span className="text-[5.5px] text-zinc-400 dark:text-zinc-500 font-bold mt-1 leading-none whitespace-nowrap">
-            (ประวัติยา • แผนการรักษา • ข้อมูลติดต่อ)
+          <span className="text-[5.5px] text-zinc-400 dark:text-zinc-500 font-bold mt-0.5 leading-none whitespace-nowrap">
+            (คำแนะนำ • แผนการรักษา • วันนัดหมาย)
           </span>
         </div>
 
@@ -802,8 +799,8 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
         </div>
 
         {/* Right Footer: Emergency Call */}
-        <div 
-          className={`w-[115px] flex flex-col justify-center items-center pl-3 pr-2 relative text-white ${theme.footerRightBg} shrink-0 -ml-5`} 
+        <div
+          className={`w-[115px] flex flex-col justify-center items-center pl-3 pr-2 relative text-white ${theme.footerRightBg} shrink-0 -ml-5`}
           style={{ clipPath: 'polygon(12px 0, 100% 0, 100% 100%, 0 100%)' }}
         >
           <div className="flex items-center gap-1.5">
@@ -814,7 +811,7 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
             </div>
             <span className="text-[9.5px] font-black tracking-tight leading-none">ฉุกเฉิน โทร 1669</span>
           </div>
-          
+
           <div className="flex items-center justify-center gap-1 mt-0.5 text-white/90 w-full px-1">
             <svg viewBox="0 0 40 10" className="w-5 h-2 opacity-80" stroke="currentColor" strokeWidth="1.2" fill="none">
               <path d="M0 5 h10 l2 -3 l2 6 l2 -5 l2 2 h12" strokeLinecap="round" strokeLinejoin="round" />
