@@ -699,22 +699,7 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
               </div>
             </div>
 
-            {/* Row 2: Full Name */}
-            <div className="flex items-center gap-2">
-              <div className={`w-[30px] h-[30px] rounded-full ${theme.badgeBg} flex items-center justify-center shrink-0`}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={`w-[18px] h-[18px] ${theme.badgeText}`}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[7.5px] text-zinc-500 dark:text-zinc-400 font-bold leading-none">ชื่อ-สกุล</span>
-                <span className="text-[11.5px] font-black text-[#0F2942] dark:text-zinc-100 leading-none mt-0.5 truncate">
-                  {patient.prefix}{patient.first_name} {patient.last_name}
-                </span>
-              </div>
-            </div>
-
-            {/* Row 3: HN */}
+            {/* Row 2: HN */}
             <div className="flex items-center gap-2">
               <div className={`w-[30px] h-[30px] rounded-full ${theme.badgeBg} flex items-center justify-center shrink-0`}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={`w-[18px] h-[18px] ${theme.badgeText}`}>
@@ -726,6 +711,21 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
                 <span className="text-[7.5px] text-zinc-500 dark:text-zinc-400 font-bold leading-none">HN</span>
                 <span className="text-[12.5px] font-black font-mono text-[#0F2942] dark:text-zinc-100 leading-none mt-0.5">
                   {patient.hn}
+                </span>
+              </div>
+            </div>
+
+            {/* Row 3: ชื่อ-สกุล */}
+            <div className="flex items-center gap-2">
+              <div className={`w-[30px] h-[30px] rounded-full ${theme.badgeBg} flex items-center justify-center shrink-0`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={`w-[18px] h-[18px] ${theme.badgeText}`}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[7.5px] text-zinc-500 dark:text-zinc-400 font-bold leading-none">ชื่อ-สกุล</span>
+                <span className="text-[11.5px] font-black text-[#0F2942] dark:text-zinc-100 leading-none mt-0.5 truncate">
+                  {patient.prefix}{patient.first_name} {patient.last_name}
                 </span>
               </div>
             </div>
