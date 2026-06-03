@@ -633,7 +633,7 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
       }}
     >
       {/* 1. Header Row */}
-      <div className="flex items-center justify-between shrink-0 select-none mb-1 border-b border-zinc-100 dark:border-zinc-800 pb-1.5">
+      <div className="flex items-start justify-between shrink-0 select-none mb-1 border-b border-zinc-100 dark:border-zinc-800 pb-1.5">
         {/* Left Side: ASTHMA FLOW ALERT CARD */}
         <div className="flex flex-col text-left">
           <h1 className="text-[24px] font-black leading-none uppercase tracking-tight text-[#0F2942] dark:text-white">
@@ -652,7 +652,7 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
         </div>
 
         {/* Right Side: Brand logo */}
-        <div className="flex items-center gap-1 shrink-0 select-none">
+        <div className="flex items-center gap-1 shrink-0 select-none mt-1">
           <svg viewBox="0 0 40 30" className="w-7 h-5.5 shrink-0" fill="none">
             {/* Wind curves */}
             <path d="M4 11h8M2 15h11M5 19h6" stroke={theme.accentColor} strokeWidth="2" strokeLinecap="round" />
@@ -688,7 +688,7 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
             <div className="flex flex-col min-w-0">
               <span className="text-[6.5px] text-zinc-500 dark:text-zinc-400 font-bold leading-none">อาการที่เสี่ยง</span>
               <span className="text-[7.5px] font-black text-[#0F2942] dark:text-zinc-100 leading-tight mt-0.5">
-                หายใจลำบาก ไอ แน่นหน้าอก หายใจมีเสียงหวีด ให้รีบพบแพทย์ทันที
+                หายใจลำบาก ไอ แน่นหน้าอก หายใจมีเสียงหวีด
               </span>
             </div>
           </div>
@@ -738,7 +738,7 @@ function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInner
         {/* Right Column - QR Code details */}
         <div className="flex flex-col justify-center items-center shrink-0 pl-2 select-none z-10">
           <div className={`p-1 bg-white rounded-[12px] border-2 ${theme.qrBorder} shadow-sm shrink-0 flex items-center justify-center`}>
-            <QRCodeSVG value={qrUrl} size={64} />
+            <QRCodeSVG value={qrUrl} size={68} />
           </div>
 
           <div className={`mt-1 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm select-none whitespace-nowrap ${theme.qrBadgeBg}`}>
