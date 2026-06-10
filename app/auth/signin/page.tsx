@@ -169,7 +169,7 @@ export default function SignInPage() {
         {/* Footer Credit */}
         <div className="text-center mt-8 text-xs font-bold text-gray-400 dark:text-zinc-600 uppercase tracking-widest space-y-1">
           <p>Sawankhalok Hospital Asthma Clinic</p>
-          <p className="text-[10px] opacity-70">Version: 1.4.8 - Update: 10-06-2026</p>
+          <p className="text-[10px] opacity-70">Version: 1.4.9 - Update: 10-06-2026</p>
         </div>
       </div>
     </div>

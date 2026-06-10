@@ -236,7 +236,10 @@ export async function saveMedication(data: any[]) {
         c2_freq: data[7],
         reliever_name: data[8],
         reliever_label: data[9],
-        note: data[10]
+        note: data[10],
+        c1_med_id: data[11] !== undefined ? data[11] : null,
+        c2_med_id: data[12] !== undefined ? data[12] : null,
+        reliever_med_id: data[13] !== undefined ? data[13] : null
     };
     const { error } = await supabase.from('medications').insert(payload);
     return { success: !error, error };
@@ -245,28 +248,53 @@ export async function saveMedication(data: any[]) {
 export async function getLatestMedication(hn: string): Promise<Medication | null> {
     const { data, error } = await supabase
         .from('medications')
-        .select('*')
+        .select(`
+            *,
+            c1_med:medication_list!c1_med_id(name),
+            c2_med:medication_list!c2_med_id(name),
+            reliever_med:medication_list!reliever_med_id(name)
+        `)
         .eq('hn', normalizeHN(hn))
         .order('date', { ascending: false })
         .limit(1);
     if (error || !data || data.length === 0) return null;
-    return data[0] as any;
+    
+    const row = data[0] as any;
+    return {
+        ...row,
+        c1_name: row.c1_med?.name || row.c1_name,
+        c2_name: row.c2_med?.name || row.c2_name,
+        reliever_name: row.reliever_med?.name || row.reliever_name
+    } as Medication;
 }
 
 export async function getMedicationByDate(hn: string, date: string): Promise<Medication | null> {
     const { data, error } = await supabase
         .from('medications')
-        .select('*')
+        .select(`
+            *,
+            c1_med:medication_list!c1_med_id(name),
+            c2_med:medication_list!c2_med_id(name),
+            reliever_med:medication_list!reliever_med_id(name)
+        `)
         .eq('hn', normalizeHN(hn))
         .eq('date', date)
         .limit(1);
     if (error || !data || data.length === 0) return null;
-    return data[0] as any;
+    
+    const row = data[0] as any;
+    return {
+        ...row,
+        c1_name: row.c1_med?.name || row.c1_name,
+        c2_name: row.c2_med?.name || row.c2_name,
+        reliever_name: row.reliever_med?.name || row.reliever_name
+    } as Medication;
 }
 
 // --- Medication List Functions ---
 
 export interface MedicationListItem {
+    id: number;
     name: string;
     generic_name: string;
     type: 'Controller' | 'Reliever';
@@ -279,10 +307,10 @@ export async function getMedicationList() {
     // Full objects for management UI
     const controllerItems: MedicationListItem[] = data
         .filter((r: any) => r.type === 'Controller')
-        .map((r: any) => ({ name: r.name, generic_name: r.generic_name || '', type: 'Controller' as const }));
+        .map((r: any) => ({ id: r.id, name: r.name, generic_name: r.generic_name || '', type: 'Controller' as const }));
     const relieverItems: MedicationListItem[] = data
         .filter((r: any) => r.type === 'Reliever')
-        .map((r: any) => ({ name: r.name, generic_name: r.generic_name || '', type: 'Reliever' as const }));
+        .map((r: any) => ({ id: r.id, name: r.name, generic_name: r.generic_name || '', type: 'Reliever' as const }));
 
     // Backward-compatible string arrays for dropdowns
     const controllers = controllerItems.map(r => r.name);
@@ -425,7 +453,10 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
             c2_freq: data[7],
             reliever_name: data[8],
             reliever_label: data[9],
-            note: data[10]
+            note: data[10],
+            c1_med_id: data[11] !== undefined ? data[11] : null,
+            c2_med_id: data[12] !== undefined ? data[12] : null,
+            reliever_med_id: data[13] !== undefined ? data[13] : null
         };
         const { data: existing } = await supabase.from('medications').select('hn').match({ hn: normalizedHn, date: date }).limit(1);
         if (existing && existing.length > 0) {

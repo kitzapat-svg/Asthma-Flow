@@ -74,6 +74,14 @@ function RecordVisitPageInner() {
     controllers: ['Seretide', 'Budesonide', 'Symbicort', 'Flixotide', 'Spiromax', 'Spiriva'],
     relievers: ['Salbutamol', 'Berodual']
   });
+  interface MedListItemWithId {
+    id: number;
+    name: string;
+  }
+  const [medListItems, setMedListItems] = useState<{ controllers: MedListItemWithId[], relievers: MedListItemWithId[] }>({
+    controllers: [],
+    relievers: []
+  });
   const [patient, setPatient] = useState<Patient | null>(null);
   const [latestControlLevel, setLatestControlLevel] = useState<string>('');
   const [existingUnresolvedDrps, setExistingUnresolvedDrps] = useState<DRP[]>([]);
@@ -241,6 +249,10 @@ function RecordVisitPageInner() {
               setMedOptions({
                 controllers: listData.controllers && listData.controllers.length > 0 ? listData.controllers : medOptions.controllers,
                 relievers: listData.relievers && listData.relievers.length > 0 ? listData.relievers : medOptions.relievers
+              });
+              setMedListItems({
+                controllers: listData.controllerItems || [],
+                relievers: listData.relieverItems || []
               });
             }
           }
@@ -604,6 +616,18 @@ function RecordVisitPageInner() {
         }));
       }
 
+      // Resolve Medication IDs
+      const findMedId = (name: string, type: 'Controller' | 'Reliever') => {
+        if (!name || name === '-') return null;
+        const list = type === 'Controller' ? medListItems.controllers : medListItems.relievers;
+        const found = list.find((m) => m.name === name);
+        return found ? found.id : null;
+      };
+
+      const c1_med_id = findMedId(data.c1_name, 'Controller');
+      const c2_med_id = data.show_c2 ? findMedId(data.c2_name, 'Controller') : null;
+      const reliever_med_id = findMedId(data.reliever_name, 'Reliever');
+
       // Save Medications
       const medData = [
         params.hn,
@@ -611,7 +635,10 @@ function RecordVisitPageInner() {
         data.c1_name, data.c1_puffs, data.c1_freq,
         data.show_c2 ? data.c2_name : "", data.show_c2 ? data.c2_puffs : "", data.show_c2 ? data.c2_freq : "",
         data.reliever_name, data.reliever_label,
-        data.medication_note || '-'
+        data.medication_note || '-',
+        c1_med_id,
+        c2_med_id,
+        reliever_med_id
       ];
       promises.push(fetch('/api/db', {
         method: httpMethod,

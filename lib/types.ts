@@ -82,6 +82,9 @@ export interface Medication {
     reliever_name: string;
     reliever_label: string;
     note: string;
+    c1_med_id?: number | null;
+    c2_med_id?: number | null;
+    reliever_med_id?: number | null;
 }
 
 export interface DRP {

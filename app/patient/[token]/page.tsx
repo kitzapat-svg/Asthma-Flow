@@ -886,7 +886,7 @@ export default function PatientPublicPage() {
                         contentStyle={{ borderRadius: '10px', fontSize: '12px', color: '#000' }}
                         formatter={(value: any) => [value || 'ไม่มีข้อมูล', 'PEFR']}
                       />
-                      <Line connectNulls={false} type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', stroke: '#fff', strokeWidth: 2 }} />
+                      <Line connectNulls={true} type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', stroke: '#fff', strokeWidth: 2 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>

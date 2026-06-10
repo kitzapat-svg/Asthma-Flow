@@ -58,8 +58,8 @@ export async function GET(request: Request) {
       },
       {
         tab: 'medications',
-        headers: ['hn', 'date', 'c1_name', 'c1_puffs', 'c1_freq', 'c2_name', 'c2_puffs', 'c2_freq', 'reliever_name', 'reliever_label', 'note'],
-        query: supabaseAdmin.from('medications').select('hn, date, c1_name, c1_puffs, c1_freq, c2_name, c2_puffs, c2_freq, reliever_name, reliever_label, note').order('date', { ascending: false })
+        headers: ['hn', 'date', 'c1_name', 'c1_puffs', 'c1_freq', 'c2_name', 'c2_puffs', 'c2_freq', 'reliever_name', 'reliever_label', 'note', 'c1_med_id', 'c2_med_id', 'reliever_med_id'],
+        query: supabaseAdmin.from('medications').select('hn, date, c1_name, c1_puffs, c1_freq, c2_name, c2_puffs, c2_freq, reliever_name, reliever_label, note, c1_med_id, c2_med_id, reliever_med_id').order('date', { ascending: false })
       },
       {
         tab: 'technique_checks',
