@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "Dashboard  — Asthma Flow",
+    title: "Dashboard",
     description:
         "วิเคราะห์ข้อมูลการให้บริการ สถิติรายสัปดาห์ รายเดือน สัดส่วนสถานะผู้ป่วย",
 };
