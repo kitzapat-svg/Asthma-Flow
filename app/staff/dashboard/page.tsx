@@ -1248,7 +1248,7 @@ export default function StatsPage() {
                       {v.pefr ? `${v.pefr} L/min` : '-'}
                     </td>
                     <td className="p-3">
-                      {v.control_level === 'Controlled' ? (
+                      {(v.control_level === 'Controlled' || v.control_level === 'Well-controlled') ? (
                         <span className="px-2 py-0.5 border border-border bg-emerald-100 text-emerald-800 font-bold text-[10px]">Controlled</span>
                       ) : v.control_level === 'Partly Controlled' ? (
                         <span className="px-2 py-0.5 border border-border bg-amber-100 text-amber-800 font-bold text-[10px]">Partly Controlled</span>
