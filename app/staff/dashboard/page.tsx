@@ -2,58 +2,55 @@
 
 import { useEffect, useState } from 'react';
 import {
-  Activity, PieChart as PieChartIcon, BarChart3, RefreshCw,
-  CalendarDays, TrendingUp, Users, CalendarRange, LineChart,
-  Stethoscope, AlertCircle, BookOpen,
-  Pill, CheckCircle2, Clock3, XCircle, ListChecks
+  BarChart3, RefreshCw, CalendarDays, TrendingUp, Users, CalendarRange,
+  LineChart, Stethoscope, AlertCircle, BookOpen, Pill, CheckCircle2, Clock3, XCircle,
+  ListChecks, Search, PieChart as PieChartIcon
 } from 'lucide-react';
-// NOTE: recharts uses `window` but this is a 'use client' file with a loading
-// guard — recharts components only render after client-side data fetch completes,
-// so they are never invoked during SSR.
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   ComposedChart, Line, Area
 } from 'recharts';
-import { format, subDays, startOfWeek, endOfWeek, subMonths, startOfMonth, endOfMonth, addDays, getDay, isSameDay, parseISO } from 'date-fns';
+import { format, addDays, getDay, isSameDay } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { toBangkokDateString } from '@/lib/date-utils';
-
 import { Patient, Visit, TechniqueCheck, MDI_STEPS, DRP } from '@/lib/types';
 import { getAge, normalizeHN } from '@/lib/helpers';
-import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { CountUp } from '@/components/animated/count-up';
 import { FadeContent } from '@/components/animated/fade-content';
+import Link from 'next/link';
 
 export default function StatsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [techniqueChecks, setTechniqueChecks] = useState<TechniqueCheck[]>([]);
+  const [drps, setDrps] = useState<DRP[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Stats
-  const [weeklyVisits, setWeeklyVisits] = useState(0);
-  const [monthlyVisits, setMonthlyVisits] = useState(0);
-  const [newPatients, setNewPatients] = useState(0);
+  // Filter States
+  const [filterType, setFilterType] = useState<'month' | 'quarter' | 'year'>('month');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth()); // 0-11
+  const [selectedQuarter, setSelectedQuarter] = useState<number>(Math.floor(new Date().getMonth() / 3) + 1); // 1-4
 
-  // Drill-down State
-  const [selectedStat, setSelectedStat] = useState<'weekly' | 'monthly' | null>(null);
+  // Trend Chart display toggles
+  const [showVisitsTrend, setShowVisitsTrend] = useState(true);
+  const [showDrpsTrend, setShowDrpsTrend] = useState(true);
+  const [showTechChecksTrend, setShowTechChecksTrend] = useState(true);
 
-  // New Features State
+  // Drill-down Modal States
+  const [activeDrillDown, setActiveDrillDown] = useState<'visits' | 'drps' | 'techChecks' | 'newPatients' | null>(null);
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
+
+  // Tuesday Appointments State
   const [selectedTuesday, setSelectedTuesday] = useState<Date | null>(null);
   const [tuesdayOptions, setTuesdayOptions] = useState<Date[]>([]);
-  const [tuesdayAppts, setTuesdayAppts] = useState<{ hn: string, name: string, time: string }[]>([]);
-
-  const [fiscalYearStats, setFiscalYearStats] = useState<any[]>([]);
-  const [selectedFy, setSelectedFy] = useState<number>(new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0)); // Default to current FY (Oct starts new FY)
-
-  const [drpFyStats, setDrpFyStats] = useState<any[]>([]);
-  const [selectedDrpFy, setSelectedDrpFy] = useState<number>(new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0));
-
+  const [tuesdayAppts, setTuesdayAppts] = useState<{ hn: string, name: string, firstName?: string, time: string }[]>([]);
+  const [tuesdaySort, setTuesdaySort] = useState<'hn' | 'name' | 'none'>('none');
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {
@@ -79,37 +76,9 @@ export default function StatsPage() {
       setPatients(validPatients);
       setVisits(validVisits);
       setTechniqueChecks(validTech);
+      setDrps(validDrps);
 
-      // --- Calculate Snapshot Stats ---
-      const now = new Date();
-
-      // 1. Weekly Visits (Last 7 Days)
-      const oneWeekAgo = new Date(now);
-      oneWeekAgo.setDate(now.getDate() - 7);
-
-      const weeklyCount = validVisits.filter(v => {
-        const d = new Date(v.visit_date ?? v.date ?? '');
-        return d >= oneWeekAgo && d <= now;
-      }).length;
-      setWeeklyVisits(weeklyCount);
-
-      // 2. Monthly Visits (This Month)
-      const startOfCurrentMonth = startOfMonth(now);
-      const monthlyCount = validVisits.filter(v => {
-        const d = new Date(v.visit_date ?? v.date ?? '');
-        return d >= startOfCurrentMonth && d <= now;
-      }).length;
-      setMonthlyVisits(monthlyCount);
-
-      // 3. New Patients (This Month) based on is_new_case flag
-      const newPatientsCount = validVisits.filter(v => {
-        const d = new Date(v.visit_date ?? v.date ?? '');
-        const isNew = v.is_new_case === true || String(v.is_new_case).toUpperCase() === 'TRUE';
-        return d >= startOfCurrentMonth && d <= now && isNew;
-      }).length;
-      setNewPatients(newPatientsCount);
-
-      // --- 4. Tuesday Appointments ---
+      // --- Tuesday Appointments (Default next Tuesday) ---
       const today = new Date();
       const currentDay = getDay(today);
       const daysUntilTue = (2 - currentDay + 7) % 7;
@@ -117,27 +86,45 @@ export default function StatsPage() {
       setSelectedTuesday(nextTue);
 
       const options = [];
-      for(let i = -4; i <= 4; i++) {
-         options.push(addDays(nextTue, i * 7));
+      for (let i = -4; i <= 4; i++) {
+        options.push(addDays(nextTue, i * 7));
       }
       setTuesdayOptions(options);
-
       calculateTuesdayAppts(validVisits, validPatients, nextTue);
 
-      // --- 5. Fiscal Year Stats (Inhaler Teaching) ---
-      calculateFiscalYearStats(validTech);
-
-      // --- 6. DRP Fiscal Year Stats ---
-      calculateDrpFiscalYearStats(validDrps);
-
     } catch (error) {
-      console.error("Failed to fetch:", error);
+      console.error("Failed to fetch dashboard data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Helpers ---
+  const cleanThaiPrefix = (name: string): string => {
+    let cleaned = name.trim();
+    const prefixes = [
+      /^นาย\s*/,
+      /^นางสาว\s*/,
+      /^นาง\s*/,
+      /^น\.ส\.\s*/,
+      /^ด\.ช\.\s*/,
+      /^ด\.ญ\.\s*/,
+      /^เด็กชาย\s*/,
+      /^เด็กหญิง\s*/,
+      /^พระครู\s*/,
+      /^พระ\s*/,
+      /^นพ\.\s*/,
+      /^พญ\.\s*/,
+      /^ทพ\.\s*/,
+      /^ทญ\.\s*/,
+    ];
+    for (const prefix of prefixes) {
+      if (prefix.test(cleaned)) {
+        cleaned = cleaned.replace(prefix, '');
+        break;
+      }
+    }
+    return cleaned;
+  };
 
   const calculateTuesdayAppts = (allVisits: Visit[], allPatients: Patient[], date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -154,12 +141,28 @@ export default function StatsPage() {
       const p = allPatients.find(pat => normalizeHN(pat.hn) === normHn);
       return {
         hn: normHn,
-        name: p ? `${p.prefix}${p.first_name} ${p.last_name}` : 'Unknown',
+        name: p ? `${p.prefix || ''}${p.first_name} ${p.last_name}` : 'Unknown',
+        firstName: p ? p.first_name : 'Unknown',
         time: '13:00 - 16:00'
       };
     });
 
     setTuesdayAppts(apptDetails);
+  };
+
+  const getSortedTuesdayAppts = () => {
+    const list = [...tuesdayAppts];
+    if (tuesdaySort === 'hn') {
+      return list.sort((a, b) => a.hn.localeCompare(b.hn, 'th'));
+    }
+    if (tuesdaySort === 'name') {
+      return list.sort((a, b) => {
+        const nameA = a.firstName || cleanThaiPrefix(a.name);
+        const nameB = b.firstName || cleanThaiPrefix(b.name);
+        return nameA.localeCompare(nameB, 'th');
+      });
+    }
+    return list;
   };
 
   const handleTuesdayChange = (dateStr: string) => {
@@ -168,243 +171,340 @@ export default function StatsPage() {
     calculateTuesdayAppts(visits, patients, newDate);
   };
 
-  const getFiscalYear = (date: Date) => {
-    // Fiscal Year: Oct 1 - Sep 30
-    // If Month >= 9 (Oct is 9 in JS 0-indexed), then FY = Year + 1
-    return date.getMonth() >= 9 ? date.getFullYear() + 1 : date.getFullYear();
+  // Helper: Date formatters
+  const toThaiShortDate = (dateStr: string | Date | undefined | null) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '-';
+    const day = date.getDate();
+    const month = date.toLocaleDateString('th-TH', { month: 'short' });
+    const year = String((date.getFullYear() + 543) % 100).padStart(2, '0');
+    return `${day} ${month} ${year}`;
   };
 
-  const calculateDrpFiscalYearStats = (drpList: DRP[]) => {
-    const grouped: Record<number, DRP[]> = {};
+  const getPatientName = (hn: string) => {
+    const p = patients.find(pat => normalizeHN(pat.hn) === normalizeHN(hn));
+    return p ? `${p.prefix}${p.first_name} ${p.last_name}` : 'ไม่ทราบชื่อ';
+  };
 
-    drpList.forEach(d => {
-      const dateStr = d.visit_date || d.created_date || d.date;
-      if (!dateStr) return;
-      const parsed = new Date(dateStr);
-      if (isNaN(parsed.getTime())) return;
-      const fy = getFiscalYear(parsed);
-      if (!grouped[fy]) grouped[fy] = [];
-      grouped[fy].push(d);
+  const getPatientStatus = (hn: string) => {
+    const p = patients.find(pat => normalizeHN(pat.hn) === normalizeHN(hn));
+    return p ? p.status : '-';
+  };
+
+  const getPatientPhone = (hn: string) => {
+    const p = patients.find(pat => normalizeHN(pat.hn) === normalizeHN(hn));
+    return p ? p.phone || '-' : '-';
+  };
+
+  const getMissedSteps = (c: TechniqueCheck) => {
+    const missed = [];
+    for (let idx = 0; idx < MDI_STEPS.length; idx++) {
+      const key = `step${idx + 1}` as keyof TechniqueCheck;
+      const val = c[key] as unknown;
+      if (val === 0 || val === '0' || val === false || val === 'false' || String(val) === '0' || String(val) === 'false') {
+        missed.push(idx + 1);
+      }
+    }
+    return missed.length > 0 ? `พลาดข้อ: ${missed.join(', ')}` : 'ถูกต้องทุกข้อ';
+  };
+
+  // Time Range Helpers
+  const getPeriodRange = (type: 'month' | 'quarter' | 'year', yr: number, val: number) => {
+    let startDate: Date;
+    let endDate: Date;
+
+    if (type === 'month') {
+      startDate = new Date(yr, val, 1);
+      endDate = new Date(yr, val + 1, 0, 23, 59, 59, 999);
+    } else if (type === 'quarter') {
+      // Fiscal quarters (Fiscal Year starts in October of calendar year yr-1)
+      // Q1: Oct - Dec (yr - 1)
+      // Q2: Jan - Mar (yr)
+      // Q3: Apr - Jun (yr)
+      // Q4: Jul - Sep (yr)
+      if (val === 1) {
+        startDate = new Date(yr - 1, 9, 1); // 9 = October
+        endDate = new Date(yr - 1, 12, 0, 23, 59, 59, 999); // Dec 31
+      } else if (val === 2) {
+        startDate = new Date(yr, 0, 1); // 0 = January
+        endDate = new Date(yr, 3, 0, 23, 59, 59, 999); // Mar 31
+      } else if (val === 3) {
+        startDate = new Date(yr, 3, 1); // 3 = April
+        endDate = new Date(yr, 6, 0, 23, 59, 59, 999); // Jun 30
+      } else {
+        startDate = new Date(yr, 6, 1); // 6 = July
+        endDate = new Date(yr, 9, 0, 23, 59, 59, 999); // Sep 30
+      }
+    } else {
+      // 'year' mode: entire Fiscal Year 'yr' (October 1st of yr - 1 to September 30th of yr)
+      startDate = new Date(yr - 1, 9, 1); // October 1st
+      endDate = new Date(yr, 9, 0, 23, 59, 59, 999); // September 30th
+    }
+
+    return { startDate, endDate };
+  };
+
+  const getPreviousPeriodRange = (type: 'month' | 'quarter' | 'year', yr: number, val: number) => {
+    if (type === 'month') {
+      const prevMonth = val === 0 ? 11 : val - 1;
+      const prevYear = val === 0 ? yr - 1 : yr;
+      return getPeriodRange('month', prevYear, prevMonth);
+    } else if (type === 'quarter') {
+      const prevQuarter = val === 1 ? 4 : val - 1;
+      const prevYear = val === 1 ? yr - 1 : yr;
+      return getPeriodRange('quarter', prevYear, prevQuarter);
+    } else {
+      // 'year' mode: previous fiscal year is yr - 1
+      return getPeriodRange('year', yr - 1, val);
+    }
+  };
+
+  const filterListByRange = <T extends { visit_date?: string; date?: string; created_date?: string }>(
+    list: T[],
+    start: Date,
+    end: Date
+  ) => {
+    return list.filter(item => {
+      const dateStr = item.visit_date || item.created_date || item.date;
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return d >= start && d <= end;
     });
+  };
 
-    const stats = Object.keys(grouped).map(fyStr => {
-      const fy = parseInt(fyStr);
-      const list = grouped[fy];
+  // --- Dynamic Stats Calculations ---
+  const currentVal = filterType === 'month' ? selectedMonth : selectedQuarter;
+  const currentRange = getPeriodRange(filterType, selectedYear, currentVal);
+  const previousRange = getPreviousPeriodRange(filterType, selectedYear, currentVal);
 
-      // Unique patients with any DRP
-      const uniqueHns = new Set(list.map(d => normalizeHN(d.hn)));
+  const currentVisits = filterListByRange(visits, currentRange.startDate, currentRange.endDate);
+  const previousVisits = filterListByRange(visits, previousRange.startDate, previousRange.endDate);
 
-      // Outcome buckets
-      const resolvedHns = new Set<string>();
-      const followUpHns = new Set<string>();
-      const refusedHns = new Set<string>();
+  const currentDrps = filterListByRange(drps, currentRange.startDate, currentRange.endDate);
+  const previousDrps = filterListByRange(drps, previousRange.startDate, previousRange.endDate);
 
-      list.forEach(d => {
-        const o = (d.outcome || '').toLowerCase();
-        const hn = normalizeHN(d.hn);
-        if (o.includes('resolved') || o.includes('สำเร็จ')) {
-          resolvedHns.add(hn);
-        } else if (o.includes('monitoring') || o.includes('follow') || o.includes('ติดตาม')) {
-          followUpHns.add(hn);
-        } else if (o.includes('refused') || o.includes('ปฏิเสธ')) {
-          refusedHns.add(hn);
+  const currentTechChecks = filterListByRange(techniqueChecks, currentRange.startDate, currentRange.endDate);
+  const previousTechChecks = filterListByRange(techniqueChecks, previousRange.startDate, previousRange.endDate);
+
+  const currentNewPatients = currentVisits.filter(v => {
+    return v.is_new_case === true || String(v.is_new_case).toUpperCase() === 'TRUE';
+  });
+  const previousNewPatients = previousVisits.filter(v => {
+    return v.is_new_case === true || String(v.is_new_case).toUpperCase() === 'TRUE';
+  });
+
+  const getTrendPercentage = (current: number, previous: number) => {
+    if (previous === 0) return current > 0 ? '+100%' : '0%';
+    const pct = ((current - previous) / previous) * 100;
+    return `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
+  };
+
+  // Drilldown lists search filtering
+  const getFilteredModalData = () => {
+    const query = modalSearchTerm.toLowerCase().trim();
+    if (activeDrillDown === 'visits') {
+      return currentVisits.filter(v => {
+        const name = getPatientName(v.hn).toLowerCase();
+        return v.hn.toLowerCase().includes(query) || name.includes(query);
+      });
+    }
+    if (activeDrillDown === 'drps') {
+      return currentDrps.filter(d => {
+        const name = getPatientName(d.hn).toLowerCase();
+        return d.hn.toLowerCase().includes(query) || name.includes(query) || d.category.toLowerCase().includes(query) || d.type.toLowerCase().includes(query);
+      });
+    }
+    if (activeDrillDown === 'techChecks') {
+      return currentTechChecks.filter(t => {
+        const name = getPatientName(t.hn).toLowerCase();
+        return t.hn.toLowerCase().includes(query) || name.includes(query) || (t.note || '').toLowerCase().includes(query);
+      });
+    }
+    if (activeDrillDown === 'newPatients') {
+      return currentNewPatients.filter(v => {
+        const name = getPatientName(v.hn).toLowerCase();
+        return v.hn.toLowerCase().includes(query) || name.includes(query);
+      });
+    }
+    return [];
+  };
+
+  // --- Dynamic breakdowns for current period ---
+  const periodTechStats = (() => {
+    if (currentTechChecks.length === 0) return { totalChecks: 0, totalPatients: 0, topMistakes: [] };
+    const uniquePatients = new Set(currentTechChecks.map(c => c.hn)).size;
+
+    const mistakeCounts = new Array(MDI_STEPS.length).fill(0);
+    currentTechChecks.forEach(c => {
+      for (let idx = 0; idx < MDI_STEPS.length; idx++) {
+        const key = `step${idx + 1}` as keyof TechniqueCheck;
+        const val = c[key] as unknown;
+        if (val === 0 || val === '0' || val === false || val === 'false' || String(val) === '0' || String(val) === 'false') {
+          mistakeCounts[idx]++;
         }
-      });
+      }
+    });
 
-      // Top problem categories
-      const catCount: Record<string, number> = {};
-      list.forEach(d => {
-        const cat = (d.category || '').trim();
-        if (cat) catCount[cat] = (catCount[cat] || 0) + 1;
-      });
-      const topCategories = Object.entries(catCount)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([name, count]) => ({ name, count }));
+    const mistakesMapped = mistakeCounts.map((count, idx) => ({
+      step: MDI_STEPS[idx],
+      count
+    })).filter(m => m.count > 0);
 
-      // Also gather top problem types
-      const typeCount: Record<string, number> = {};
-      list.forEach(d => {
-        const t = (d.type || '').trim();
-        if (t) typeCount[t] = (typeCount[t] || 0) + 1;
-      });
-      const topTypes = Object.entries(typeCount)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([name, count]) => ({ name, count }));
+    mistakesMapped.sort((a, b) => b.count - a.count);
 
+    return {
+      totalChecks: currentTechChecks.length,
+      totalPatients: uniquePatients,
+      topMistakes: mistakesMapped.slice(0, 3)
+    };
+  })();
+
+  const periodDrpStats = (() => {
+    if (currentDrps.length === 0) {
       return {
-        fy,
-        totalPatients: uniqueHns.size,
-        totalDrps: list.length,
-        resolved: resolvedHns.size,
-        followUp: followUpHns.size,
-        refused: refusedHns.size,
-        topCategories,
-        topTypes,
+        totalDrps: 0,
+        totalPatients: 0,
+        resolved: 0,
+        followUp: 0,
+        refused: 0,
+        topCategories: [],
+        topTypes: []
       };
-    });
-
-    stats.sort((a, b) => b.fy - a.fy);
-    setDrpFyStats(stats);
-
-    if (stats.length > 0 && !stats.find(s => s.fy === selectedDrpFy)) {
-      setSelectedDrpFy(stats[0].fy);
     }
-  };
 
-  const calculateFiscalYearStats = (techChecks: TechniqueCheck[]) => {
-    const groupedByFy: Record<number, TechniqueCheck[]> = {};
+    const uniqueHns = new Set(currentDrps.map(d => normalizeHN(d.hn)));
 
-    techChecks.forEach(t => {
-      const d = new Date(t.date);
-      const fy = getFiscalYear(d);
-      if (!groupedByFy[fy]) groupedByFy[fy] = [];
-      groupedByFy[fy].push(t);
+    let resolved = 0;
+    let followUp = 0;
+    let refused = 0;
+
+    currentDrps.forEach(d => {
+      const o = (d.outcome || '').toLowerCase();
+      if (o.includes('resolved') || o.includes('สำเร็จ')) {
+        resolved++;
+      } else if (o.includes('monitoring') || o.includes('follow') || o.includes('ติดตาม')) {
+        followUp++;
+      } else if (o.includes('refused') || o.includes('ปฏิเสธ')) {
+        refused++;
+      }
     });
 
-    const stats = Object.keys(groupedByFy).map(fyStr => {
-      const fy = parseInt(fyStr);
-      const checks = groupedByFy[fy];
-      const uniquePatients = new Set(checks.map(c => c.hn)).size;
+    const catCount: Record<string, number> = {};
+    currentDrps.forEach(d => {
+      const cat = (d.category || '').trim();
+      if (cat) catCount[cat] = (catCount[cat] || 0) + 1;
+    });
+    const topCategories = Object.entries(catCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
 
-      // Common Mistakes
-      // Steps data: ["1", "0", "1"...] -> 1=Done/Correct, 0=Missed/Incorrect (Based on checkbox logic: checked=1)
-      // Usually "1" means checked (Done/Correct). So "0" means Mistake/Missed.
-      const mistakeCounts = new Array(MDI_STEPS.length).fill(0);
+    const typeCount: Record<string, number> = {};
+    currentDrps.forEach(d => {
+      const t = (d.type || '').trim();
+      if (t) typeCount[t] = (typeCount[t] || 0) + 1;
+    });
+    const topTypes = Object.entries(typeCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
 
-      checks.forEach(c => {
-        // The data from Google Sheets API returns objects with headers as keys,
-        for (let idx = 0; idx < MDI_STEPS.length; idx++) {
-          const key = `step${idx + 1}` as keyof TechniqueCheck;
-          const val = c[key] as any;
+    return {
+      totalDrps: currentDrps.length,
+      totalPatients: uniqueHns.size,
+      resolved,
+      followUp,
+      refused,
+      topCategories,
+      topTypes
+    };
+  })();
 
-          // Form sends "1" for checked, "0" for unchecked.
-          // If unchecked (0) => Mistake
-          if (String(val) === "0" || String(val) === "false") {
-            mistakeCounts[idx]++;
-          }
+  // --- Trend Charts Generator (Rolling last 12 months / 8 quarters) ---
+  const getTrendData = () => {
+    const data = [];
+    if (filterType === 'month') {
+      for (let i = 11; i >= 0; i--) {
+        let m = selectedMonth - i;
+        let y = selectedYear;
+        if (m < 0) {
+          m += 12;
+          y -= 1;
         }
-      });
 
-      // Map to { step: string, count: number }
-      const mistakesMapped = mistakeCounts.map((count, idx) => ({
-        step: MDI_STEPS[idx],
-        count
-      })).filter(m => m.count > 0);
+        const { startDate, endDate } = getPeriodRange('month', y, m);
+        const thaiYearShort = String((startDate.getFullYear() + 543) % 100).padStart(2, '0');
+        const monthName = startDate.toLocaleDateString('th-TH', { month: 'short' });
+        const label = `${monthName} ${thaiYearShort}`;
 
-      // Sort desc
-      mistakesMapped.sort((a, b) => b.count - a.count);
+        const periodVisits = filterListByRange(visits, startDate, endDate);
+        const periodDrps = filterListByRange(drps, startDate, endDate);
+        const periodTechChecks = filterListByRange(techniqueChecks, startDate, endDate);
 
-      return {
-        fy,
-        totalPatients: uniquePatients,
-        totalChecks: checks.length,
-        topMistakes: mistakesMapped.slice(0, 3) // Top 3
-      };
-    });
+        data.push({
+          name: label,
+          visits: periodVisits.length,
+          drps: periodDrps.length,
+          techChecks: periodTechChecks.length,
+        });
+      }
+    } else if (filterType === 'quarter') {
+      for (let i = 7; i >= 0; i--) {
+        let q = selectedQuarter - i;
+        let y = selectedYear;
+        while (q <= 0) {
+          q += 4;
+          y -= 1;
+        }
 
-    // Sort by FY desc
-    stats.sort((a, b) => b.fy - a.fy);
-    setFiscalYearStats(stats);
+        const { startDate, endDate } = getPeriodRange('quarter', y, q);
+        const thaiYearShort = String((y + 543) % 100).padStart(2, '0');
+        const label = `Q${q}/${thaiYearShort}`;
 
-    // Set default selected FY if not set or available
-    if (stats.length > 0 && !stats.find(s => s.fy === selectedFy)) {
-      setSelectedFy(stats[0].fy);
+        const periodVisits = filterListByRange(visits, startDate, endDate);
+        const periodDrps = filterListByRange(drps, startDate, endDate);
+        const periodTechChecks = filterListByRange(techniqueChecks, startDate, endDate);
+
+        data.push({
+          name: label,
+          visits: periodVisits.length,
+          drps: periodDrps.length,
+          techChecks: periodTechChecks.length,
+        });
+      }
+    } else {
+      // 'year' mode: show last 5 fiscal years
+      for (let i = 4; i >= 0; i--) {
+        const y = selectedYear - i;
+        const { startDate, endDate } = getPeriodRange('year', y, 0);
+        const label = `ปีงบฯ ${y + 543}`;
+
+        const periodVisits = filterListByRange(visits, startDate, endDate);
+        const periodDrps = filterListByRange(drps, startDate, endDate);
+        const periodTechChecks = filterListByRange(techniqueChecks, startDate, endDate);
+
+        data.push({
+          name: label,
+          visits: periodVisits.length,
+          drps: periodDrps.length,
+          techChecks: periodTechChecks.length,
+        });
+      }
     }
+    return data;
   };
 
-  // --- Historical Data Generators ---
-
-  // 1. Weekly Trend (Last 8 Weeks)
-  const getWeeklyTrend = () => {
-    const weeks = [];
-    const now = new Date();
-
-    for (let i = 7; i >= 0; i--) {
-      const d = subDays(now, i * 7);
-      const start = startOfWeek(d, { weekStartsOn: 1 }); // Monday start
-      const end = endOfWeek(d, { weekStartsOn: 1 });
-
-      // Use Tuesday (clinic day) for the label instead of Monday (start of week)
-      const tuesday = addDays(start, 1);
-      const tueBkk = toBangkokDateString(tuesday);
-      const tueDay = parseInt(tueBkk.split('-')[2], 10);
-      const tueMonth = new Date(tueBkk + 'T00:00:00+07:00').toLocaleDateString('en-US', { month: 'short', timeZone: 'Asia/Bangkok' });
-      const endBkk = toBangkokDateString(end);
-      const endDay = parseInt(endBkk.split('-')[2], 10);
-      const endMonth = new Date(endBkk + 'T00:00:00+07:00').toLocaleDateString('th-TH', { month: 'short', timeZone: 'Asia/Bangkok' });
-
-      const weekNum = format(start, 'w');
-      const label = `W${weekNum} (${tueDay} ${tueMonth})`;
-      const dateRange = `${tueDay} ${tueMonth} - ${endDay} ${endMonth}`;
-
-      // Count visits in this week
-      const visitCount = visits.filter(v => {
-        const vd = new Date(v.visit_date ?? v.date ?? '');
-        return vd >= start && vd <= end;
-      }).length;
-
-      // Count new patients in this week
-      const newCount = visits.filter(v => {
-        const vd = new Date(v.visit_date ?? v.date ?? '');
-        const isNew = v.is_new_case === true || String(v.is_new_case).toUpperCase() === 'TRUE';
-        return vd >= start && vd <= end && isNew;
-      }).length;
-
-      weeks.push({
-        name: label,
-        fullDate: dateRange,
-        visits: visitCount,
-        newPatients: newCount
-      });
-    }
-    return weeks;
-  };
-
-  // 2. Monthly Trend (Last 24 Months)
-  const getMonthlyTrend = () => {
-    const months = [];
-    const now = new Date();
-
-    for (let i = 23; i >= 0; i--) {
-      const d = subMonths(now, i);
-      const start = startOfMonth(d);
-      const end = endOfMonth(d);
-      const label = format(d, 'MMM yy', { locale: th });
-
-      // Count visits in this month
-      const visitCount = visits.filter(v => {
-        const vd = new Date(v.visit_date ?? v.date ?? '');
-        return vd >= start && vd <= end;
-      }).length;
-
-      // Count new patients in this month
-      const newCount = visits.filter(v => {
-        const vd = new Date(v.visit_date ?? v.date ?? '');
-        const isNew = v.is_new_case === true || String(v.is_new_case).toUpperCase() === 'TRUE';
-        return vd >= start && vd <= end && isNew;
-      }).length;
-
-      months.push({
-        name: label,
-        visits: visitCount,
-        newPatients: newCount
-      });
-    }
-    return months;
-  };
-
-  // --- Current Charts Data ---
+  // Status and Age charts
   const statusCounts = {
     Active: patients.filter(p => p.status === 'Active').length,
     COPD: patients.filter(p => p.status === 'COPD').length,
     Discharge: patients.filter(p => p.status === 'Discharge').length,
   };
   const statusData = [
-    { name: 'Active', value: statusCounts.Active, color: '#22c55e' },
-    { name: 'COPD', value: statusCounts.COPD, color: '#f97316' },
-    { name: 'Discharge', value: statusCounts.Discharge, color: '#9ca3af' },
+    { name: 'Active', value: statusCounts.Active, color: '#D97736' },
+    { name: 'COPD', value: statusCounts.COPD, color: '#8B5A2B' },
+    { name: 'Discharge', value: statusCounts.Discharge, color: '#8A8580' },
   ].filter(item => item.value > 0);
 
   const ageGroups = patients.reduce((acc, p) => {
@@ -421,9 +521,6 @@ export default function StatsPage() {
     { name: 'สูงอายุ (60+)', value: ageGroups['60+'] },
   ];
 
-  // Current FY Data for Display
-  const currentFyData = fiscalYearStats.find(s => s.fy === selectedFy) || { totalPatients: 0, topMistakes: [] };
-
   if (loading) return (
     <div className="space-y-8 pb-20 animate-fade-up">
       {/* Skeleton Header */}
@@ -437,10 +534,10 @@ export default function StatsPage() {
       {/* Skeleton Stat Tiles */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="glass-card p-5">
+          <div key={i} className="retro-box-static p-5 bg-card">
             <div className="flex justify-between items-start mb-4">
-              <div className="h-9 w-9 skeleton-shimmer rounded-xl" />
-              <div className="h-5 w-12 skeleton-shimmer rounded-full" />
+              <div className="h-9 w-9 skeleton-shimmer rounded" />
+              <div className="h-5 w-12 skeleton-shimmer rounded" />
             </div>
             <div className="h-3 w-28 skeleton-shimmer rounded mb-2" />
             <div className="h-8 w-16 skeleton-shimmer rounded" />
@@ -450,7 +547,7 @@ export default function StatsPage() {
       {/* Skeleton Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[...Array(2)].map((_, i) => (
-          <div key={i} className="stat-card bg-white dark:bg-zinc-900 p-6">
+          <div key={i} className="retro-box-static bg-card p-6">
             <div className="h-5 w-44 skeleton-shimmer rounded mb-6" />
             <div className="h-[280px] skeleton-shimmer rounded-xl" />
           </div>
@@ -459,416 +556,924 @@ export default function StatsPage() {
     </div>
   );
 
+  const getFormattedPeriodLabel = () => {
+    if (filterType === 'month') {
+      const date = new Date(selectedYear, selectedMonth, 1);
+      return `${date.toLocaleDateString('th-TH', { month: 'long' })} ${selectedYear + 543}`;
+    } else if (filterType === 'quarter') {
+      return `ไตรมาส ${selectedQuarter} (ปีงบประมาณ พ.ศ. ${selectedYear + 543})`;
+    } else {
+      return `ปีงบประมาณ พ.ศ. ${selectedYear + 543} (1 ต.ค. ${String((selectedYear - 1 + 543) % 100).padStart(2, '0')} - 30 ก.ย. ${String((selectedYear + 543) % 100).padStart(2, '0')})`;
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-foreground dark:text-white">Dashboard</h2>
-          <p className="text-muted-foreground mt-1">วิเคราะห์ข้อมูลการให้บริการ</p>
+          <h2 className="text-3xl font-black text-foreground uppercase tracking-tight font-sans">Dashboard & Statistics</h2>
+          <p className="text-muted-foreground mt-1 font-sans">วิเคราะห์ข้อมูลการให้บริการและผลการรักษา</p>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchData} className="rounded-full hover:rotate-180 transition-all duration-500">
-          <RefreshCw size={20} />
-        </Button>
+        <button
+          onClick={fetchData}
+          className="p-3 bg-card border-2 border-border shadow-retro-sm hover:shadow-retro hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer w-fit"
+          title="รีเฟรชข้อมูล"
+        >
+          <RefreshCw size={18} className="text-foreground" />
+        </button>
       </div>
 
-      {/* Top Stats Row (Cards) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile
-          label="จำนวนผู้รับบริการ (7 วัน)"
-          value={weeklyVisits}
-          sub="คน"
-          icon={<CalendarDays size={20} />}
-          delay={0.1}
-          trend="+5%"
-          onClick={() => setSelectedStat('weekly')}
-          clickable
-        />
-        <StatTile
-          label="จำนวนผู้รับบริการ (เดือนนี้)"
-          value={monthlyVisits}
-          sub="คน"
-          icon={<CalendarRange size={20} />}
-          delay={0.15}
-          trend="+12%"
-          onClick={() => setSelectedStat('monthly')}
-          clickable
-        />
-        <StatTile
-          label="ผู้ป่วยใหม่ (เดือนนี้)"
-          value={newPatients}
-          sub="คน"
-          icon={<Users size={20} />}
-          delay={0.2}
-          color="text-primary"
-          onClick={() => setSelectedStat('monthly')}
-          clickable
-        />
-        <StatTile
-          label="ผู้ป่วย Active"
-          value={statusCounts.Active}
-          sub="total"
-          icon={<Activity size={20} />}
-          delay={0.25}
-          color="text-green-500"
-        />
-      </div>
+      {/* --- Filter Navigation Bar --- */}
+      <FadeContent delay={0.05}>
+        <div className="retro-box-static bg-card p-5 flex flex-col md:flex-row gap-5 items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto font-sans">
+            <span className="text-sm font-black text-foreground uppercase tracking-wider shrink-0">มุมมองตัวกรอง:</span>
 
-      {/* NEW SECTION: Appointments & Teaching Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Toggle tabs */}
+            <div className="flex border-2 border-border p-1 bg-secondary/30 w-full sm:w-auto">
+              <button
+                onClick={() => setFilterType('month')}
+                className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-black uppercase transition-all cursor-pointer ${filterType === 'month'
+                  ? 'bg-primary text-primary-foreground border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] -translate-x-0.5 -translate-y-0.5'
+                  : 'text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                รายเดือน
+              </button>
+              <button
+                onClick={() => setFilterType('quarter')}
+                className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-black uppercase transition-all cursor-pointer ${filterType === 'quarter'
+                  ? 'bg-primary text-primary-foreground border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] -translate-x-0.5 -translate-y-0.5'
+                  : 'text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                รายไตรมาส
+              </button>
+              <button
+                onClick={() => setFilterType('year')}
+                className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-black uppercase transition-all cursor-pointer ${filterType === 'year'
+                  ? 'bg-primary text-primary-foreground border-2 border-border shadow-[2px_2px_0px_0px_var(--border)] -translate-x-0.5 -translate-y-0.5'
+                  : 'text-muted-foreground hover:text-foreground'
+                  }`}
+              >
+                รายปีงบประมาณ
+              </button>
+            </div>
+          </div>
 
-        {/* 1. Next Tuesday Appointments */}
-        <FadeContent delay={0.3} className="stat-card bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800 lg:col-span-5">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-800 dark:text-orange-200">
-            <CalendarDays size={20} /> ผู้ป่วยนัด (วันอังคาร)
-          </h3>
-          <div className="flex justify-between items-center mb-4">
+          {/* Time selectors */}
+          <div className="flex flex-wrap gap-3 items-center w-full md:w-auto font-sans">
+            <span className="text-sm font-black text-muted-foreground uppercase">
+              {filterType === 'month' ? 'เลือกปี/เดือน:' : filterType === 'quarter' ? 'เลือกปีงบประมาณ/ไตรมาส:' : 'เลือกปีงบประมาณ:'}
+            </span>
+
+            {/* Year Selector */}
             <select
-              className="text-sm font-bold text-orange-600 dark:text-orange-300 bg-white dark:bg-black/20 w-fit px-3 py-1.5 rounded-full border border-orange-200 outline-none cursor-pointer"
-              value={selectedTuesday ? format(selectedTuesday, 'yyyy-MM-dd') : ''}
-              onChange={(e) => handleTuesdayChange(e.target.value)}
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="p-2.5 text-xs font-bold border-2 border-border bg-card text-foreground cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-48"
             >
-              {tuesdayOptions.map(d => (
-                <option key={d.toISOString()} value={format(d, 'yyyy-MM-dd')}>
-                  📅 {format(d, 'd MMM yyyy', { locale: th })} {isSameDay(d, new Date()) ? '(วันนี้)' : ''}
+              {[2024, 2025, 2026, 2027].map(yr => (
+                <option key={yr} value={yr}>
+                  {filterType === 'month' ? `ปี พ.ศ. ${yr + 543}` : `ปีงบประมาณ พ.ศ. ${yr + 543}`}
                 </option>
               ))}
             </select>
-            <span className="text-sm font-bold bg-orange-200 text-orange-800 px-3 py-1 rounded-full shrink-0">
-              {tuesdayAppts.length} คน
-            </span>
-          </div>
 
-          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-            {tuesdayAppts.length > 0 ? (
-              tuesdayAppts.map((appt, i) => (
-                <div key={i} className="bg-white dark:bg-zinc-800 p-3 rounded-lg border border-orange-100 dark:border-zinc-700 flex justify-between items-center shadow-sm">
-                  <div>
-                    <p className="font-bold text-foreground">{appt.name}</p>
-                    <p className="text-xs text-muted-foreground">HN: {appt.hn}</p>
-                  </div>
-                  <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-1 rounded">{appt.time}</span>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-muted-foreground bg-white/50 dark:bg-black/20 rounded-lg border-dashed border-2">
-                <Users size={32} className="mx-auto mb-2 opacity-50" />
-                <p>ไม่มีนัดหมาย</p>
-              </div>
+            {/* Month Selector */}
+            {filterType === 'month' && (
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="p-2.5 text-xs font-bold border-2 border-border bg-card text-foreground cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-40"
+              >
+                {Array.from({ length: 12 }).map((_, idx) => (
+                  <option key={idx} value={idx}>
+                    {new Date(0, idx).toLocaleDateString('th-TH', { month: 'long' })}
+                  </option>
+                ))}
+              </select>
             )}
+
+            {/* Quarter Selector */}
+            {filterType === 'quarter' && (
+              <select
+                value={selectedQuarter}
+                onChange={(e) => setSelectedQuarter(Number(e.target.value))}
+                className="p-2.5 text-xs font-bold border-2 border-border bg-card text-foreground cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-48"
+              >
+                <option value={1}>ไตรมาส 1 (ต.ค. - ธ.ค.)</option>
+                <option value={2}>ไตรมาส 2 (ม.ค. - มี.ค.)</option>
+                <option value={3}>ไตรมาส 3 (เม.ย. - มิ.ย.)</option>
+                <option value={4}>ไตรมาส 4 (ก.ค. - ก.ย.)</option>
+              </select>
+            )}
+          </div>
+        </div>
+      </FadeContent>
+
+      {/* --- Key Stats Row --- */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatTile
+          label={`ยอดผู้รับบริการ (${filterType === 'month' ? 'เดือนนี้' : filterType === 'quarter' ? 'ไตรมาสนี้' : 'ปีงบประมาณนี้'})`}
+          value={currentVisits.length}
+          sub="คน"
+          icon={<CalendarRange size={18} />}
+          delay={0.1}
+          trend={getTrendPercentage(currentVisits.length, previousVisits.length)}
+          onClick={() => {
+            setActiveDrillDown('visits');
+            setModalSearchTerm('');
+          }}
+          clickable
+        />
+        <StatTile
+          label={`ยอด DRP (${filterType === 'month' ? 'เดือนนี้' : filterType === 'quarter' ? 'ไตรมาสนี้' : 'ปีงบประมาณนี้'})`}
+          value={currentDrps.length}
+          sub="รายการ"
+          icon={<Pill size={18} />}
+          delay={0.15}
+          trend={getTrendPercentage(currentDrps.length, previousDrps.length)}
+          color="text-[#8B5A2B]"
+          onClick={() => {
+            setActiveDrillDown('drps');
+            setModalSearchTerm('');
+          }}
+          clickable
+        />
+        <StatTile
+          label={`สอนพ่นยา (${filterType === 'month' ? 'เดือนนี้' : filterType === 'quarter' ? 'ไตรมาสนี้' : 'ปีงบประมาณนี้'})`}
+          value={currentTechChecks.length}
+          sub="ครั้ง"
+          icon={<Stethoscope size={18} />}
+          delay={0.2}
+          trend={getTrendPercentage(currentTechChecks.length, previousTechChecks.length)}
+          color="text-[#059669]"
+          onClick={() => {
+            setActiveDrillDown('techChecks');
+            setModalSearchTerm('');
+          }}
+          clickable
+        />
+        <StatTile
+          label={`ผู้ป่วยใหม่ (${filterType === 'month' ? 'เดือนนี้' : filterType === 'quarter' ? 'ไตรมาสนี้' : 'ปีงบประมาณนี้'})`}
+          value={currentNewPatients.length}
+          sub="คน"
+          icon={<Users size={18} />}
+          delay={0.25}
+          trend={getTrendPercentage(currentNewPatients.length, previousNewPatients.length)}
+          color="text-primary"
+          onClick={() => {
+            setActiveDrillDown('newPatients');
+            setModalSearchTerm('');
+          }}
+          clickable
+        />
+      </div>
+
+      {/* --- Main Analytics Grid --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        {/* Trend Analysis Chart Card (Left 8 Columns) */}
+        <FadeContent delay={0.3} className="lg:col-span-8">
+          <div className="retro-box-static bg-card p-6 h-full flex flex-col justify-between">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 font-sans">
+              <div>
+                <h3 className="text-lg font-black text-foreground uppercase tracking-tight flex items-center gap-2">
+                  <LineChart size={18} className="text-primary" /> แนวโน้มผลการดำเนินงานย้อนหลัง
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  แสดงเปรียบเทียบ {filterType === 'month' ? '12 เดือนล่าสุด' : filterType === 'quarter' ? '8 ไตรมาสล่าสุด' : '5 ปีงบประมาณล่าสุด'} จนถึง {getFormattedPeriodLabel()}
+                </p>
+              </div>
+
+              {/* Checkbox toggles for Recharts lines */}
+              <div className="flex flex-wrap gap-3">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showVisitsTrend}
+                    onChange={(e) => setShowVisitsTrend(e.target.checked)}
+                    className="accent-primary w-4.5 h-4.5 border-2 border-border"
+                  />
+                  ผู้รับบริการ
+                </label>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showDrpsTrend}
+                    onChange={(e) => setShowDrpsTrend(e.target.checked)}
+                    className="accent-[#8B5A2B] w-4.5 h-4.5 border-2 border-border"
+                  />
+                  DRP
+                </label>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showTechChecksTrend}
+                    onChange={(e) => setShowTechChecksTrend(e.target.checked)}
+                    className="accent-[#059669] w-4.5 h-4.5 border-2 border-border"
+                  />
+                  สอนพ่นยา
+                </label>
+              </div>
+            </div>
+
+            <div className="h-[320px] w-full mt-4 font-sans">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={getTrendData()}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)', fontWeight: 'bold' }}
+                    axisLine={{ stroke: 'var(--border)', strokeWidth: 1.5 }}
+                    tickLine={{ stroke: 'var(--border)' }}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                    axisLine={{ stroke: 'var(--border)', strokeWidth: 1.5 }}
+                    tickLine={{ stroke: 'var(--border)' }}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 10, fill: '#8B5A2B' }}
+                    axisLine={{ stroke: '#8B5A2B', strokeWidth: 1.5 }}
+                    tickLine={{ stroke: '#8B5A2B' }}
+                    name="DRP"
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--card)',
+                      border: '2px solid var(--border)',
+                      boxShadow: 'var(--retro-shadow-sm)',
+                      fontFamily: 'inherit',
+                      fontSize: '12px'
+                    }}
+                    labelStyle={{ fontWeight: 'black', color: 'var(--foreground)' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+
+                  {/* Gradients */}
+                  <defs>
+                    <linearGradient id="visitGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Lines/Areas */}
+                  {showVisitsTrend && (
+                    <Area
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="visits"
+                      name="ยอดผู้รับบริการ (คน)"
+                      fill="url(#visitGrad)"
+                      stroke="var(--primary)"
+                      strokeWidth={3}
+                      dot={{ r: 4, strokeWidth: 2, fill: 'var(--card)' }}
+                    />
+                  )}
+                  {showTechChecksTrend && (
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="techChecks"
+                      name="สอนพ่นยา (ครั้ง)"
+                      stroke="#059669"
+                      strokeWidth={2}
+                      dot={{ r: 3, strokeWidth: 1.5, fill: 'var(--card)' }}
+                    />
+                  )}
+                  {showDrpsTrend && (
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="drps"
+                      name="ยอด DRP (รายการ)"
+                      stroke="#8B5A2B"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={{ r: 4, strokeWidth: 2, fill: '#8B5A2B' }}
+                    />
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </FadeContent>
 
-        {/* 2. Fiscal Year Stats */}
-        <FadeContent delay={0.35} className="stat-card bg-[#eefcfc] dark:bg-cyan-900/10 border-cyan-200 dark:border-cyan-800 lg:col-span-7">
-          <div className="flex justify-between items-start mb-6">
+        {/* Tuesday Roster Card (Right 4 Columns) */}
+        <FadeContent delay={0.35} className="lg:col-span-4">
+          <div className="retro-card p-6 h-full flex flex-col justify-between bg-card font-sans">
             <div>
-              <h3 className="font-bold text-lg flex items-center gap-2 text-cyan-800 dark:text-cyan-200">
-                <Stethoscope size={20} /> สรุปการสอนพ่นยา (รายปีงบ)
+              <h3 className="text-lg font-black text-foreground uppercase tracking-tight flex items-center gap-2 mb-2">
+                <CalendarDays size={18} className="text-primary" /> ตารางผู้ป่วยนัด (วันอังคาร)
               </h3>
-              <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
-                ปีงบ {selectedFy + 543} (1 ต.ค. {selectedFy - 1 + 543} - 30 ก.ย. {selectedFy + 543})
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {fiscalYearStats.map(s => (
-                <button
-                  key={s.fy}
-                  onClick={() => setSelectedFy(s.fy)}
-                  className={`px-3 py-1 rounded text-xs font-bold transition-all ${selectedFy === s.fy ? 'bg-cyan-600 text-white shadow-lg scale-105' : 'bg-white dark:bg-zinc-800 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50'}`}
+
+              <div className="flex flex-col gap-3 my-4 font-sans">
+                <select
+                  className="w-full text-xs font-bold text-foreground bg-card p-2.5 border-2 border-border cursor-pointer focus:outline-none"
+                  value={selectedTuesday ? format(selectedTuesday, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => handleTuesdayChange(e.target.value)}
                 >
-                  {s.fy + 543}
-                </button>
-              ))}
+                  {tuesdayOptions.map(d => (
+                    <option key={d.toISOString()} value={format(d, 'yyyy-MM-dd')}>
+                      📅 {format(d, 'd MMM yyyy', { locale: th })} {isSameDay(d, new Date()) ? '(วันนี้)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex items-center justify-between text-xs font-black uppercase tracking-wider bg-secondary/50 p-2.5 border-2 border-border">
+                  <span>ผู้ป่วยนัดทั้งหมด</span>
+                  <span className="bg-primary text-primary-foreground px-2 py-0.5 border border-border">
+                    {tuesdayAppts.length} คน
+                  </span>
+                </div>
+              </div>
+
+              {tuesdayAppts.length > 0 && (
+                <div className="flex border-2 border-border p-0.5 bg-secondary/30 w-full mb-3 text-[10px] font-black uppercase font-sans">
+                  <span className="self-center px-2 text-muted-foreground">จัดเรียง:</span>
+                  <button
+                    onClick={() => setTuesdaySort(tuesdaySort === 'hn' ? 'none' : 'hn')}
+                    className={`flex-1 py-1.5 text-center transition-all cursor-pointer border ${
+                      tuesdaySort === 'hn'
+                        ? 'bg-primary text-primary-foreground border-border shadow-[1px_1px_0px_0px_var(--border)] -translate-y-0.5 -translate-x-0.5'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    เรียงตาม HN
+                  </button>
+                  <button
+                    onClick={() => setTuesdaySort(tuesdaySort === 'name' ? 'none' : 'name')}
+                    className={`flex-1 py-1.5 text-center transition-all cursor-pointer border ${
+                      tuesdaySort === 'name'
+                        ? 'bg-primary text-primary-foreground border-border shadow-[1px_1px_0px_0px_var(--border)] -translate-y-0.5 -translate-x-0.5'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    เรียงตามชื่อ
+                  </button>
+                </div>
+              )}
+
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 font-sans">
+                {tuesdayAppts.length > 0 ? (
+                  getSortedTuesdayAppts().map((appt, i) => (
+                    <div key={i} className="bg-card p-2.5 border-2 border-border flex justify-between items-center shadow-[2px_2px_0px_0px_var(--border-light)] hover:translate-x-0.5 hover:translate-y-0.5 transition-transform">
+                      <div>
+                        <Link href={`/staff/patient/${appt.hn}`} className="font-bold text-xs text-foreground hover:text-primary transition-colors block">
+                          {appt.name}
+                        </Link>
+                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">HN: {appt.hn}</p>
+                      </div>
+                      <span className="text-[10px] font-black bg-secondary px-2 py-0.5 border border-border">{appt.time}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-border/60 bg-secondary/20">
+                    <Users size={24} className="mx-auto mb-1 opacity-40 text-muted-foreground" />
+                    <p className="text-xs font-bold">ไม่มีนัดหมายในสัปดาห์นี้</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+        </FadeContent>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Count */}
-            <div className="bg-white dark:bg-zinc-800 p-5 rounded-xl border border-cyan-100 dark:border-cyan-900/50 flex flex-col justify-center items-center text-center shadow-sm">
-              <div className="w-12 h-12 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center mb-2">
-                <BookOpen size={24} />
+      </div>
+
+      {/* --- Clinical Breakdown & Mistakes for the selected period --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* DRP breakdown in period */}
+        <FadeContent delay={0.4}>
+          <div className="retro-card p-6 bg-card flex flex-col justify-between h-full font-sans">
+            <div>
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-lg font-black text-foreground uppercase tracking-tight flex items-center gap-2">
+                    <Pill size={18} className="text-[#8B5A2B]" /> รายละเอียด DRP ในช่วงเวลา
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ประมวลผลสำหรับช่วง {getFormattedPeriodLabel()}
+                  </p>
+                </div>
               </div>
-              <h4 className="text-4xl font-black text-cyan-900 dark:text-cyan-100">
-                <CountUp target={currentFyData.totalPatients} />
-              </h4>
-              <p className="text-sm font-bold text-cyan-700/70 dark:text-cyan-300/70">ผู้ป่วยที่รับการสอน</p>
-            </div>
 
-            {/* Mistakes */}
-            <div className="space-y-3">
-              <h4 className="font-bold text-sm text-cyan-900 dark:text-cyan-100 flex items-center gap-2">
-                <AlertCircle size={14} className="text-red-500" /> ข้อที่ผิดบ่อย 3 อันดับแรก
-              </h4>
-              {currentFyData.topMistakes.length > 0 ? (
-                currentFyData.topMistakes.map((m: any, i: number) => (
-                  <div key={i} className="bg-white dark:bg-zinc-800 p-3 rounded-lg border border-red-100 dark:border-red-900/30 flex gap-3 items-start shadow-sm">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center mt-0.5">
-                      #{i + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm font-bold text-foreground line-clamp-2">{m.step}</p>
-                      <p className="text-xs text-red-500 font-bold mt-1">{m.count} ครั้ง</p>
+              {/* Stats Chips Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
+                <div className="bg-secondary/40 border-2 border-border p-3 text-center">
+                  <div className="flex justify-center mb-1"><ListChecks size={16} className="text-foreground" /></div>
+                  <p className="text-xl font-black text-foreground">{periodDrpStats.totalPatients}</p>
+                  <p className="text-[10px] text-muted-foreground font-black mt-0.5">พบ DRP</p>
+                </div>
+                <div className="bg-green-50 dark:bg-green-950/20 border-2 border-border p-3 text-center">
+                  <div className="flex justify-center mb-1"><CheckCircle2 size={16} className="text-green-600" /></div>
+                  <p className="text-xl font-black text-green-700 dark:text-green-400">{periodDrpStats.resolved}</p>
+                  <p className="text-[10px] text-green-700 dark:text-green-300 font-black mt-0.5">แก้ไขสำเร็จ</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-950/20 border-2 border-border p-3 text-center">
+                  <div className="flex justify-center mb-1"><Clock3 size={16} className="text-amber-600" /></div>
+                  <p className="text-xl font-black text-amber-700 dark:text-amber-400">{periodDrpStats.followUp}</p>
+                  <p className="text-[10px] text-amber-700 dark:text-amber-300 font-black mt-0.5">รอติดตาม</p>
+                </div>
+                <div className="bg-rose-50 dark:bg-rose-950/20 border-2 border-border p-3 text-center">
+                  <div className="flex justify-center mb-1"><XCircle size={16} className="text-rose-500" /></div>
+                  <p className="text-xl font-black text-rose-600 dark:text-rose-400">{periodDrpStats.refused}</p>
+                  <p className="text-[10px] text-rose-600 dark:text-rose-300 font-black mt-0.5">ปฏิเสธ/ไม่สำเร็จ</p>
+                </div>
+              </div>
+
+              {/* Breakdown lists */}
+              {currentDrps.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Category breakdown */}
+                  <div className="bg-secondary/20 p-4 border-2 border-border">
+                    <h4 className="font-black text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                      <AlertCircle size={12} className="text-primary" /> ประเภทของปัญหา (Category)
+                    </h4>
+                    <div className="space-y-3">
+                      {periodDrpStats.topCategories.map((cat, i) => {
+                        const maxCount = periodDrpStats.topCategories[0]?.count || 1;
+                        const pct = Math.round((cat.count / maxCount) * 100);
+                        const shortName = cat.name.replace(/^\d+\.\s*/, '').replace(/\s*\(.*\)/, '').trim();
+                        return (
+                          <div key={i}>
+                            <div className="flex justify-between items-center text-[10px] mb-0.5">
+                              <span className="font-bold text-foreground truncate max-w-[120px]" title={cat.name}>
+                                #{i + 1} {shortName}
+                              </span>
+                              <span className="font-black text-[#8B5A2B] shrink-0 ml-1">{cat.count} ราย</span>
+                            </div>
+                            <div className="w-full bg-border-light dark:bg-zinc-800 h-1.5 border border-border">
+                              <div className="bg-primary h-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                ))
+
+                  {/* Problem Type breakdown */}
+                  <div className="bg-secondary/20 p-4 border-2 border-border">
+                    <h4 className="font-black text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                      <AlertCircle size={12} className="text-rose-500" /> ลักษณะย่อยของปัญหา
+                    </h4>
+                    <div className="space-y-3">
+                      {periodDrpStats.topTypes.map((t, i) => {
+                        const maxCount = periodDrpStats.topTypes[0]?.count || 1;
+                        const pct = Math.round((t.count / maxCount) * 100);
+                        const shortName = t.name.replace(/^[\d.]+\s*/, '').replace(/\s*\(.*\)/, '').trim();
+                        return (
+                          <div key={i}>
+                            <div className="flex justify-between items-center text-[10px] mb-0.5">
+                              <span className="font-bold text-foreground truncate max-w-[120px]" title={t.name}>
+                                #{i + 1} {shortName}
+                              </span>
+                              <span className="font-black text-rose-600 shrink-0 ml-1">{t.count} ราย</span>
+                            </div>
+                            <div className="w-full bg-border-light dark:bg-zinc-800 h-1.5 border border-border">
+                              <div className="bg-rose-400 h-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <div className="text-center text-sm text-muted-foreground py-4">
-                  ไม่มีข้อมูลข้อผิดพลาด
+                <div className="text-center py-10 text-xs font-bold text-muted-foreground border-2 border-dashed border-border bg-secondary/10">
+                  ไม่มีประวัติการบันทึก DRP ในช่วงเวลานี้
                 </div>
               )}
             </div>
           </div>
         </FadeContent>
-      </div>
 
-      {/* DRP Summary by Fiscal Year */}
-      <FadeContent delay={0.4} className="stat-card bg-violet-50 dark:bg-violet-900/10 border-violet-200 dark:border-violet-800">
-        <div className="flex flex-col sm:flex-row sm:items-start gap-4 justify-between mb-6">
-          <div>
-            <h3 className="font-bold text-lg flex items-center gap-2 text-violet-800 dark:text-violet-200">
-              <Pill size={20} /> สรุปข้อมูล DRP (รายปีงบ)
-            </h3>
-            <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-              ปีงบ {selectedDrpFy + 543} (1 ต.ค. {selectedDrpFy - 1 + 543} – 30 ก.ย. {selectedDrpFy + 543})
-            </p>
-          </div>
-          {/* Year selector */}
-          <div className="flex flex-wrap gap-2">
-            {drpFyStats.map(s => (
-              <button
-                key={s.fy}
-                onClick={() => setSelectedDrpFy(s.fy)}
-                className={`px-3 py-1 rounded text-xs font-bold transition-all ${selectedDrpFy === s.fy
-                  ? 'bg-violet-600 text-white shadow-lg scale-105'
-                  : 'bg-white dark:bg-zinc-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50'
-                  }`}
-              >
-                {s.fy + 543}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {(() => {
-          const d = drpFyStats.find(s => s.fy === selectedDrpFy) || { totalPatients: 0, totalDrps: 0, resolved: 0, followUp: 0, refused: 0, topCategories: [], topTypes: [] };
-          return (
-            <div className="space-y-5">
-              {/* Stat chips row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-violet-100 dark:bg-violet-900/30 rounded-xl p-4 text-center">
-                  <div className="flex justify-center mb-1"><ListChecks size={18} className="text-violet-600" /></div>
-                  <p className="text-2xl font-black text-violet-900 dark:text-violet-100">{d.totalPatients}</p>
-                  <p className="text-[11px] text-violet-700 dark:text-violet-300 font-semibold mt-0.5">พบ DRP</p>
-                  <p className="text-[10px] text-violet-500 dark:text-violet-400">{d.totalDrps} รายการ</p>
-                </div>
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center border border-green-100 dark:border-green-900/40">
-                  <div className="flex justify-center mb-1"><CheckCircle2 size={18} className="text-green-600" /></div>
-                  <p className="text-2xl font-black text-green-700 dark:text-green-400">{d.resolved}</p>
-                  <p className="text-[11px] text-green-700 dark:text-green-300 font-semibold mt-0.5">แก้ไขสำเร็จ</p>
-                  <p className="text-[10px] text-green-500 dark:text-green-400">Resolved</p>
-                </div>
-                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 text-center border border-amber-100 dark:border-amber-900/40">
-                  <div className="flex justify-center mb-1"><Clock3 size={18} className="text-amber-600" /></div>
-                  <p className="text-2xl font-black text-amber-700 dark:text-amber-400">{d.followUp}</p>
-                  <p className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold mt-0.5">รอติดตาม</p>
-                  <p className="text-[10px] text-amber-500 dark:text-amber-400">Follow-up</p>
-                </div>
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-center border border-red-100 dark:border-red-900/40">
-                  <div className="flex justify-center mb-1"><XCircle size={18} className="text-red-500" /></div>
-                  <p className="text-2xl font-black text-red-600 dark:text-red-400">{d.refused}</p>
-                  <p className="text-[11px] text-red-600 dark:text-red-300 font-semibold mt-0.5">แก้ไขไม่สำเร็จ</p>
-                  <p className="text-[10px] text-red-400">Refused</p>
+        {/* Inhaler mistakes breakdown in period */}
+        <FadeContent delay={0.45}>
+          <div className="retro-card p-6 bg-card flex flex-col justify-between h-full font-sans">
+            <div>
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h3 className="text-lg font-black text-foreground uppercase tracking-tight flex items-center gap-2">
+                    <Stethoscope size={18} className="text-[#059669]" /> สรุปการสอนพ่นยาในช่วงเวลา
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ประมวลผลสำหรับช่วง {getFormattedPeriodLabel()}
+                  </p>
                 </div>
               </div>
 
-              {/* Problem breakdown */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Top categories */}
-                <div className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-violet-100 dark:border-violet-900/30 shadow-sm">
-                  <h4 className="font-bold text-sm text-violet-900 dark:text-violet-100 flex items-center gap-2 mb-3">
-                    <AlertCircle size={14} className="text-violet-500" /> ประเภทปัญหาที่พบ
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Checks Count */}
+                <div className="border-2 border-border bg-secondary/10 p-5 flex flex-col justify-center items-center text-center">
+                  <div className="w-10 h-10 border-2 border-border bg-secondary text-[#059669] flex items-center justify-center mb-3 shadow-[2px_2px_0px_0px_var(--border)]">
+                    <BookOpen size={20} />
+                  </div>
+                  <h4 className="text-4xl font-black text-foreground font-sans">
+                    <CountUp target={periodTechStats.totalChecks} />
                   </h4>
-                  {d.topCategories.length > 0 ? (
-                    <div className="space-y-2">
-                      {d.topCategories.map((cat: any, i: number) => {
-                        const maxCount = d.topCategories[0]?.count || 1;
-                        const pct = Math.round((cat.count / maxCount) * 100);
-                        // Shorten long category names
-                        const shortName = cat.name.replace(/^\d+\.\s*/, '').replace(/\s*\(.*\)/, '').trim();
-                        return (
-                          <div key={i}>
-                            <div className="flex justify-between items-center mb-0.5">
-                              <span className="text-xs font-semibold text-foreground truncate max-w-[200px]" title={cat.name}>#{i + 1} {shortName}</span>
-                              <span className="text-xs font-bold text-violet-600 ml-2 shrink-0">{cat.count} ราย</span>
-                            </div>
-                            <div className="w-full bg-violet-100 dark:bg-violet-900/30 rounded-full h-1.5">
-                              <div className="bg-violet-500 h-1.5 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">ไม่มีข้อมูล</p>
-                  )}
+                  <p className="text-xs font-black text-muted-foreground uppercase mt-1">จำนวนการสอน (ครั้ง)</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                    ครอบคลุมคนไข้ {periodTechStats.totalPatients} คน
+                  </p>
                 </div>
 
-                {/* Top problem types (sub-category) */}
-                <div className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-violet-100 dark:border-violet-900/30 shadow-sm">
-                  <h4 className="font-bold text-sm text-violet-900 dark:text-violet-100 flex items-center gap-2 mb-3">
-                    <AlertCircle size={14} className="text-rose-500" /> ลักษณะปัญหาที่พบบ่อย
+                {/* Common mistakes */}
+                <div className="space-y-3">
+                  <h4 className="font-black text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <AlertCircle size={14} className="text-rose-500" /> ข้อผิดพลาดพบบ่อย 3 อันดับ
                   </h4>
-                  {d.topTypes.length > 0 ? (
+
+                  {periodTechStats.topMistakes.length > 0 ? (
                     <div className="space-y-2">
-                      {d.topTypes.map((t: any, i: number) => {
-                        const maxCount = d.topTypes[0]?.count || 1;
-                        const pct = Math.round((t.count / maxCount) * 100);
-                        const shortName = t.name.replace(/^[\d.]+\s*/, '').replace(/\s*\(.*\)/, '').trim();
-                        return (
-                          <div key={i}>
-                            <div className="flex justify-between items-center mb-0.5">
-                              <span className="text-xs font-semibold text-foreground truncate max-w-[200px]" title={t.name}>#{i + 1} {shortName}</span>
-                              <span className="text-xs font-bold text-rose-600 ml-2 shrink-0">{t.count} ราย</span>
-                            </div>
-                            <div className="w-full bg-rose-100 dark:bg-rose-900/30 rounded-full h-1.5">
-                              <div className="bg-rose-400 h-1.5 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
-                            </div>
+                      {periodTechStats.topMistakes.map((m: { step: string; count: number }, i: number) => (
+                        <div key={i} className="bg-card p-2.5 border-2 border-border flex gap-3 items-start shadow-[2px_2px_0px_0px_var(--border-light)]">
+                          <span className="flex-shrink-0 w-5 h-5 border border-border bg-rose-100 text-rose-700 font-black text-[10px] flex items-center justify-center mt-0.5">
+                            #{i + 1}
+                          </span>
+                          <div>
+                            <p className="text-[11px] font-bold text-foreground leading-tight">{m.step}</p>
+                            <p className="text-[10px] text-rose-500 font-black mt-1">พ่นผิด {m.count} ครั้ง</p>
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">ไม่มีข้อมูล</p>
+                    <div className="text-center py-10 text-xs font-bold text-muted-foreground border-2 border-dashed border-border bg-secondary/10">
+                      ไม่มีการบันทึกข้อผิดพลาดการพ่นยา
+                    </div>
                   )}
                 </div>
               </div>
             </div>
-          );
-        })()}
-      </FadeContent>
+          </div>
+        </FadeContent>
 
-      {/* Charts Section (Original) */}
+      </div>
+
+      {/* --- Patient Demographic Overview (Status & Age - Pie & Bar Charts) --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* Status Pie Chart */}
-        <FadeContent delay={0.3} className="stat-card bg-white dark:bg-zinc-900">
-          <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-foreground">
-            <PieChartIcon size={20} className="text-primary" /> สัดส่วนสถานะ (Status)
+        <FadeContent delay={0.5} className="retro-box-static bg-card p-6">
+          <h3 className="text-lg font-black text-foreground uppercase tracking-tight flex items-center gap-2 mb-6 font-sans">
+            <PieChartIcon size={18} className="text-primary" /> สัดส่วนสถานะผู้ป่วยคลินิกทั้งหมด
           </h3>
-          <div className="h-[300px] w-full relative">
+          <div className="h-[260px] w-full relative font-sans">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={statusData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={80}
-                  outerRadius={110}
+                  innerRadius={70}
+                  outerRadius={95}
                   paddingAngle={5}
                   dataKey="value"
-                  stroke="none"
+                  stroke="var(--border)"
+                  strokeWidth={2}
                 >
                   {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={`url(#gradient-${index})`} style={{ filter: 'drop-shadow(0px 4px 4px rgba(0,0,0,0.2))' }} />
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', backgroundColor: 'var(--card)' }}
-                  itemStyle={{ color: 'var(--foreground)' }}
+                  contentStyle={{
+                    backgroundColor: 'var(--card)',
+                    border: '2px solid var(--border)',
+                    boxShadow: 'var(--retro-shadow-sm)',
+                    fontSize: '12px'
+                  }}
+                  itemStyle={{ fontWeight: 'bold' }}
                 />
-                <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                <defs>
-                  {statusData.map((entry, index) => (
-                    <linearGradient key={`gradient-${index}`} id={`gradient-${index}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={entry.color} />
-                      <stop offset="100%" stopColor={entry.color} stopOpacity={0.6} />
-                    </linearGradient>
-                  ))}
-                </defs>
+                <Legend verticalAlign="bottom" height={36} iconType="rect" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
               </PieChart>
             </ResponsiveContainer>
 
-            {/* Center Text */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-12 text-center pointer-events-none">
-              <span className="text-3xl font-black text-foreground">{patients.length}</span>
-              <p className="text-xs text-muted-foreground uppercase tracking-widest">Total</p>
+            {/* Center Summary Label */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-10 text-center pointer-events-none">
+              <span className="text-2xl font-black text-foreground">{patients.length}</span>
+              <p className="text-[9px] text-muted-foreground font-black uppercase tracking-wider">ทั้งหมด (คน)</p>
             </div>
           </div>
         </FadeContent>
 
-        {/* Age Bar Chart */}
-        <FadeContent delay={0.4} className="stat-card bg-white dark:bg-zinc-900">
-          <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-foreground">
-            <BarChart3 size={20} className="text-primary" /> ช่วงอายุผู้ป่วย (Age Groups)
+        {/* Age Groups Bar Chart */}
+        <FadeContent delay={0.55} className="retro-box-static bg-card p-6">
+          <h3 className="text-lg font-black text-foreground uppercase tracking-tight flex items-center gap-2 mb-6 font-sans">
+            <BarChart3 size={18} className="text-primary" /> สัดส่วนช่วงอายุผู้ป่วยสะสม
           </h3>
-          <div className="h-[300px] w-full">
+          <div className="h-[260px] w-full font-sans">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ageData} barSize={60}>
+              <BarChart data={ageData} barSize={50}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--muted-foreground)' }} />
-                <Tooltip
-                  cursor={{ fill: 'var(--muted)' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', backgroundColor: 'var(--card)' }}
-                  itemStyle={{ color: 'var(--primary)' }}
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11, fill: 'var(--muted-foreground)', fontWeight: 'bold' }}
+                  axisLine={{ stroke: 'var(--border)', strokeWidth: 1.5 }}
+                  tickLine={{ stroke: 'var(--border)' }}
                 />
-                <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--primary)" />
-                    <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.3} />
-                  </linearGradient>
-                </defs>
-                <Bar dataKey="value" fill="url(#barGradient)" radius={[8, 8, 0, 0]} />
+                <YAxis
+                  axisLine={{ stroke: 'var(--border)', strokeWidth: 1.5 }}
+                  tickLine={{ stroke: 'var(--border)' }}
+                  tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                />
+                <Tooltip
+                  cursor={{ fill: 'var(--secondary)', opacity: 0.3 }}
+                  contentStyle={{
+                    backgroundColor: 'var(--card)',
+                    border: '2px solid var(--border)',
+                    boxShadow: 'var(--retro-shadow-sm)',
+                    fontSize: '12px'
+                  }}
+                />
+                <Bar dataKey="value" name="จำนวนคน" fill="var(--primary)" stroke="var(--border)" strokeWidth={2} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </FadeContent>
+
       </div>
 
-      {/* Drill-down Modal */}
+      {/* --- Advanced Drill-Down Modals --- */}
+
+      {/* 1. Patient Visits Drill-down */}
       <Modal
-        isOpen={selectedStat !== null}
-        onClose={() => setSelectedStat(null)}
-        title={selectedStat === 'weekly' ? 'สถิติรายสัปดาห์ (ย้อนหลัง 8 สัปดาห์)' : 'สถิติรายเดือน (ย้อนหลัง 24 เดือน)'}
+        isOpen={activeDrillDown === 'visits'}
+        onClose={() => setActiveDrillDown(null)}
+        title={`ประวัติผู้รับบริการ: ${getFormattedPeriodLabel()} (${currentVisits.length} รายการ)`}
       >
-        <div className="h-[400px] w-full">
-          {selectedStat && (
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={selectedStat === 'weekly' ? getWeeklyTrend() : getMonthlyTrend()}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                <XAxis
-                  dataKey="name"
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                  tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                />
-                <YAxis yAxisId="left" tick={{ fill: 'var(--muted-foreground)' }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: 'var(--primary)' }} />
-                <Tooltip
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', backgroundColor: 'var(--card)' }}
-                  labelStyle={{ color: 'var(--foreground)', fontWeight: 'bold' }}
-                />
-                <Legend />
-                <defs>
-                  <linearGradient id="visitGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#D97736" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#D97736" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Area yAxisId="left" type="monotone" dataKey="visits" name="จำนวนผู้รับบริการ" fill="url(#visitGradient)" stroke="var(--primary)" strokeWidth={3} />
-                <Line yAxisId="right" type="monotone" dataKey="newPatients" name="ผู้ป่วยใหม่" stroke="#22c55e" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-        {selectedStat === 'weekly' && (
-          <div className="mt-4 text-xs text-muted-foreground text-center">
-            * ข้อมูลย้อนหลัง 8 สัปดาห์ล่าสุด (นับตามสัปดาห์ปฏิทิน จันทร์-อาทิตย์)
+        <div className="space-y-4">
+          <div className="relative font-sans">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+            <input
+              type="text"
+              placeholder="ค้นหา HN หรือ ชื่อผู้ป่วย..."
+              className="w-full pl-9 pr-4 py-2 text-xs font-bold border-2 border-border bg-card focus:outline-none"
+              value={modalSearchTerm}
+              onChange={(e) => setModalSearchTerm(e.target.value)}
+            />
           </div>
-        )}
+
+          <div className="max-h-[50vh] overflow-y-auto border-2 border-border">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-secondary/70 border-b-2 border-border text-foreground font-black sticky top-0 z-10 font-sans">
+                <tr>
+                  <th className="p-3">วันที่</th>
+                  <th className="p-3">HN</th>
+                  <th className="p-3">ชื่อ-นามสกุล</th>
+                  <th className="p-3">PEFR</th>
+                  <th className="p-3">ระดับการควบคุม</th>
+                  <th className="p-3">นัดครั้งถัดไป</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y-2 divide-border font-sans">
+                {(getFilteredModalData() as Visit[]).map((v, idx) => (
+                  <tr key={idx} className="hover:bg-secondary/20 transition-colors bg-card">
+                    <td className="p-3 font-bold">{toThaiShortDate(v.visit_date ?? v.date ?? '')}</td>
+                    <td className="p-3">
+                      <Link href={`/staff/patient/${v.hn}`} onClick={() => setActiveDrillDown(null)} className="text-primary font-black hover:underline cursor-pointer font-mono">
+                        {v.hn}
+                      </Link>
+                    </td>
+                    <td className="p-3 font-bold text-foreground">{getPatientName(v.hn)}</td>
+                    <td className="p-3 font-mono font-bold text-foreground">
+                      {v.pefr ? `${v.pefr} L/min` : '-'}
+                    </td>
+                    <td className="p-3">
+                      {v.control_level === 'Controlled' ? (
+                        <span className="px-2 py-0.5 border border-border bg-emerald-100 text-emerald-800 font-bold text-[10px]">Controlled</span>
+                      ) : v.control_level === 'Partly Controlled' ? (
+                        <span className="px-2 py-0.5 border border-border bg-amber-100 text-amber-800 font-bold text-[10px]">Partly Controlled</span>
+                      ) : v.control_level === 'Uncontrolled' ? (
+                        <span className="px-2 py-0.5 border border-border bg-rose-100 text-rose-800 font-bold text-[10px]">Uncontrolled</span>
+                      ) : (
+                        <span className="px-2 py-0.5 border border-border bg-muted text-muted-foreground font-bold text-[10px]">{v.control_level || '-'}</span>
+                      )}
+                    </td>
+                    <td className="p-3 font-bold">{toThaiShortDate(v.next_appt)}</td>
+                  </tr>
+                ))}
+                {getFilteredModalData().length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-muted-foreground font-bold bg-card">
+                      ไม่พบประวัติผู้รับบริการในช่วงเวลานี้
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 2. DRP Problems Drill-down */}
+      <Modal
+        isOpen={activeDrillDown === 'drps'}
+        onClose={() => setActiveDrillDown(null)}
+        title={`ปัญหาการใช้ยา (DRP): ${getFormattedPeriodLabel()} (${currentDrps.length} รายการ)`}
+      >
+        <div className="space-y-4 font-sans">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+            <input
+              type="text"
+              placeholder="ค้นหา HN, ชื่อ, ปัญหา, ประเภทปัญหา..."
+              className="w-full pl-9 pr-4 py-2 text-xs font-bold border-2 border-border bg-card focus:outline-none"
+              value={modalSearchTerm}
+              onChange={(e) => setModalSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="max-h-[50vh] overflow-y-auto border-2 border-border">
+            <table className="w-full text-left border-collapse text-xs font-sans">
+              <thead className="bg-secondary/70 border-b-2 border-border text-foreground font-black sticky top-0 z-10">
+                <tr>
+                  <th className="p-3">วันที่</th>
+                  <th className="p-3">HN</th>
+                  <th className="p-3">ชื่อ-นามสกุล</th>
+                  <th className="p-3">ประเภทปัญหา (Category)</th>
+                  <th className="p-3">ลักษณะปัญหา (Type)</th>
+                  <th className="p-3">การช่วยเหลือ</th>
+                  <th className="p-3">ผลลัพธ์</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y-2 divide-border">
+                {(getFilteredModalData() as DRP[]).map((d, idx) => (
+                  <tr key={idx} className="hover:bg-secondary/20 transition-colors bg-card">
+                    <td className="p-3 font-bold">{toThaiShortDate(d.visit_date || d.created_date || d.date)}</td>
+                    <td className="p-3">
+                      <Link href={`/staff/patient/${d.hn}`} onClick={() => setActiveDrillDown(null)} className="text-primary font-black hover:underline cursor-pointer font-mono">
+                        {d.hn}
+                      </Link>
+                    </td>
+                    <td className="p-3 font-bold text-foreground">{getPatientName(d.hn)}</td>
+                    <td className="p-3 font-bold text-foreground truncate max-w-[150px]" title={d.category}>{d.category}</td>
+                    <td className="p-3 text-muted-foreground truncate max-w-[150px]" title={d.type}>{d.type}</td>
+                    <td className="p-3 text-foreground truncate max-w-[150px]" title={d.intervention}>{d.intervention || '-'}</td>
+                    <td className="p-3">
+                      {(() => {
+                        const o = (d.outcome || '').toLowerCase();
+                        if (o.includes('resolved') || o.includes('สำเร็จ')) {
+                          return <span className="px-2 py-0.5 border border-border bg-green-100 text-green-800 font-bold text-[10px]">Resolved</span>;
+                        } else if (o.includes('monitoring') || o.includes('follow') || o.includes('ติดตาม')) {
+                          return <span className="px-2 py-0.5 border border-border bg-amber-100 text-amber-800 font-bold text-[10px]">Follow-up</span>;
+                        } else if (o.includes('refused') || o.includes('ปฏิเสธ')) {
+                          return <span className="px-2 py-0.5 border border-border bg-rose-100 text-rose-800 font-bold text-[10px]">Refused</span>;
+                        }
+                        return <span className="px-2 py-0.5 border border-border bg-muted text-muted-foreground font-bold text-[10px]">{d.outcome || '-'}</span>;
+                      })()}
+                    </td>
+                  </tr>
+                ))}
+                {getFilteredModalData().length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-muted-foreground font-bold bg-card">
+                      ไม่พบประวัติปัญหา DRP ในช่วงเวลานี้
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 3. Inhaler Technique checks Drill-down */}
+      <Modal
+        isOpen={activeDrillDown === 'techChecks'}
+        onClose={() => setActiveDrillDown(null)}
+        title={`สรุปการสอนพ่นยา: ${getFormattedPeriodLabel()} (${currentTechChecks.length} รายการ)`}
+      >
+        <div className="space-y-4 font-sans">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+            <input
+              type="text"
+              placeholder="ค้นหา HN, ชื่อ, หมายเหตุ..."
+              className="w-full pl-9 pr-4 py-2 text-xs font-bold border-2 border-border bg-card focus:outline-none"
+              value={modalSearchTerm}
+              onChange={(e) => setModalSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="max-h-[50vh] overflow-y-auto border-2 border-border">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-secondary/70 border-b-2 border-border text-foreground font-black sticky top-0 z-10">
+                <tr>
+                  <th className="p-3">วันที่</th>
+                  <th className="p-3">HN</th>
+                  <th className="p-3">ชื่อ-นามสกุล</th>
+                  <th className="p-3">คะแนน</th>
+                  <th className="p-3">จุดที่ยังทำไม่ถูกต้อง</th>
+                  <th className="p-3">หมายเหตุ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y-2 divide-border">
+                {(getFilteredModalData() as TechniqueCheck[]).map((t, idx) => (
+                  <tr key={idx} className="hover:bg-secondary/20 transition-colors bg-card">
+                    <td className="p-3 font-bold">{toThaiShortDate(t.date)}</td>
+                    <td className="p-3">
+                      <Link href={`/staff/patient/${t.hn}`} onClick={() => setActiveDrillDown(null)} className="text-primary font-black hover:underline cursor-pointer font-mono">
+                        {t.hn}
+                      </Link>
+                    </td>
+                    <td className="p-3 font-bold text-foreground">{getPatientName(t.hn)}</td>
+                    <td className="p-3 font-mono font-bold text-foreground">
+                      <span className={`px-2 py-0.5 border border-border font-bold text-xs ${t.score === 8 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                        {t.score}/8
+                      </span>
+                    </td>
+                    <td className="p-3 font-bold text-rose-600 truncate max-w-[200px]" title={getMissedSteps(t)}>
+                      {getMissedSteps(t)}
+                    </td>
+                    <td className="p-3 text-muted-foreground truncate max-w-[150px]" title={t.note || '-'}>{t.note || '-'}</td>
+                  </tr>
+                ))}
+                {getFilteredModalData().length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-muted-foreground font-bold bg-card">
+                      ไม่พบข้อมูลการประเมินการสอนพ่นยาในช่วงเวลานี้
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 4. New Patients Drill-down */}
+      <Modal
+        isOpen={activeDrillDown === 'newPatients'}
+        onClose={() => setActiveDrillDown(null)}
+        title={`รายชื่อผู้ป่วยรายใหม่: ${getFormattedPeriodLabel()} (${currentNewPatients.length} คน)`}
+      >
+        <div className="space-y-4 font-sans font-sans">
+          <div className="relative font-sans">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+            <input
+              type="text"
+              placeholder="ค้นหา HN หรือ ชื่อผู้ป่วย..."
+              className="w-full pl-9 pr-4 py-2 text-xs font-bold border-2 border-border bg-card focus:outline-none"
+              value={modalSearchTerm}
+              onChange={(e) => setModalSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="max-h-[50vh] overflow-y-auto border-2 border-border">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-secondary/70 border-b-2 border-border text-foreground font-black sticky top-0 z-10">
+                <tr>
+                  <th className="p-3">วันที่เริ่มรับบริการ</th>
+                  <th className="p-3">HN</th>
+                  <th className="p-3">ชื่อ-นามสกุล</th>
+                  <th className="p-3">เบอร์ติดต่อ</th>
+                  <th className="p-3">สถานะการรักษา</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y-2 divide-border">
+                {(getFilteredModalData() as Visit[]).map((v, idx) => (
+                  <tr key={idx} className="hover:bg-secondary/20 transition-colors bg-card">
+                    <td className="p-3 font-bold">{toThaiShortDate(v.visit_date ?? v.date ?? '')}</td>
+                    <td className="p-3">
+                      <Link href={`/staff/patient/${v.hn}`} onClick={() => setActiveDrillDown(null)} className="text-primary font-black hover:underline cursor-pointer font-mono">
+                        {v.hn}
+                      </Link>
+                    </td>
+                    <td className="p-3 font-bold text-foreground">{getPatientName(v.hn)}</td>
+                    <td className="p-3 font-mono text-foreground">{getPatientPhone(v.hn)}</td>
+                    <td className="p-3">
+                      {(() => {
+                        const status = getPatientStatus(v.hn);
+                        return (
+                          <span className={`px-2 py-0.5 border border-border font-bold text-[10px] ${status === 'Active' ? 'bg-green-100 text-green-800' : status === 'COPD' ? 'bg-orange-100 text-orange-800' : 'bg-muted text-muted-foreground'
+                            }`}>
+                            {status}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                  </tr>
+                ))}
+                {getFilteredModalData().length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground font-bold bg-card">
+                      ไม่พบประวัติผู้ป่วยรายใหม่ในช่วงเวลานี้
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </Modal>
 
     </div>
@@ -888,27 +1493,48 @@ interface StatTileProps {
 }
 
 function StatTile({ label, value, sub, icon, delay, trend, color, onClick, clickable }: StatTileProps) {
+  const isNegativeTrend = trend ? trend.startsWith('-') : false;
+  const isZeroTrend = trend ? trend === '0%' : true;
+
   return (
-    <FadeContent delay={delay} className={`glass-card p-5 relative overflow-hidden group transition-all duration-300 ${clickable ? 'cursor-pointer hover:border-primary/50 hover:shadow-primary/10' : ''}`} >
-      <div className="absolute inset-0 z-0 bg-transparent group-hover:bg-primary/5 transition-colors" onClick={onClick} />
-      <div className="flex justify-between items-start mb-4 relative z-10 pointer-events-none">
-        <div className={`p-2 rounded-xl bg-black/5 dark:bg-white/10 ${color || 'text-foreground'}`}>
-          {icon}
+    <FadeContent delay={delay} className="w-full font-sans">
+      <div
+        onClick={clickable ? onClick : undefined}
+        className={`bg-card border-2 border-border shadow-retro-sm p-5 relative overflow-hidden group transition-all duration-150 ${clickable ? 'cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-retro' : ''
+          }`}
+      >
+        <div className="absolute inset-0 z-0 bg-transparent group-hover:bg-primary/5 transition-colors" />
+
+        <div className="flex justify-between items-start mb-4 relative z-10 pointer-events-none">
+          <div className={`p-2 border-2 border-border bg-secondary/30 ${color || 'text-foreground'}`}>
+            {icon}
+          </div>
+          {trend && (
+            <span
+              className={`flex items-center text-xs font-black border-2 border-border px-2 py-0.5 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] ${isZeroTrend
+                ? 'bg-muted text-muted-foreground'
+                : isNegativeTrend
+                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
+                  : 'bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-400'
+                }`}
+            >
+              {!isZeroTrend && <TrendingUp size={12} className={`mr-1 ${isNegativeTrend ? 'rotate-180 text-rose-600' : 'text-green-600'}`} />}
+              {trend}
+            </span>
+          )}
         </div>
-        {trend && (
-          <span className="flex items-center text-xs font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
-            <TrendingUp size={12} className="mr-1" /> {trend}
-          </span>
-        )}
-      </div>
-      <div className="relative z-10 pointer-events-none">
-        <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider mb-1">{label}</p>
-        <div className="flex items-baseline justify-between">
-          <h4 className="text-3xl font-black text-foreground flex items-baseline gap-1">
-            <CountUp target={value} />
-            <span className="text-sm font-normal text-muted-foreground/50">{sub}</span>
-          </h4>
-          {clickable && <LineChart size={16} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
+
+        <div className="relative z-10 pointer-events-none">
+          <p className="text-muted-foreground text-xs font-black uppercase tracking-wider mb-1">{label}</p>
+          <div className="flex items-baseline justify-between">
+            <h4 className="text-3xl font-black text-foreground flex items-baseline gap-1">
+              <CountUp target={value} />
+              <span className="text-sm font-normal text-muted-foreground">{sub}</span>
+            </h4>
+            {clickable && (
+              <LineChart size={16} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
+          </div>
         </div>
       </div>
     </FadeContent>
