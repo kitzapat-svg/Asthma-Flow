@@ -200,17 +200,17 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
         const isStandardOutcome = configSource.outcomes.includes(drp.outcome);
 
         setEditForm({
-            category: drp.category,
-            type: drp.type,
+            category: drp.category || "",
+            type: drp.type || "",
             cause: isStandardCause ? drp.cause : (drp.cause ? "อื่นๆ (ระบุ)..." : ""),
-            customCause: isStandardCause ? "" : drp.cause,
+            customCause: isStandardCause ? "" : (drp.cause || ""),
             intervention: isStandardIntervention ? drp.intervention : (drp.intervention ? "อื่นๆ (ระบุ)..." : ""),
-            customIntervention: isStandardIntervention ? "" : drp.intervention,
+            customIntervention: isStandardIntervention ? "" : (drp.intervention || ""),
             outcome: isStandardOutcome ? drp.outcome : (drp.outcome ? "อื่นๆ (ระบุ)..." : ""),
-            customOutcome: isStandardOutcome ? "" : drp.outcome,
-            status: drp.status,
-            note: drp.note,
-            visit_date: drp.visit_date
+            customOutcome: isStandardOutcome ? "" : (drp.outcome || ""),
+            status: drp.status || 'open',
+            note: drp.note || "",
+            visit_date: drp.visit_date || ""
         });
         setIsEditOpen(true);
     };

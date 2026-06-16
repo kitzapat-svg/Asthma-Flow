@@ -236,7 +236,7 @@ export async function saveDRPObject(drp: any, username: string | null = 'System'
         id: drp.id,
         hn: normalizeHN(drp.hn),
         created_date: drp.created_date || new Date().toISOString(),
-        visit_date: drp.visit_date,
+        visit_date: drp.visit_date || null,
         category: drp.category,
         type: drp.type,
         cause: drp.cause,
@@ -301,7 +301,7 @@ export async function updateDRP(id: string, updatedData: any, username: string |
     if (updatedData.intervention !== undefined) payload.intervention = updatedData.intervention;
     if (updatedData.outcome !== undefined) payload.outcome = updatedData.outcome;
     if (updatedData.note !== undefined) payload.note = updatedData.note;
-    if (updatedData.visit_date !== undefined) payload.visit_date = updatedData.visit_date;
+    if (updatedData.visit_date !== undefined) payload.visit_date = updatedData.visit_date || null;
     payload.status = status;
 
     if (status !== current.status) {
