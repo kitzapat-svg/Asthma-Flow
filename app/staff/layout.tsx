@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Users, PieChart, UserCog, Wind, Menu, X, User, Database, Activity } from "lucide-react";
+import { LogOut, Users, PieChart, UserCog, Wind, Menu, X, User, Database, Activity, AlertTriangle } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useState, useEffect, ElementType } from "react";
@@ -12,6 +12,7 @@ const staffNavItems = [
   { href: "/staff/patients", icon: Users, label: "รายชื่อผู้ป่วย" },
   { href: "/staff/dashboard", icon: PieChart, label: "แดชบอร์ด & สถิติ" },
   { href: "/staff/today-pefr", icon: Activity, label: "Record PEFR" },
+  { href: "/staff/drp-management", icon: AlertTriangle, label: "จัดการ DRP" },
 ];
 
 export default function StaffLayout({

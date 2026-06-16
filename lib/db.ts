@@ -192,8 +192,12 @@ export async function saveTechniqueCheck(data: any[]) {
 
 // --- DRP Functions ---
 
-export async function saveDRP(data: any[]) {
+export async function saveDRP(data: any[], username: string | null = 'System') {
     // Array: [ID, HN, CreatedDate, VisitDate, Cat, Type, Cause, Int, Out, Note]
+    const outcome = data[8] || '-';
+    // Logic: Set status = 'resolved' if outcome contains Resolved or สำเร็จ; otherwise 'open'
+    const status = (outcome.includes('Resolved') || outcome.includes('สำเร็จ')) ? 'resolved' : 'open';
+    
     const payload = {
         id: data[0],
         hn: normalizeHN(data[1]),
@@ -203,24 +207,344 @@ export async function saveDRP(data: any[]) {
         type: data[5],
         cause: data[6],
         intervention: data[7],
-        outcome: data[8],
-        note: data[9]
+        outcome: outcome,
+        note: data[9] || '-',
+        status: status,
+        created_by: username,
+        updated_by: username,
+        updated_at: new Date().toISOString()
     };
+    
     const { error } = await supabase.from('drps').insert(payload);
+    if (!error) {
+        // Log to drp_history
+        await supabase.from('drp_history').insert({
+            drp_id: payload.id,
+            action_type: 'CREATE',
+            changed_by: username || 'System',
+            changes: { snapshot: payload }
+        });
+    }
     return { success: !error, error };
 }
 
-export async function updateDRP(id: string, updatedData: any) {
+export async function saveDRPObject(drp: any, username: string | null = 'System') {
+    const outcome = drp.outcome || '-';
+    const status = (outcome.includes('Resolved') || outcome.includes('สำเร็จ')) ? 'resolved' : 'open';
+    
+    const payload = {
+        id: drp.id,
+        hn: normalizeHN(drp.hn),
+        created_date: drp.created_date || new Date().toISOString(),
+        visit_date: drp.visit_date,
+        category: drp.category,
+        type: drp.type,
+        cause: drp.cause,
+        intervention: drp.intervention,
+        outcome: outcome,
+        note: drp.note || '-',
+        status: status,
+        created_by: username,
+        updated_by: username,
+        updated_at: new Date().toISOString()
+    };
+    
+    const { error } = await supabase.from('drps').insert(payload);
+    if (!error) {
+        // Log to drp_history
+        await supabase.from('drp_history').insert({
+            drp_id: payload.id,
+            action_type: 'CREATE',
+            changed_by: username || 'System',
+            changes: { snapshot: payload }
+        });
+    }
+    return { success: !error, error };
+}
+
+export async function updateDRP(id: string, updatedData: any, username: string | null = 'System') {
+    // 1. Fetch current DRP to detect changes
+    const { data: current, error: fetchErr } = await supabase
+        .from('drps')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+    if (fetchErr || !current) {
+        return { success: false, error: fetchErr || new Error('DRP not found') };
+    }
+
+    // Determine status from updated outcome or direct status field
+    let status = current.status;
+    const outcome = updatedData.outcome !== undefined ? updatedData.outcome : current.outcome;
+    
+    if (updatedData.status !== undefined) {
+        status = updatedData.status;
+    } else if (updatedData.outcome !== undefined) {
+        if (outcome.includes('Resolved') || outcome.includes('สำเร็จ')) {
+            status = 'resolved';
+        } else if (outcome.includes('ไม่สำเร็จ')) {
+            status = 'failed';
+        } else {
+            status = 'open';
+        }
+    }
+
+    const payload: any = {
+        updated_by: username,
+        updated_at: new Date().toISOString()
+    };
+
+    if (updatedData.category !== undefined) payload.category = updatedData.category;
+    if (updatedData.type !== undefined) payload.type = updatedData.type;
+    if (updatedData.cause !== undefined) payload.cause = updatedData.cause;
+    if (updatedData.intervention !== undefined) payload.intervention = updatedData.intervention;
+    if (updatedData.outcome !== undefined) payload.outcome = updatedData.outcome;
+    if (updatedData.note !== undefined) payload.note = updatedData.note;
+    if (updatedData.visit_date !== undefined) payload.visit_date = updatedData.visit_date;
+    payload.status = status;
+
+    if (status !== current.status) {
+        if (status === 'resolved' || status === 'failed') {
+            payload.closed_at = new Date().toISOString();
+            payload.closed_by = username;
+        } else {
+            payload.closed_at = null;
+            payload.closed_by = null;
+        }
+    }
+
     const { error } = await supabase
         .from('drps')
-        .update({
-            intervention: updatedData.intervention,
-            outcome: updatedData.outcome,
-            note: updatedData.note || '-'
-        })
+        .update(payload)
+        .eq('id', id);
+
+    if (!error) {
+        // Calculate fields that changed
+        const fieldsChanged: any[] = [];
+        const trackFields = ['category', 'type', 'cause', 'intervention', 'outcome', 'note', 'status', 'visit_date'];
+        
+        trackFields.forEach(f => {
+            if (payload[f] !== undefined && payload[f] !== current[f]) {
+                fieldsChanged.push({
+                    field: f,
+                    old: current[f],
+                    new: payload[f]
+                });
+            }
+        });
+
+        // Log to history
+        let actionType: 'UPDATE' | 'CLOSE' | 'REOPEN' = 'UPDATE';
+        if (current.status === 'open' && (status === 'resolved' || status === 'failed')) {
+            actionType = 'CLOSE';
+        } else if ((current.status === 'resolved' || current.status === 'failed') && status === 'open') {
+            actionType = 'REOPEN';
+        }
+
+        await supabase.from('drp_history').insert({
+            drp_id: id,
+            action_type: actionType,
+            changed_by: username || 'System',
+            changes: { fields: fieldsChanged }
+        });
+    }
+
+    return { success: !error, error };
+}
+
+export async function deleteDRPById(id: string) {
+    const { error } = await supabase
+        .from('drps')
+        .delete()
         .eq('id', id);
     return { success: !error, error };
 }
+
+export async function getDrpHistory(drpId: string) {
+    const { data, error } = await supabase
+        .from('drp_history')
+        .select('*')
+        .eq('drp_id', drpId)
+        .order('changed_at', { ascending: false });
+    if (error) return [];
+    return data;
+}
+
+export async function getAllDrpsWithPatients() {
+    const { data, error } = await supabase
+        .from('drps')
+        .select(`
+            *,
+            patients (
+                first_name,
+                last_name,
+                prefix
+            )
+        `)
+        .order('created_date', { ascending: false });
+        
+    if (error) throw error;
+    
+    // Map patient name into flat fields for compatibility
+    return data.map((d: any) => ({
+        ...d,
+        patient_name: d.patients ? `${d.patients.first_name} ${d.patients.last_name}` : 'Unknown',
+        patient_prefix: d.patients ? d.patients.prefix : ''
+    }));
+}
+
+// --- DRP Dropdown Config Management Functions ---
+
+export async function getDrpConfig() {
+    const { data: categories, error: catErr } = await supabase
+        .from('drp_categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+        
+    const { data: types, error: typeErr } = await supabase
+        .from('drp_types')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+        
+    const { data: causes, error: causeErr } = await supabase
+        .from('drp_causes')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+    const { data: interventions, error: intErr } = await supabase
+        .from('drp_interventions')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+    const { data: outcomes, error: outErr } = await supabase
+        .from('drp_outcomes')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+    if (catErr || typeErr || causeErr || intErr || outErr) {
+        throw new Error('Failed to fetch DRP config');
+    }
+
+    // Structure hierarchical categories -> types -> causes
+    const structuredCategories = categories.map((cat: any) => {
+        const catTypes = types
+            .filter((t: any) => t.category_id === cat.id)
+            .map((t: any) => {
+                const typeCauses = causes
+                    .filter((c: any) => c.type_id === t.id)
+                    .map((c: any) => c.name);
+                return {
+                    id: t.code,
+                    dbId: t.id,
+                    name: t.name,
+                    causes: typeCauses
+                };
+            });
+        return {
+            id: cat.code,
+            dbId: cat.id,
+            name: cat.name,
+            types: catTypes
+        };
+    });
+
+    return {
+        categories: structuredCategories,
+        interventions: interventions.map((i: any) => i.name),
+        outcomes: outcomes.map((o: any) => o.name),
+        raw: {
+            categories,
+            types,
+            causes,
+            interventions,
+            outcomes
+        }
+    };
+}
+
+// Config CRUD helper functions
+export async function addDrpCategory(code: string, name: string, sortOrder: number = 0) {
+    const { error } = await supabase.from('drp_categories').insert({ code, name, sort_order: sortOrder });
+    return { success: !error, error };
+}
+
+export async function updateDrpCategory(id: number, name: string) {
+    const { error } = await supabase.from('drp_categories').update({ name }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function deleteDrpCategory(id: number) {
+    // Soft delete
+    const { error } = await supabase.from('drp_categories').update({ is_active: false }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function addDrpType(categoryId: number, code: string, name: string, sortOrder: number = 0) {
+    const { error } = await supabase.from('drp_types').insert({ category_id: categoryId, code, name, sort_order: sortOrder });
+    return { success: !error, error };
+}
+
+export async function updateDrpType(id: number, name: string) {
+    const { error } = await supabase.from('drp_types').update({ name }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function deleteDrpType(id: number) {
+    const { error } = await supabase.from('drp_types').update({ is_active: false }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function addDrpCause(typeId: number, name: string, sortOrder: number = 0) {
+    const { error } = await supabase.from('drp_causes').insert({ type_id: typeId, name, sort_order: sortOrder });
+    return { success: !error, error };
+}
+
+export async function updateDrpCause(id: number, name: string) {
+    const { error } = await supabase.from('drp_causes').update({ name }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function deleteDrpCause(id: number) {
+    const { error } = await supabase.from('drp_causes').update({ is_active: false }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function addDrpIntervention(name: string, sortOrder: number = 0) {
+    const { error } = await supabase.from('drp_interventions').insert({ name, sort_order: sortOrder });
+    return { success: !error, error };
+}
+
+export async function updateDrpIntervention(id: number, name: string) {
+    const { error } = await supabase.from('drp_interventions').update({ name }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function deleteDrpIntervention(id: number) {
+    const { error } = await supabase.from('drp_interventions').update({ is_active: false }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function addDrpOutcome(name: string, sortOrder: number = 0) {
+    const { error } = await supabase.from('drp_outcomes').insert({ name, sort_order: sortOrder });
+    return { success: !error, error };
+}
+
+export async function updateDrpOutcome(id: number, name: string) {
+    const { error } = await supabase.from('drp_outcomes').update({ name }).eq('id', id);
+    return { success: !error, error };
+}
+
+export async function deleteDrpOutcome(id: number) {
+    const { error } = await supabase.from('drp_outcomes').update({ is_active: false }).eq('id', id);
+    return { success: !error, error };
+}
+
 
 // --- Medication Functions ---
 

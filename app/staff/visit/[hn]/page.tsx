@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import React, { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FieldError, useWatch, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,7 +15,7 @@ import { Patient } from '@/lib/types';
 import { DRP_DATA, INTERVENTION_OPTIONS, OUTCOME_OPTIONS } from '@/lib/drp-data';
 import { v4 as uuidv4 } from 'uuid';
 import { getBangkokDateString, getBangkokISOString } from '@/lib/date-utils';
-import { getUnresolvedDrps } from '@/lib/drp-helpers';
+import { getOpenDrps } from '@/lib/drp-helpers';
 import { DRP } from '@/lib/types';
 
 
@@ -85,6 +85,30 @@ function RecordVisitPageInner() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [latestControlLevel, setLatestControlLevel] = useState<string>('');
   const [existingUnresolvedDrps, setExistingUnresolvedDrps] = useState<DRP[]>([]);
+  const [dbConfig, setDbConfig] = useState<any>(null);
+
+  const configSource = useMemo(() => {
+    if (dbConfig && dbConfig.categories && dbConfig.categories.length > 0) {
+      return {
+        categories: dbConfig.categories,
+        interventions: dbConfig.interventions,
+        outcomes: dbConfig.outcomes
+      };
+    }
+    return {
+      categories: DRP_DATA.map(c => ({
+        id: c.id,
+        name: c.name,
+        types: c.types.map(t => ({
+          id: t.id,
+          name: t.name,
+          causes: t.causes
+        }))
+      })),
+      interventions: INTERVENTION_OPTIONS,
+      outcomes: OUTCOME_OPTIONS
+    };
+  }, [dbConfig]);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editDate, setEditDate] = useState<string | null>(null); // date being edited (null = today)
   const [appointmentInfo, setAppointmentInfo] = useState<{ scheduledDate: string; diffDays: number; type: 'early' | 'late' | 'on-time' } | null>(null);
@@ -170,7 +194,7 @@ function RecordVisitPageInner() {
       const res = await fetch(`/api/db?type=drps&hn=${params.hn}`);
       const data = await res.json();
       if (Array.isArray(data)) {
-        const unresolved = getUnresolvedDrps(data);
+        const unresolved = getOpenDrps(data);
         setExistingUnresolvedDrps(unresolved);
       }
     } catch (err) { console.error('Failed to fetch DRPs:', err); }
@@ -258,6 +282,17 @@ function RecordVisitPageInner() {
           }
         } catch (err) {
           console.error('[Medication List] Fetch Error:', err);
+        }
+
+        // Load DRP config from DB
+        try {
+          const resConfig = await fetch('/api/db?type=drp_config');
+          if (resConfig.ok) {
+            const configData = await resConfig.json();
+            setDbConfig(configData);
+          }
+        } catch (err) {
+          console.error('Failed to load DRP config:', err);
         }
 
         // Determine which date to check for existing visit
@@ -1176,8 +1211,8 @@ function RecordVisitPageInner() {
                 </div>
 
                 {drpFields.map((field, index) => {
-                  const selectedCategory = DRP_DATA.find(c => c.name === currentDrpList?.[index]?.category);
-                  const selectedType = selectedCategory?.types.find(t => t.name === currentDrpList?.[index]?.type);
+                  const selectedCategory = configSource.categories.find((c: any) => c.name === currentDrpList?.[index]?.category);
+                  const selectedType = selectedCategory?.types.find((t: any) => t.name === currentDrpList?.[index]?.type);
 
                   return (
                     <div key={field.id} className="p-4 border-2 border-[#3D3834]/20 rounded-md bg-white dark:bg-zinc-900 relative space-y-3">
@@ -1188,7 +1223,7 @@ function RecordVisitPageInner() {
                           <label className="text-xs font-bold mb-1 block">หมวดหมู่ (Category)</label>
                           <select {...register(`drpList.${index}.category`)} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800">
                             <option value="">-- เลือกหมวดหมู่ --</option>
-                            {DRP_DATA.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                            {configSource.categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                           </select>
                         </div>
 
@@ -1196,7 +1231,7 @@ function RecordVisitPageInner() {
                           <label className="text-xs font-bold mb-1 block">ปัญหา (Type)</label>
                           <select {...register(`drpList.${index}.type`)} disabled={!selectedCategory} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800 disabled:opacity-50">
                             <option value="">-- เลือกปัญหา --</option>
-                            {selectedCategory?.types.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                            {selectedCategory?.types.map((t: any) => <option key={t.id} value={t.name}>{t.name}</option>)}
                           </select>
                         </div>
                       </div>
@@ -1206,7 +1241,7 @@ function RecordVisitPageInner() {
                           <label className="text-xs font-bold mb-1 block">สาเหตุ (Cause)</label>
                           <select {...register(`drpList.${index}.cause`)} disabled={!selectedType} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800 disabled:opacity-50">
                             <option value="">-- เลือกสาเหตุ --</option>
-                            {selectedType?.causes.map((cause, i) => <option key={i} value={cause}>{cause}</option>)}
+                            {selectedType?.causes.map((cause: any, i: number) => <option key={i} value={cause}>{cause}</option>)}
                           </select>
                           {currentDrpList?.[index]?.cause === "อื่นๆ (ระบุ)..." && (
                             <input type="text" {...register(`drpList.${index}.customCause`)} placeholder="ระบุสาเหตุอื่นๆ..." className="w-full mt-2 px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800" />
@@ -1219,7 +1254,7 @@ function RecordVisitPageInner() {
                           <label className="text-xs font-bold mb-1 block">การจัดการ (Intervention)</label>
                           <select {...register(`drpList.${index}.intervention`)} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800">
                             <option value="">-- เลือกการจัดการ --</option>
-                            {INTERVENTION_OPTIONS.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                            {configSource.interventions.map((opt: any, i: number) => <option key={i} value={opt}>{opt}</option>)}
                           </select>
                           {currentDrpList?.[index]?.intervention === "อื่นๆ (ระบุ)..." && (
                             <input type="text" {...register(`drpList.${index}.customIntervention`)} placeholder="ระบุการจัดการอื่นๆ..." className="w-full mt-2 px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800" />
@@ -1230,7 +1265,7 @@ function RecordVisitPageInner() {
                           <label className="text-xs font-bold mb-1 block">ผลลัพธ์ (Outcome)</label>
                           <select {...register(`drpList.${index}.outcome`)} className="w-full px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800">
                             <option value="">-- เลือกผลลัพธ์ --</option>
-                            {OUTCOME_OPTIONS.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                            {configSource.outcomes.map((opt: any, i: number) => <option key={i} value={opt}>{opt}</option>)}
                           </select>
                           {currentDrpList?.[index]?.outcome === "อื่นๆ (ระบุ)..." && (
                             <input type="text" {...register(`drpList.${index}.customOutcome`)} placeholder="ระบุผลลัพธ์อื่นๆ..." className="w-full mt-2 px-3 py-2 text-sm border-2 border-[#3D3834]/20 focus:border-[#D97736] outline-none rounded bg-white dark:bg-zinc-800" />

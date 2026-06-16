@@ -88,16 +88,87 @@ export interface Medication {
 }
 
 export interface DRP {
-    id: string; // 0
-    hn: string; // 1
+    id: string;
+    hn: string;
     date?: string; // backwards compatibility
     created_date?: string;
-    visit_date: string; // 3
-    category: string; // 4
-    type: string; // 5
-    cause: string; // 6
-    intervention: string; // 7
-    outcome: string; // 8
-    note: string; // 9
+    visit_date: string;
+    category: string;
+    type: string;
+    cause: string;
+    intervention: string;
+    outcome: string;
+    note: string;
+    created_at?: string;
+    status: 'open' | 'resolved' | 'failed';
+    created_by?: string | null;
+    updated_at?: string;
+    updated_by?: string | null;
+    closed_at?: string | null;
+    closed_by?: string | null;
+}
+
+export interface DrpWithPatient extends DRP {
+    patient_name?: string;
+    patient_prefix?: string;
+}
+
+export interface DrpHistoryEntry {
+    id: number;
+    drp_id: string;
+    action_type: 'CREATE' | 'UPDATE' | 'CLOSE' | 'REOPEN' | 'DELETE';
+    changed_by: string;
+    changed_at: string;
+    changes: {
+        snapshot?: Record<string, any>;
+        fields?: Array<{ field: string; old: any; new: any }>;
+        close_reason?: 'resolved' | 'failed';
+    };
+}
+
+export interface DrpCategoryConfig {
+    id: number;
+    code: string;
+    name: string;
+    sort_order: number;
+    is_active: boolean;
+    created_at?: string;
+    types?: DrpTypeConfig[];
+}
+
+export interface DrpTypeConfig {
+    id: number;
+    category_id: number;
+    code: string;
+    name: string;
+    sort_order: number;
+    is_active: boolean;
+    created_at?: string;
+    causes?: DrpCauseConfig[];
+}
+
+export interface DrpCauseConfig {
+    id: number;
+    type_id: number;
+    name: string;
+    sort_order: number;
+    is_active: boolean;
     created_at?: string;
 }
+
+export interface DrpInterventionConfig {
+    id: number;
+    name: string;
+    sort_order: number;
+    is_active: boolean;
+    created_at?: string;
+}
+
+export interface DrpOutcomeConfig {
+    id: number;
+    name: string;
+    sort_order: number;
+    is_active: boolean;
+    created_at?: string;
+}
+

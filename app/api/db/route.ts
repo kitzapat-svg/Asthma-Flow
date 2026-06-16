@@ -15,7 +15,27 @@ import {
   saveVisit, 
   saveMedication, 
   saveDRP, 
+  saveDRPObject,
   updateDRP, 
+  deleteDRPById,
+  getDrpHistory,
+  getAllDrpsWithPatients,
+  getDrpConfig,
+  addDrpCategory,
+  updateDrpCategory,
+  deleteDrpCategory,
+  addDrpType,
+  updateDrpType,
+  deleteDrpType,
+  addDrpCause,
+  updateDrpCause,
+  deleteDrpCause,
+  addDrpIntervention,
+  updateDrpIntervention,
+  deleteDrpIntervention,
+  addDrpOutcome,
+  updateDrpOutcome,
+  deleteDrpOutcome,
   updatePatientStatus, 
   updatePatientData, 
   createPatientData,
@@ -124,6 +144,23 @@ export async function GET(request: Request) {
         return NextResponse.json(drps);
     }
 
+    if (type === 'drps_all') {
+        const drps = await getAllDrpsWithPatients();
+        return NextResponse.json(drps);
+    }
+
+    if (type === 'drp_history') {
+        const id = searchParams.get('id');
+        if (!id) return NextResponse.json({ error: "Missing DRP ID" }, { status: 400 });
+        const history = await getDrpHistory(id);
+        return NextResponse.json(history);
+    }
+
+    if (type === 'drp_config') {
+        const config = await getDrpConfig();
+        return NextResponse.json(config);
+    }
+
     if (type === 'technique_checks') {
         if (hn) {
             const checks = await getTechniqueChecksByHN(hn);
@@ -217,7 +254,32 @@ export async function POST(request: Request) {
     else if (type === 'drps') {
       const parse = drpRowSchema.safeParse(data);
       if (!parse.success) return NextResponse.json({ error: "Invalid Data" }, { status: 400 });
-      result = await saveDRP(data);
+      const username = (session.user as any).id || session.user?.email || 'System';
+      result = await saveDRP(data, username);
+    }
+    else if (type === 'drp_standalone') {
+      const username = (session.user as any).id || session.user?.email || 'System';
+      result = await saveDRPObject(data, username);
+    }
+    else if (type === 'drp_config_category') {
+      const { code, name, sort_order } = data;
+      result = await addDrpCategory(code, name, sort_order);
+    }
+    else if (type === 'drp_config_type') {
+      const { category_id, code, name, sort_order } = data;
+      result = await addDrpType(category_id, code, name, sort_order);
+    }
+    else if (type === 'drp_config_cause') {
+      const { type_id, name, sort_order } = data;
+      result = await addDrpCause(type_id, name, sort_order);
+    }
+    else if (type === 'drp_config_intervention') {
+      const { name, sort_order } = data;
+      result = await addDrpIntervention(name, sort_order);
+    }
+    else if (type === 'drp_config_outcome') {
+      const { name, sort_order } = data;
+      result = await addDrpOutcome(name, sort_order);
     }
     else if (type === 'advice') {
       const hn = data[0];
@@ -340,18 +402,49 @@ export async function PUT(request: Request) {
 
     if (type === 'drp_update') {
       const { id, data: drpData } = body;
-      const result = await updateDRP(id, drpData);
+      const username = (session.user as any).id || session.user?.email || 'System';
+      const result = await updateDRP(id, drpData, username);
       if (result.success) {
         await logAudit({
           action_type: 'UPDATE',
           module: 'VISIT',
           actor_id: session.user?.email || "Unknown",
-          payload: { id, event: 'DRP Outcome Update' }
+          payload: { id, event: 'DRP Update/History Logged' }
         });
         return NextResponse.json({ message: "Update success" });
       } else {
         return NextResponse.json({ error: result.error }, { status: 404 });
       }
+    }
+
+    if (type === 'drp_config_category') {
+      const { id, name } = body;
+      const result = await updateDrpCategory(id, name);
+      return NextResponse.json(result);
+    }
+
+    if (type === 'drp_config_type') {
+      const { id, name } = body;
+      const result = await updateDrpType(id, name);
+      return NextResponse.json(result);
+    }
+
+    if (type === 'drp_config_cause') {
+      const { id, name } = body;
+      const result = await updateDrpCause(id, name);
+      return NextResponse.json(result);
+    }
+
+    if (type === 'drp_config_intervention') {
+      const { id, name } = body;
+      const result = await updateDrpIntervention(id, name);
+      return NextResponse.json(result);
+    }
+
+    if (type === 'drp_config_outcome') {
+      const { id, name } = body;
+      const result = await updateDrpOutcome(id, name);
+      return NextResponse.json(result);
     }
 
     if (type === 'advice_update') {
@@ -494,6 +587,45 @@ export async function DELETE(request: Request) {
         });
       }
       return NextResponse.json({ success: result.success });
+    }
+
+    if (type === 'drp') {
+      if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
+      const result = await deleteDRPById(id);
+      if (result.success) {
+        await logAudit({
+          action_type: 'DELETE',
+          module: 'VISIT',
+          actor_id: session.user?.email || "Unknown",
+          payload: { event: 'Deleted DRP', id }
+        });
+      }
+      return NextResponse.json({ success: result.success });
+    }
+
+    if (type === 'drp_config_category') {
+      const result = await deleteDrpCategory(Number(id));
+      return NextResponse.json(result);
+    }
+
+    if (type === 'drp_config_type') {
+      const result = await deleteDrpType(Number(id));
+      return NextResponse.json(result);
+    }
+
+    if (type === 'drp_config_cause') {
+      const result = await deleteDrpCause(Number(id));
+      return NextResponse.json(result);
+    }
+
+    if (type === 'drp_config_intervention') {
+      const result = await deleteDrpIntervention(Number(id));
+      return NextResponse.json(result);
+    }
+
+    if (type === 'drp_config_outcome') {
+      const result = await deleteDrpOutcome(Number(id));
+      return NextResponse.json(result);
     }
 
     return NextResponse.json({ error: "Invalid type" }, { status: 400 });

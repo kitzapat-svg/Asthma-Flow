@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Activity, FileText, AlertTriangle, MessageSquareText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
-import { getUnresolvedDrps } from '@/lib/drp-helpers';
+import { getOpenDrps } from '@/lib/drp-helpers';
 
 import { Patient, Visit, TechniqueCheck, VisitDisplay, Medication } from './_components/types';
 import { normalizeHN, getAge, calculatePredictedPEFR, getStatusStyle, getInhalerStatus } from './_components/utils';
@@ -222,7 +222,7 @@ export default function PatientDetailPage() {
     const predictedVal = calculatePredictedPEFR(patient);
     const age = getAge(patient.dob);
     const inhalerStatus = getInhalerStatus(visitHistory);
-    const unresolvedDrps = getUnresolvedDrps(drpHistory);
+    const unresolvedDrps = getOpenDrps(drpHistory);
 
     // Calculate furthest appointment
     const validApptDates = visitHistory
@@ -282,7 +282,7 @@ export default function PatientDetailPage() {
                                 }}
                             />
                         )}
-                        {drpHistory.length > 0 && <DrpListCard drpHistory={drpHistory} />}
+                        {patient && <DrpListCard drpHistory={drpHistory} hn={patient.hn} onRefresh={fetchData} />}
                     </div>
 
                     {/* Right Column */}

@@ -7,8 +7,8 @@
 ---
 
 **Project:** Asthma Flow
-**Generated:** 2026-06-10 20:35:05
-**Category:** Healthcare App
+**Generated:** 2026-06-16 22:03:13
+**Category:** Analytics Dashboard
 
 ---
 
@@ -18,13 +18,13 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#0891B2` | `--color-primary` |
-| Secondary | `#22D3EE` | `--color-secondary` |
-| CTA/Accent | `#059669` | `--color-cta` |
-| Background | `#ECFEFF` | `--color-background` |
-| Text | `#164E63` | `--color-text` |
+| Primary | `#1E40AF` | `--color-primary` |
+| Secondary | `#3B82F6` | `--color-secondary` |
+| CTA/Accent | `#F59E0B` | `--color-cta` |
+| Background | `#F8FAFC` | `--color-background` |
+| Text | `#1E3A8A` | `--color-text` |
 
-**Color Notes:** Calm cyan + health green
+**Color Notes:** Blue data + amber highlights
 
 ### Typography
 
@@ -68,7 +68,7 @@
 ```css
 /* Primary Button */
 .btn-primary {
-  background: #059669;
+  background: #F59E0B;
   color: white;
   padding: 12px 24px;
   border-radius: 8px;
@@ -85,8 +85,8 @@
 /* Secondary Button */
 .btn-secondary {
   background: transparent;
-  color: #0891B2;
-  border: 2px solid #0891B2;
+  color: #1E40AF;
+  border: 2px solid #1E40AF;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
@@ -99,7 +99,7 @@
 
 ```css
 .card {
-  background: #ECFEFF;
+  background: #F8FAFC;
   border-radius: 12px;
   padding: 24px;
   box-shadow: var(--shadow-md);
@@ -125,9 +125,9 @@
 }
 
 .input:focus {
-  border-color: #0891B2;
+  border-color: #1E40AF;
   outline: none;
-  box-shadow: 0 0 0 3px #0891B220;
+  box-shadow: 0 0 0 3px #1E40AF20;
 }
 ```
 
@@ -153,17 +153,17 @@
 
 ## Style Guidelines
 
-**Style:** Accessible & Ethical
+**Style:** Data-Dense Dashboard
 
-**Keywords:** High contrast, large text (16px+), keyboard navigation, screen reader friendly, WCAG compliant, focus state, semantic
+**Keywords:** Multiple charts/widgets, data tables, KPI cards, minimal padding, grid layout, space-efficient, maximum data visibility
 
-**Best For:** Government, healthcare, education, inclusive products, large audience, legal compliance, public
+**Best For:** Business intelligence dashboards, financial analytics, enterprise reporting, operational dashboards, data warehousing
 
-**Key Effects:** Clear focus rings (3-4px), ARIA labels, skip links, responsive design, reduced motion, 44x44px touch targets
+**Key Effects:** Hover tooltips, chart zoom on click, row highlighting on hover, smooth filter animations, data loading spinners
 
 ### Page Pattern
 
-**Pattern Name:** Social Proof-Focused
+**Pattern Name:** Data-Dense + Drill-Down
 
 - **CTA Placement:** Above fold
 - **Section Order:** Hero > Features > CTA
@@ -172,9 +172,8 @@
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Bright neon colors
-- ❌ Motion-heavy animations
-- ❌ AI purple/pink gradients
+- ❌ Ornate design
+- ❌ No filtering
 
 ### Additional Forbidden Patterns
 
