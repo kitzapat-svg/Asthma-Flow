@@ -303,3 +303,12 @@ ON CONFLICT (name) DO UPDATE SET sort_order = EXCLUDED.sort_order;
 UPDATE drps 
 SET status = 'resolved' 
 WHERE outcome LIKE '%Resolved%' OR outcome LIKE '%สำเร็จ%' AND status = 'open';
+
+-- 7. Disable Row-Level Security (RLS) on new tables to allow standard API access
+ALTER TABLE drp_categories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE drp_types DISABLE ROW LEVEL SECURITY;
+ALTER TABLE drp_causes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE drp_interventions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE drp_outcomes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE drp_history DISABLE ROW LEVEL SECURITY;
+

@@ -379,7 +379,10 @@ export async function PUT(request: Request) {
       }
     }
 
-    if (!type || !hn) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!type) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+
+    const requiresHN = !type.startsWith('drp_') && type !== 'users';
+    if (requiresHN && !hn) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
 
     if (type === 'visits' || type === 'medications' || type === 'technique_checks') {
       const { date } = body;

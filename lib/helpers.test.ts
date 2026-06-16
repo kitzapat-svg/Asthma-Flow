@@ -3,8 +3,8 @@ import { normalizeHN, getAge, calculatePredictedPEFR } from './helpers';
 
 describe('Helper Functions', () => {
     describe('normalizeHN', () => {
-        it('should remove leading zeros', () => {
-            expect(normalizeHN('0012345')).toBe('12345');
+        it('should keep 7-digit HN with leading zeros intact', () => {
+            expect(normalizeHN('0012345')).toBe('0012345');
         });
 
         it('should handle undefined or null', () => {
@@ -12,8 +12,8 @@ describe('Helper Functions', () => {
             expect(normalizeHN(null)).toBe('');
         });
 
-        it('should handle strings without leading zeros', () => {
-            expect(normalizeHN('12345')).toBe('12345');
+        it('should pad short HN strings to 7 digits with leading zeros', () => {
+            expect(normalizeHN('12345')).toBe('0012345');
         });
     });
 
@@ -32,30 +32,26 @@ describe('Helper Functions', () => {
 
     describe('calculatePredictedPEFR', () => {
         it('should calculate for Male correctly', () => {
-            // Formula: (5.48 * H) - (1.51 * A) - 279.7
-            // 607
+            // Dejsomritrutai formula: height 170, age 30 -> 576
             const p = { height: '170', prefix: 'นาย', dob: '' };
-            // Mock getAge to return 30, or simpler: just test logic if we trust getAge.
-            // But getAge depends on dob.
-            // Let's rely on getAge working, so we need a DOB that gives 30.
             const currentYear = new Date().getFullYear();
             p.dob = `${currentYear - 30}-01-01`;
 
-            expect(calculatePredictedPEFR(p)).toBe(607);
+            expect(calculatePredictedPEFR(p)).toBe(576);
         });
 
         it('should calculate for Female correctly', () => {
-            // Formula: (3.72 * H) - (2.24 * A) - 96.6
-            // 431
+            // Dejsomritrutai formula: height 160, age 30 -> 391
             const currentYear = new Date().getFullYear();
             const p = { height: '160', prefix: 'นาง', dob: `${currentYear - 30}-01-01` };
-            expect(calculatePredictedPEFR(p)).toBe(431);
+            expect(calculatePredictedPEFR(p)).toBe(391);
         });
 
-        it('should return 0 if result is negative', () => {
+        it('should return 178 for extreme out-of-range low height snap case', () => {
+            // Dejsomritrutai formula: height 50 (snaps to 150), age 100 (caps to 95) -> 178
             const currentYear = new Date().getFullYear();
             const p = { height: '50', prefix: 'นาย', dob: `${currentYear - 100}-01-01` };
-            expect(calculatePredictedPEFR(p)).toBe(0); // Extreme case
+            expect(calculatePredictedPEFR(p)).toBe(178);
         });
     });
 });
