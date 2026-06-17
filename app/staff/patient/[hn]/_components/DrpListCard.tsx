@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useSession } from "next-auth/react";
-import { 
-  AlertCircle, CheckCircle, Clock, AlertTriangle, ChevronDown, 
-  ChevronUp, Edit2, Trash2, History, Plus, X, User, ChevronRight 
+import {
+    AlertCircle, CheckCircle, Clock, AlertTriangle, ChevronDown,
+    ChevronUp, Edit2, Trash2, History, Plus, X, User, ChevronRight
 } from 'lucide-react';
 import { getOpenDrps, getClosedDrps } from '@/lib/drp-helpers';
 import { Modal } from '@/components/ui/modal';
@@ -191,7 +191,7 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
     // Open Edit DRP modal
     const openEditModal = (drp: any) => {
         setSelectedDrp(drp);
-        
+
         const categoryObj = configSource.categories.find((c: any) => c.name === drp.category);
         const typeObj = categoryObj?.types.find((t: any) => t.name === drp.type);
         const isStandardCause = typeObj?.causes.includes(drp.cause);
@@ -307,46 +307,77 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
         const drpCause = drp.cause || drp.Cause || '-';
         const drpIntervention = drp.intervention || drp.Intervention || '-';
         const drpOutcome = drp.outcome || drp.Outcome || '';
+        const drpNote = drp.note || drp.Note || '';
         const drpVisitDate = drp.visit_date || drp.VisitDate || drp.created_date || '';
         const outcomeStyle = getOutcomeStyle(drpOutcome, drp.status);
         const isUnresolved = drp.status === 'open';
 
         return (
-            <div key={drp.id || index} className={`border-2 p-3 ${isUnresolved ? 'border-[#D97736]/40 bg-[#FFF8F0] dark:bg-orange-950/10 dark:border-orange-800' : 'border-[#3D3834]/10 bg-white dark:bg-zinc-900 dark:border-zinc-700'}`}>
-                <div className="flex items-start justify-between gap-2">
-                    <div>
-                        <span className="text-[10px] font-bold text-[#D97736]">{drpCategory}</span>
-                        <div className="font-bold text-sm text-[#2D2A26] dark:text-white">{drpType}</div>
+            <div
+                key={drp.id || index}
+                className={`rounded-lg border-2 overflow-hidden transition-shadow duration-200 ${isUnresolved
+                        ? 'border-[#D97736]/50 shadow-[2px_2px_0px_0px_#D97736]/20 dark:border-orange-700'
+                        : 'border-[#3D3834]/15 dark:border-zinc-700'
+                    }`}
+            >
+                {/* Card Header: stacked layout — no overflow */}
+                <div className={`px-3 pt-2.5 pb-2.5 space-y-1 ${isUnresolved
+                        ? 'bg-gradient-to-r from-[#FFF4E8] to-[#FFF8F2] dark:from-orange-950/30 dark:to-orange-950/10'
+                        : 'bg-[#F7F5F2] dark:bg-zinc-800/50'
+                    }`}>
+                    {/* Row 1: status dot + category pill */}
+                    <div className="flex items-center gap-1.5">
+                        <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${isUnresolved ? 'bg-[#D97736] animate-pulse' : 'bg-green-500'
+                            }`} />
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded leading-none ${isUnresolved
+                                ? 'bg-[#D97736]/15 text-[#B85C1A] dark:bg-orange-900/30 dark:text-orange-300'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            }`}>
+                            {drpCategory}
+                        </span>
                     </div>
-                    <span className="text-[10px] font-bold bg-[#F7F3ED] dark:bg-zinc-800 text-[#D97736] px-2 py-0.5 border border-[#D97736]/30 shrink-0 whitespace-nowrap">
-                        📅 {safeDateDisplay(drpVisitDate)}
-                    </span>
+                    {/* Row 2: type name — wraps freely */}
+                    <div className="text-xs font-extrabold text-[#2D2A26] dark:text-white leading-snug">
+                        {drpType}
+                    </div>
+                    {/* Row 3: date */}
+                    <div className="flex items-center gap-1 text-[10px] font-medium text-[#6B6560] dark:text-zinc-400">
+                        <Clock size={9} className="opacity-60 shrink-0" />
+                        {safeDateDisplay(drpVisitDate)}
+                    </div>
                 </div>
 
-                <div className="mt-2 space-y-1.5 text-xs">
-                    <div className="flex gap-2">
-                        <span className="font-bold text-[#3D3834] dark:text-zinc-400 shrink-0 w-14">สาเหตุ:</span>
-                        <span className="text-gray-600 dark:text-zinc-400">{drpCause}</span>
+                {/* Card Body: cause & intervention */}
+                <div className="px-3 py-2 space-y-1.5 bg-white dark:bg-zinc-900">
+                    <div className="flex gap-2 text-xs">
+                        <span className="shrink-0 font-bold text-[#3D3834] dark:text-zinc-300 w-[52px]">สาเหตุ</span>
+                        <span className="text-[#5A5450] dark:text-zinc-400 leading-snug">{drpCause}</span>
                     </div>
-                    <div className="flex gap-2">
-                        <span className="font-bold text-[#3D3834] dark:text-zinc-400 shrink-0 w-14">จัดการ:</span>
-                        <span className="text-gray-600 dark:text-zinc-400">{drpIntervention}</span>
+                    <div className="flex gap-2 text-xs">
+                        <span className="shrink-0 font-bold text-[#3D3834] dark:text-zinc-300 w-[52px]">จัดการ</span>
+                        <span className="text-[#5A5450] dark:text-zinc-400 leading-snug">{drpIntervention}</span>
                     </div>
+                    {drpNote && (
+                        <div className="flex gap-2 text-xs">
+                            <span className="shrink-0 font-bold text-[#3D3834] dark:text-zinc-300 w-[52px]">Note</span>
+                            <span className="text-[#5A5450] dark:text-zinc-400 leading-snug whitespace-pre-line">{drpNote}</span>
+                        </div>
+                    )}
                 </div>
 
+                {/* Card Footer: outcome + actions */}
                 {drpOutcome && (
-                    <div className="mt-2 pt-2 border-t border-[#3D3834]/10 dark:border-zinc-700 flex flex-wrap items-center justify-between gap-2">
-                        <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border ${outcomeStyle.cls}`}>
+                    <div className="px-3 py-2 border-t border-[#3D3834]/08 dark:border-zinc-700/50 bg-[#FAFAF8] dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-2">
+                        <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full border ${outcomeStyle.cls
+                            }`}>
                             {outcomeStyle.icon}
                             {drpOutcome}
                         </div>
-
-                        {/* Actions for specific DRP item */}
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <div className="flex items-center gap-1">
                             {isAdminOrPharmacist && (
                                 <button
                                     onClick={() => openEditModal(drp)}
-                                    className="p-1 hover:bg-secondary rounded text-primary"
+                                    className="p-1.5 hover:bg-[#F7F3ED] dark:hover:bg-zinc-700 rounded text-[#D97736] cursor-pointer transition-colors duration-150"
                                     title="แก้ไข DRP"
                                 >
                                     <Edit2 size={12} />
@@ -354,7 +385,7 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
                             )}
                             <button
                                 onClick={() => openHistoryModal(drp)}
-                                className="p-1 hover:bg-secondary rounded text-muted-foreground"
+                                className="p-1.5 hover:bg-[#F7F3ED] dark:hover:bg-zinc-700 rounded text-[#6B6560] dark:text-zinc-400 cursor-pointer transition-colors duration-150"
                                 title="ดูประวัติการแก้ไข"
                             >
                                 <History size={12} />
@@ -362,7 +393,7 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
                             {isAdmin && (
                                 <button
                                     onClick={() => handleDelete(drp.id)}
-                                    className="p-1 hover:bg-rose-50 rounded text-rose-600"
+                                    className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded text-rose-500 cursor-pointer transition-colors duration-150"
                                     title="ลบ DRP"
                                 >
                                     <Trash2 size={12} />
@@ -382,48 +413,62 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
     const selectedEditType = selectedEditCategory?.types.find((t: any) => t.name === editForm.type);
 
     return (
-        <div className="border-2 border-[#3D3834] dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-colors">
-            <div className="flex items-center justify-between p-4 bg-[#F7F3ED] dark:bg-zinc-800 border-b-2 border-[#3D3834] dark:border-zinc-800">
+        <div className="rounded-xl border-2 border-[#3D3834] dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden shadow-[3px_3px_0px_0px_#3D3834] dark:shadow-none transition-colors">
+            {/* Card Header */}
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-[#F7F3ED] dark:bg-zinc-800 border-b-2 border-[#3D3834] dark:border-zinc-700">
+                {/* Icon */}
+                <div className="shrink-0 p-1.5 bg-[#D97736]/15 rounded-lg">
+                    <AlertCircle size={15} className="text-[#D97736]" />
+                </div>
+
+                {/* Title — collapse button */}
                 <button
                     onClick={() => setExpanded(!expanded)}
-                    className="flex items-center gap-2 font-bold text-[#2D2A26] dark:text-white flex-1 text-left"
+                    className="flex-1 flex items-center gap-2 text-left cursor-pointer min-w-0"
                 >
-                    <AlertCircle size={20} className="text-[#D97736]" />
-                    ประวัติ DRPs ({drpHistory.length})
+                    <span className="font-black text-sm text-[#2D2A26] dark:text-white whitespace-nowrap">ประวัติ DRP</span>
+                    <span className="text-[10px] font-medium text-[#6B6560] dark:text-zinc-400 whitespace-nowrap">({drpHistory.length})</span>
                     {unresolved.length > 0 && (
-                        <span className="text-[10px] font-black bg-[#D97736] text-white px-2 py-0.5 rounded-sm">
+                        <span className="text-[10px] font-black bg-[#D97736] text-white px-2 py-0.5 rounded-full whitespace-nowrap">
                             ค้าง {unresolved.length}
                         </span>
                     )}
                 </button>
-                
-                <div className="flex items-center gap-2">
+
+                {/* Actions */}
+                <div className="flex items-center gap-1.5 shrink-0">
                     {isAdminOrPharmacist && (
                         <button
                             onClick={() => setIsCreateOpen(true)}
-                            className="flex items-center gap-1 text-[10px] font-black bg-primary text-primary-foreground border border-foreground shadow-sm px-2 py-1 uppercase cursor-pointer"
+                            className="flex items-center gap-1 text-[10px] font-black bg-[#D97736] text-white border-2 border-[#3D3834] dark:border-zinc-600 shadow-[2px_2px_0px_0px_#3D3834] dark:shadow-none px-2 py-1 rounded cursor-pointer hover:translate-y-px hover:shadow-none transition-all duration-150 uppercase"
                         >
-                            <Plus size={12} /> บันทึก DRP
+                            <Plus size={11} /> บันทึก DRP
                         </button>
                     )}
-                    <button onClick={() => setExpanded(!expanded)} className="p-1 hover:bg-[#eae5dd] dark:hover:bg-zinc-700 rounded transition-all">
-                        {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    <button
+                        onClick={() => setExpanded(!expanded)}
+                        className="p-1.5 hover:bg-[#EAE5DD] dark:hover:bg-zinc-700 rounded-lg cursor-pointer transition-colors duration-150"
+                    >
+                        {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                     </button>
                 </div>
             </div>
 
             {expanded && (
-                <div className="p-4 space-y-4 animate-in slide-in-from-top-2 duration-300">
+                <div className="p-4 space-y-5 animate-in slide-in-from-top-2 duration-200">
                     {/* Unresolved / Open */}
                     {unresolved.length > 0 && (
                         <div>
-                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[#D97736]/30">
-                                <AlertTriangle size={14} className="text-[#D97736]" />
-                                <span className="text-xs font-black text-[#D97736]">
-                                    ยังไม่แก้ไข (Open DRPs) ({unresolved.length})
-                                </span>
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                                    <AlertTriangle size={12} className="text-[#D97736]" />
+                                    <span className="text-[10px] font-black text-[#B85C1A] dark:text-amber-400 uppercase tracking-wide">
+                                        ยังไม่แก้ไข · {unresolved.length} รายการ
+                                    </span>
+                                </div>
+                                <div className="flex-1 h-px bg-[#D97736]/20 dark:bg-orange-800/30" />
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-2.5">
                                 {unresolved.map(renderDrpItem)}
                             </div>
                         </div>
@@ -432,21 +477,27 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
                     {/* Resolved / Failed */}
                     {resolved.length > 0 && (
                         <div>
-                            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-green-300/50">
-                                <CheckCircle size={14} className="text-green-500" />
-                                <span className="text-xs font-black text-green-600 dark:text-green-400">
-                                    แก้ไขสำเร็จ/จัดการไม่สำเร็จ (Closed) ({resolved.length})
-                                </span>
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                    <CheckCircle size={12} className="text-green-500" />
+                                    <span className="text-[10px] font-black text-green-700 dark:text-green-400 uppercase tracking-wide">
+                                        ปิดเคสแล้ว · {resolved.length} รายการ
+                                    </span>
+                                </div>
+                                <div className="flex-1 h-px bg-green-200/50 dark:bg-green-800/30" />
                             </div>
-                            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                            <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
                                 {resolved.map(renderDrpItem)}
                             </div>
                         </div>
                     )}
 
                     {drpHistory.length === 0 && (
-                        <div className="text-center p-6 text-xs text-muted-foreground italic">
-                            ไม่มีบันทึกข้อมูลปัญหาจากการใช้ยา DRP สำหรับผู้ป่วยรายนี้
+                        <div className="text-center py-8 px-4">
+                            <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-[#F7F3ED] dark:bg-zinc-800 flex items-center justify-center">
+                                <AlertCircle size={20} className="text-[#C4BDB5] dark:text-zinc-600" />
+                            </div>
+                            <p className="text-xs text-[#9A928A] dark:text-zinc-500 font-medium">ยังไม่มีบันทึก DRP สำหรับผู้ป่วยรายนี้</p>
                         </div>
                     )}
                 </div>
@@ -804,14 +855,14 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
                     ) : (
                         <div className="relative border-l-2 border-border ml-3 pl-6 space-y-6 py-2">
                             {historyLogs.map((log) => {
-                                const actionBadge = 
+                                const actionBadge =
                                     log.action_type === 'CREATE'
                                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                         : log.action_type === 'CLOSE'
-                                        ? 'bg-rose-100 text-rose-800 border-rose-300'
-                                        : log.action_type === 'REOPEN'
-                                        ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                        : 'bg-blue-100 text-blue-800 border-blue-300';
+                                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                            : log.action_type === 'REOPEN'
+                                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                                : 'bg-blue-100 text-blue-800 border-blue-300';
 
                                 return (
                                     <div key={log.id} className="relative">
@@ -830,9 +881,9 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
                                                     </span>
                                                 </div>
                                                 <span className="text-muted-foreground font-bold">
-                                                    {new Intl.DateTimeFormat('th-TH', { 
-                                                        day: 'numeric', month: 'short', year: 'numeric', 
-                                                        hour: '2-digit', minute: '2-digit' 
+                                                    {new Intl.DateTimeFormat('th-TH', {
+                                                        day: 'numeric', month: 'short', year: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit'
                                                     }).format(new Date(log.changed_at))} น.
                                                 </span>
                                             </div>
@@ -870,28 +921,28 @@ export function DrpListCard({ drpHistory = [], hn, onRefresh }: DrpListCardProps
                                                                     <ChevronRight size={10} className="inline-block" />{" "}
                                                                     <span className="text-emerald-600 font-black">{f.new || "(ว่าง)"}</span>
                                                                 </div>
-                              );
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
                             })}
-                          </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                    )}
 
-          <div className="flex justify-end border-t border-border/40 pt-4 mt-6">
-            <button
-              onClick={() => setIsHistoryOpen(false)}
-              className="px-4 py-2 text-xs font-bold border-2 border-border bg-background hover:bg-secondary rounded cursor-pointer"
-            >
-              ปิดหน้าต่าง
-            </button>
-          </div>
+                    <div className="flex justify-end border-t border-border/40 pt-4 mt-6">
+                        <button
+                            onClick={() => setIsHistoryOpen(false)}
+                            className="px-4 py-2 text-xs font-bold border-2 border-border bg-background hover:bg-secondary rounded cursor-pointer"
+                        >
+                            ปิดหน้าต่าง
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
-      </Modal>
-    </div>
-  );
+    );
 }

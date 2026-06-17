@@ -234,7 +234,7 @@ export default function PatientDetailPage() {
     let furthestApptStr: string | null = null;
     if (validApptDates.length > 0) {
         const maxDate = new Date(Math.max(...validApptDates.map(d => d.getTime())));
-        furthestApptStr = maxDate.toISOString(); 
+        furthestApptStr = maxDate.toISOString();
     }
 
 
@@ -288,39 +288,84 @@ export default function PatientDetailPage() {
                     {/* Right Column */}
                     <div className="lg:col-span-2 space-y-6">
                         {unresolvedDrps.length > 0 && (
-                            <div className="border-2 border-[#3D3834] dark:border-zinc-700 bg-[#FFF8F0] dark:bg-orange-950/20">
-                                <div className="flex items-center gap-3 p-4 bg-[#D97736]/10 dark:bg-orange-900/30 border-b-2 border-[#3D3834] dark:border-zinc-700">
-                                    <div className="bg-[#D97736] text-white p-2 border-2 border-[#3D3834] dark:border-zinc-600">
-                                        <AlertTriangle size={18} />
+                            <div className="rounded-xl border-2 border-[#D97736]/60 dark:border-orange-700 overflow-hidden shadow-[3px_3px_0px_0px_#D97736]/30 dark:shadow-none">
+                                {/* Banner Header */}
+                                <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[#FFF0DC] to-[#FFF7EE] dark:from-orange-950/50 dark:to-orange-950/20 border-b-2 border-[#D97736]/40 dark:border-orange-700/60">
+                                    <div className="shrink-0 w-8 h-8 rounded-lg bg-[#D97736] flex items-center justify-center shadow-[2px_2px_0px_0px_#B85C1A]">
+                                        <AlertTriangle size={16} className="text-white" />
                                     </div>
-                                    <h4 className="font-black text-[#2D2A26] dark:text-orange-300 text-sm">
-                                        ⚠️ DRP ที่ยังจัดการไม่เสร็จ ({unresolvedDrps.length} รายการ)
-                                    </h4>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-black text-[#2D2A26] dark:text-orange-200 text-sm leading-tight">
+                                            DRP ที่กำลังติดตาม
+                                        </h4>
+                                        <p className="text-[10px] font-bold text-[#D97736] dark:text-orange-400 mt-0.5">
+                                            {unresolvedDrps.length} รายการที่ยังจัดการไม่เสร็จ
+                                        </p>
+                                    </div>
+                                    <span className="shrink-0 text-[11px] font-black bg-[#D97736] text-white px-2.5 py-1 rounded-full">
+                                        {unresolvedDrps.length}
+                                    </span>
                                 </div>
-                                <div className="p-4 space-y-3">
+
+                                {/* DRP Item List */}
+                                <div className="p-3 space-y-2.5 bg-[#FEFAF5] dark:bg-orange-950/10">
                                     {unresolvedDrps.map((drp: any, i) => {
                                         const drpType = drp.type || drp.Type || '-';
+                                        const drpCategory = drp.category || drp.Category || '';
                                         const drpCause = drp.cause || drp.Cause || '-';
                                         const drpIntervention = drp.intervention || drp.Intervention || '-';
                                         const drpOutcome = drp.outcome || drp.Outcome || '';
+                                        const drpNote = drp.note || drp.Note || '';
                                         const drpVisitDate = drp.visit_date || drp.VisitDate || drp.created_date || drp.date || drp.Date || '';
                                         const dateDisplay = drpVisitDate ? new Date(drpVisitDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
 
                                         return (
-                                            <div key={drp.id || drp.ID || i} className="border-2 border-[#3D3834]/20 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 rounded-sm">
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="font-bold text-sm text-[#2D2A26] dark:text-white flex items-center gap-1.5">
-                                                        <span className="w-2 h-2 rounded-full bg-[#D97736] shrink-0" />
+                                            <div key={drp.id || drp.ID || i} className="rounded-lg border border-[#D97736]/30 dark:border-orange-800/60 overflow-hidden bg-white dark:bg-zinc-900">
+                                                {/* Item header — stacked: category pill / type name / date */}
+                                                <div className="px-3 pt-2.5 pb-2.5 space-y-1 bg-gradient-to-r from-[#FFF4E8] to-white dark:from-orange-950/30 dark:to-zinc-900">
+                                                    {/* Row 1: dot + category pill */}
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-[#D97736] animate-pulse shrink-0" />
+                                                        {drpCategory && (
+                                                            <span className="text-[9px] font-black uppercase tracking-wider bg-[#D97736]/15 text-[#B85C1A] dark:text-orange-300 px-1.5 py-0.5 rounded leading-none">
+                                                                {drpCategory}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {/* Row 2: type name — wraps freely */}
+                                                    <div className="text-xs font-extrabold text-[#2D2A26] dark:text-white leading-snug">
                                                         {drpType}
                                                     </div>
-                                                    <span className="text-[10px] font-bold bg-[#F7F3ED] dark:bg-zinc-800 text-[#D97736] px-2 py-0.5 border border-[#D97736]/30 shrink-0 whitespace-nowrap">
-                                                        📅 {dateDisplay}
-                                                    </span>
+                                                    {/* Row 3: date */}
+                                                    <div className="flex items-center gap-1 text-[10px] font-medium text-[#6B6560] dark:text-zinc-400">
+                                                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="opacity-60 shrink-0"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                                        {dateDisplay}
+                                                    </div>
                                                 </div>
-                                                <div className="mt-2 ml-3.5 space-y-1 text-xs text-gray-600 dark:text-zinc-400">
-                                                    <div><span className="font-bold text-[#3D3834] dark:text-zinc-300">สาเหตุ:</span> {drpCause}</div>
-                                                    <div><span className="font-bold text-[#3D3834] dark:text-zinc-300">การจัดการ:</span> {drpIntervention}</div>
-                                                    {drpOutcome && <div><span className="font-bold text-[#3D3834] dark:text-zinc-300">ผลลัพธ์:</span> {drpOutcome}</div>}
+                                                {/* Item body */}
+                                                <div className="px-3 py-2 space-y-1 bg-white dark:bg-zinc-900">
+                                                    <div className="flex gap-2 text-xs">
+                                                        <span className="shrink-0 font-bold text-[#3D3834] dark:text-zinc-300 w-[52px]">สาเหตุ</span>
+                                                        <span className="text-[#5A5450] dark:text-zinc-400 leading-snug">{drpCause}</span>
+                                                    </div>
+                                                    <div className="flex gap-2 text-xs">
+                                                        <span className="shrink-0 font-bold text-[#3D3834] dark:text-zinc-300 w-[52px]">จัดการ</span>
+                                                        <span className="text-[#5A5450] dark:text-zinc-400 leading-snug">{drpIntervention}</span>
+                                                    </div>
+                                                    {drpNote && (
+                                                        <div className="flex gap-2 text-xs">
+                                                            <span className="shrink-0 font-bold text-[#3D3834] dark:text-zinc-300 w-[52px]">Note</span>
+                                                            <span className="text-[#5A5450] dark:text-zinc-400 leading-snug whitespace-pre-line">{drpNote}</span>
+                                                        </div>
+                                                    )}
+                                                    {drpOutcome && (
+                                                        <div className="mt-1.5 pt-1.5 border-t border-[#3D3834]/08 dark:border-zinc-700/50">
+                                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700">
+                                                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                                                {drpOutcome}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );

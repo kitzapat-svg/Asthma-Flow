@@ -89,7 +89,7 @@ export function Footer() {
             <div className="text-right flex flex-col items-center sm:items-end">
   
               <p className="text-[13px] font-medium text-muted-foreground mt-1 tracking-wide">
-                Version: 1.5.2 - Update: 17-06-2026
+                Version: 1.5.3 - Update: 17-06-2026
               </p>
             </div>
           </div>
