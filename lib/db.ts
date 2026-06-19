@@ -114,7 +114,9 @@ export async function saveVisit(data: any[]) {
         next_appt: data[10] || null,
         note: data[11],
         is_new_case: data[12] === 'TRUE' || data[12] === true,
-        inhaler_score: parseInt(data[13]) || 0
+        inhaler_score: parseInt(data[13]) || 0,
+        predicted_pefr: data[14] ?? 0,
+        pefr_percent_predicted: data[15] ?? 0
     };
     const { error } = await supabase.from('visits').insert(payload);
     return { success: !error, error };
@@ -762,7 +764,9 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
             next_appt: data[10] || null,
             note: data[11],
             is_new_case: data[12] === 'TRUE' || data[12] === true,
-            inhaler_score: parseInt(data[13]) || 0
+            inhaler_score: parseInt(data[13]) || 0,
+            predicted_pefr: data[14] ?? 0,
+            pefr_percent_predicted: data[15] ?? 0
         };
         const res = await supabase.from('visits').update(payload).match({ hn: normalizedHn, visit_date: date });
         error = res.error;

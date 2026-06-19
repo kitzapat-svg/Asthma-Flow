@@ -27,6 +27,7 @@ export function VisitHistoryTable({ visitHistory, predictedVal, patientHn }: Vis
                             <tr>
                                 <th className="p-3">วันที่</th>
                                 <th className="p-3">PEFR</th>
+                                <th className="p-3">% Pred.</th>
                                 <th className="p-3">อาการ</th>
                                 <th className="p-3">ยาที่ใช้</th>
                                 <th className="p-3">Inhaler Check</th>
@@ -45,6 +46,21 @@ export function VisitHistoryTable({ visitHistory, predictedVal, patientHn }: Vis
                                             {visit.pefr || "-"}
                                         </span>
                                     </td>
+                                    <td className="p-3">
+                                        {(() => {
+                                            if (!visit.pefr) return <span className="text-gray-400">-</span>;
+                                            const percent = visit.pefr_percent_predicted
+                                                ?? (predictedVal > 0 ? parseFloat(((visit.pefr / predictedVal) * 100).toFixed(2)) : null);
+                                            if (percent === null) return <span className="text-gray-400">-</span>;
+                                            const isEstimate = !visit.pefr_percent_predicted;
+                                            const colorCls = percent >= 80 ? 'text-green-600 dark:text-green-400' : percent >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
+                                            return (
+                                                <span className={`font-bold text-xs ${colorCls}`} title={isEstimate ? 'ประมาณจาก Predicted ปัจจุบัน' : `Predicted ณ วันตรวจ: ${visit.predicted_pefr} L/min`}>
+                                                    {isEstimate ? '~' : ''}{percent.toFixed(2)}%
+                                                </span>
+                                            );
+                                        })()}
+                                    </td>
                                     <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs border ${visit.control_level === 'Well-controlled' ? 'bg-green-50 text-green-700 border-green-200' : visit.control_level === 'Partly Controlled' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{visit.control_level}</span></td>
                                     <td className="p-3 text-xs dark:text-zinc-400"><div className="flex flex-col gap-1"><span className="flex items-center gap-1"><Pill size={10} className="text-blue-500" /> {visit.controller}</span><span className="flex items-center gap-1"><Pill size={10} className="text-orange-500" /> {visit.reliever}</span></div></td>
                                     <td className="p-3 text-xs">{visit.technique_check === 'ทำ' ? <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={12} /> สอนแล้ว</span> : <span className="text-gray-400">-</span>}</td>
@@ -59,7 +75,7 @@ export function VisitHistoryTable({ visitHistory, predictedVal, patientHn }: Vis
                                     )}
                                 </tr>
                             ))}
-                            {visitHistory.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-gray-400">ไม่มีประวัติการตรวจ</td></tr>}
+                            {visitHistory.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-gray-400">ไม่มีประวัติการตรวจ</td></tr>}
                         </tbody>
                     </table>
                 </div>

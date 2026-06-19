@@ -100,7 +100,7 @@ export const visitRowSchema = z.tuple([
     z.string(), // 11: Note
     z.enum(['TRUE', 'FALSE']), // 12: Is New Case
     z.string(), // 13: Inhaler Score
-]);
+]).rest(z.any()); // 14+: predicted_pefr, pefr_percent_predicted, etc.
 
 export const techniqueCheckRowSchema = z.tuple([
     z.string(), // 0: HN

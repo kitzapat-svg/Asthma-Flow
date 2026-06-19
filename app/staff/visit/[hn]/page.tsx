@@ -16,6 +16,7 @@ import { DRP_DATA, INTERVENTION_OPTIONS, OUTCOME_OPTIONS } from '@/lib/drp-data'
 import { v4 as uuidv4 } from 'uuid';
 import { getBangkokDateString, getBangkokISOString } from '@/lib/date-utils';
 import { getOpenDrps } from '@/lib/drp-helpers';
+import { calculatePredictedPEFR } from '@/lib/helpers';
 import { DRP } from '@/lib/types';
 
 
@@ -626,10 +627,18 @@ function RecordVisitPageInner() {
 
       const finalAdherence = data.is_relative_pickup ? '0' : `${data.adherence}%`;
 
+      // คำนวณ Predicted PEFR ณ วันตรวจ เพื่อบันทึกลง DB
+      const predictedPefr = patient ? calculatePredictedPEFR(patient) : 0;
+      const pefrValue = parseInt(finalPefr as string) || 0;
+      const pefrPercentPredicted = (pefrValue > 0 && predictedPefr > 0)
+          ? parseFloat(((pefrValue / predictedPefr) * 100).toFixed(2))
+          : 0;
+
       const visitData = [
         params.hn, visitDate, finalPefr, data.control_level, data.c1_name, data.reliever_name,
         finalAdherence, data.drpList && data.drpList.length > 0 ? `${data.drpList.length} DRP(s)` : '-', data.advice, data.technique_check, data.next_appt || '',
-        finalNote, data.is_new_case ? 'TRUE' : 'FALSE', inhalerScore
+        finalNote, data.is_new_case ? 'TRUE' : 'FALSE', inhalerScore,
+        predictedPefr, pefrPercentPredicted
       ];
 
       const httpMethod = isEditMode ? 'PUT' : 'POST';

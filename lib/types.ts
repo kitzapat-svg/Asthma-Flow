@@ -16,6 +16,8 @@ export interface Visit {
     visit_date: string;  // Supabase column name
     date?: string;       // alias kept for backwards compat
     pefr: string;
+    predicted_pefr?: number;
+    pefr_percent_predicted?: number;
     control_level: string;
     controller: string;
     reliever: string;
@@ -45,6 +47,8 @@ export interface VisitDisplay {
     dateDisplay: string;
     fullDate: string;
     pefr: number | null;
+    predicted_pefr?: number | null;
+    pefr_percent_predicted?: number | null;
     control_level: string;
     controller: string;
     reliever: string;
