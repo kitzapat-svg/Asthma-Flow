@@ -140,7 +140,7 @@ export function PEFRChart({ visitHistory, predictedVal }: PEFRChartProps) {
             {/* Toggleable Single Chart */}
             <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ left: -10, right: -10, top: 10, bottom: 0 }}>
+                    <LineChart data={chartData} margin={{ left: 10, right: 20, top: 10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.3} stroke="#888888" />
                         <XAxis dataKey="dateDisplay" tick={{ fontSize: 12, fill: '#888888' }} />
                         
