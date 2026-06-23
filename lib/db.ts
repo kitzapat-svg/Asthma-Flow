@@ -100,23 +100,24 @@ export async function createPatientData(data: any[]) {
 
 export async function saveVisit(data: any[]) {
     // Array: [HN, Date, PEFR, Level, Controller, Reliever, Adherence, DRP, Advice, Technique, NextAppt, Note, NewCase, InhalerScore]
+
     const payload = {
         hn: normalizeHN(data[0]),
         visit_date: data[1],
-        pefr: parseInt(data[2]) || 0,
-        control_level: data[3],
-        controller: data[4],
-        reliever: data[5],
-        adherence: data[6],
-        drp: data[7],
-        advice: data[8],
-        technique_check: data[9],
+        pefr: data[2] && data[2] !== '-' ? parseInt(data[2]) : null,
+        control_level: data[3] || null,
+        controller: data[4] || null,
+        reliever: data[5] || null,
+        adherence: data[6] || null,
+        drp: data[7] || null,
+        advice: data[8] || null,
+        technique_check: data[9] || null,
         next_appt: data[10] || null,
-        note: data[11],
+        note: data[11] || null,
         is_new_case: data[12] === 'TRUE' || data[12] === true,
-        inhaler_score: parseInt(data[13]) || 0,
-        predicted_pefr: Number(data[14]) || 0,
-        pefr_percent_predicted: isNaN(Number(data[15])) ? 0 : Number(data[15])
+        inhaler_score: data[13] ? parseInt(data[13]) : null,
+        predicted_pefr: data[14] !== undefined && data[14] !== '' ? Number(data[14]) : null,
+        pefr_percent_predicted: data[15] !== undefined && data[15] !== '' ? Number(data[15]) : null,
     };
     const { error } = await supabase.from('visits').insert(payload);
     return { success: !error, error };
@@ -753,20 +754,20 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
     if (tabName === 'visits') {
         const payload = {
             visit_date: data[1], // Allow date update
-            pefr: parseInt(data[2]) || 0,
-            control_level: data[3],
-            controller: data[4],
-            reliever: data[5],
-            adherence: data[6],
-            drp: data[7],
-            advice: data[8],
-            technique_check: data[9],
+            pefr: data[2] && data[2] !== '-' ? parseInt(data[2]) : null,
+            control_level: data[3] || null,
+            controller: data[4] || null,
+            reliever: data[5] || null,
+            adherence: data[6] || null,
+            drp: data[7] || null,
+            advice: data[8] || null,
+            technique_check: data[9] || null,
             next_appt: data[10] || null,
-            note: data[11],
+            note: data[11] || null,
             is_new_case: data[12] === 'TRUE' || data[12] === true,
-            inhaler_score: parseInt(data[13]) || 0,
-            predicted_pefr: Number(data[14]) || 0,
-            pefr_percent_predicted: isNaN(Number(data[15])) ? 0 : Number(data[15])
+            inhaler_score: data[13] ? parseInt(data[13]) : null,
+            predicted_pefr: data[14] !== undefined && data[14] !== '' ? Number(data[14]) : null,
+            pefr_percent_predicted: data[15] !== undefined && data[15] !== '' ? Number(data[15]) : null,
         };
         const res = await supabase.from('visits').update(payload).match({ hn: normalizedHn, visit_date: date });
         error = res.error;
