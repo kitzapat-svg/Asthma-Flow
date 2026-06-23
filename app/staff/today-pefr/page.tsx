@@ -173,6 +173,13 @@ export default function RecordPefrPage() {
     try {
       const isEdit = !!patient.todayVisit;
 
+      // Calculate predicted PEFR values for DB persistence
+      const pefrValue = parseInt(draftPefr) || 0;
+      const predictedPefr = patient.predictedPefr;
+      const pefrPercentPredicted = (pefrValue > 0 && predictedPefr > 0)
+          ? parseFloat(((pefrValue / predictedPefr) * 100).toFixed(2))
+          : 0;
+
       if (isEdit) {
         // Prepare Full Data Array for PUT
         const visit = patient.todayVisit as any;
@@ -190,7 +197,9 @@ export default function RecordPefrPage() {
           visit.next_appt || '',
           visit.note || '-',
           visit.is_new_case ? 'TRUE' : 'FALSE',
-          visit.inhaler_score || '-' // To string maybe? Wait, schema is string
+          visit.inhaler_score || '-',
+          String(predictedPefr),           // 14: predicted_pefr
+          String(pefrPercentPredicted)      // 15: pefr_percent_predicted
         ];
 
         // Ensure string conversion for PUT API format
@@ -243,7 +252,9 @@ export default function RecordPefrPage() {
           '',
           '-',
           'FALSE', // new case
-          '-'
+          '-',
+          String(predictedPefr),           // 14: predicted_pefr
+          String(pefrPercentPredicted)      // 15: pefr_percent_predicted
         ];
 
         const res = await fetch('/api/db', {
