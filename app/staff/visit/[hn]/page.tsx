@@ -635,10 +635,22 @@ function RecordVisitPageInner() {
           : 0;
 
       const visitData = [
-        params.hn, visitDate, finalPefr, data.control_level, data.c1_name, data.reliever_name,
-        finalAdherence, data.drpList && data.drpList.length > 0 ? `${data.drpList.length} DRP(s)` : '-', data.advice, data.technique_check, data.next_appt || '',
-        finalNote, data.is_new_case ? 'TRUE' : 'FALSE', inhalerScore,
-        predictedPefr, pefrPercentPredicted
+        params.hn,
+        visitDate,
+        finalPefr || '-',
+        data.control_level || '-',
+        data.c1_name || '-',
+        data.reliever_name || '-',
+        finalAdherence || '-',
+        data.drpList && data.drpList.length > 0 ? `${data.drpList.length} DRP(s)` : '-',
+        data.advice || '-',
+        data.technique_check || '-',
+        data.next_appt || '',
+        finalNote || '-',
+        data.is_new_case ? 'TRUE' : 'FALSE',
+        inhalerScore || '-',
+        predictedPefr,
+        pefrPercentPredicted
       ];
 
       const httpMethod = isEditMode ? 'PUT' : 'POST';

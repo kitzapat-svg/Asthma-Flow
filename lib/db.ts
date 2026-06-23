@@ -115,8 +115,8 @@ export async function saveVisit(data: any[]) {
         note: data[11],
         is_new_case: data[12] === 'TRUE' || data[12] === true,
         inhaler_score: parseInt(data[13]) || 0,
-        predicted_pefr: data[14] ?? 0,
-        pefr_percent_predicted: data[15] ?? 0
+        predicted_pefr: Number(data[14]) || 0,
+        pefr_percent_predicted: isNaN(Number(data[15])) ? 0 : Number(data[15])
     };
     const { error } = await supabase.from('visits').insert(payload);
     return { success: !error, error };
@@ -765,8 +765,8 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
             note: data[11],
             is_new_case: data[12] === 'TRUE' || data[12] === true,
             inhaler_score: parseInt(data[13]) || 0,
-            predicted_pefr: data[14] ?? 0,
-            pefr_percent_predicted: data[15] ?? 0
+            predicted_pefr: Number(data[14]) || 0,
+            pefr_percent_predicted: isNaN(Number(data[15])) ? 0 : Number(data[15])
         };
         const res = await supabase.from('visits').update(payload).match({ hn: normalizedHn, visit_date: date });
         error = res.error;
