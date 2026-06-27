@@ -1,4 +1,5 @@
 import { Patient, Visit } from "@/lib/types";
+import { SITE_URL } from "@/lib/config";
 import { CheckCircle, AlertTriangle, XCircle, Phone, Calendar } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -25,7 +26,7 @@ export function ActionPlanPrint({ patient, visit }: ActionPlanPrintProps) {
                 </div>
                 <div className="text-right flex flex-col items-end">
                     <div className="border p-2 mb-2">
-                        <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : 'https://asthsawan.vercel.app'}/patient/${patient.public_token}`} size={64} />
+                        <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : SITE_URL}/patient/${patient.public_token}`} size={64} />
                     </div>
                     <p className="text-xs text-gray-400">Scan for Digital Card</p>
                     <p className="text-sm font-bold mt-2">วันที่ประเมิน: {new Date(visit.visit_date ?? visit.date ?? '').toLocaleDateString('th-TH')}</p>

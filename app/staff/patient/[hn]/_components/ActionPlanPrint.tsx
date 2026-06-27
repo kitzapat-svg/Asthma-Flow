@@ -1,5 +1,6 @@
 import React from 'react';
 import { Patient, Visit, Medication } from '@/lib/types';
+import { SITE_URL } from '@/lib/config';
 import { QRCodeSVG } from 'qrcode.react';
 import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { Sarabun } from 'next/font/google';
@@ -83,7 +84,7 @@ export const ActionPlanPrint: React.FC<ActionPlanPrintProps> = ({ patient, visit
                             <p className="text-xs font-bold text-gray-500 mt-0.5">แผนปฏิบัติการสำหรับผู้ป่วยหอบหืด</p>
                         </div>
                         <div className="bg-white border-2 border-black p-1">
-                            <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : 'https://asthma-flow.vercel.app'}/patient/${patient.public_token}`} size={56} />
+                            <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : SITE_URL}/patient/${patient.public_token}`} size={56} />
                         </div>
                     </div>
                 </div>
@@ -348,7 +349,7 @@ export const ActionPlanPrint: React.FC<ActionPlanPrintProps> = ({ patient, visit
 
                 <div className="mt-auto text-center text-[11px] font-bold text-gray-400 flex justify-between items-end pt-3 pb-1">
                     <p className="text-left">อ้างอิงข้อมูล: Centers for Disease Control and Prevention (CDC) - Asthma Action Plan</p>
-                    <p>{typeof window !== 'undefined' ? window.location.host : 'asthma-flow.vercel.app'}</p>
+                    <p>{typeof window !== 'undefined' ? window.location.host : new URL(SITE_URL).host}</p>
                 </div>
             </div>
         </div>

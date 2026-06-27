@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Activity, AlertTriangle, Calendar } from 'lucide-react';
+import { User, Activity, Calendar } from 'lucide-react';
 import { Patient } from '@/lib/types';
 import { getAge } from '@/app/staff/patient/[hn]/_components/utils';
 
@@ -14,9 +14,7 @@ export function PatientContextBar({
 
   const age = getAge(patient.dob);
 
-  // Example of how we might display an allergy, even if hardcoded for now 
-  // until the DB schema explicitly supports it.
-  const hasAllergy = false; // Replace with actual logic when available
+
 
   return (
     <div className="sticky top-0 z-50 mb-6 bg-white dark:bg-zinc-900 border-b-4 border-primary shadow-md p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-colors">
@@ -27,11 +25,7 @@ export function PatientContextBar({
         <div>
           <h2 className="text-lg md:text-xl font-black text-foreground dark:text-white flex items-center gap-2">
             {patient.prefix}{patient.first_name} {patient.last_name}
-            {hasAllergy && (
-              <span className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-200">
-                <AlertTriangle size={12} /> แพ้ยา
-              </span>
-            )}
+
           </h2>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground font-medium mt-1">
             <span className="flex items-center gap-1"><span className="font-bold">HN:</span> {patient.hn}</span>

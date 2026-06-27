@@ -22,6 +22,7 @@ import { ActionPlanPrint } from './_components/ActionPlanPrint';
 import { StaffAdviceCard } from './_components/StaffAdviceCard';
 import { AddAdviceModal } from './_components/AddAdviceModal';
 import { QRCodeSVG } from 'qrcode.react';
+import { SITE_URL } from '@/lib/config';
 
 
 export default function PatientDetailPage() {
@@ -466,7 +467,7 @@ export default function PatientDetailPage() {
                             {/* QR Code — Large & Centered */}
                             <div className="flex flex-col items-center justify-center">
                                 <div className="border-2 border-[#D97736] rounded-lg p-1.5 bg-white">
-                                    <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : 'https://asthma-flow.vercel.app'}/patient/${patient?.public_token}`} size={85} />
+                                    <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : SITE_URL}/patient/${patient?.public_token}`} size={85} />
                                 </div>
                             </div>
 

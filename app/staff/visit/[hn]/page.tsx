@@ -269,7 +269,7 @@ function RecordVisitPageInner() {
           const resList = await fetch('/api/medication-list');
           if (resList.ok) {
             const listData = await resList.json();
-            console.log('[Medication List] Fetched:', listData);
+
             if (listData.controllers || listData.relievers) {
               setMedOptions({
                 controllers: listData.controllers && listData.controllers.length > 0 ? listData.controllers : medOptions.controllers,
@@ -311,7 +311,7 @@ function RecordVisitPageInner() {
           const prevVisit = sorted.find((v: any) => getDate(v) !== todayStr);
           const nextApptValue = prevVisit ? getNextAppt(prevVisit) : '';
 
-          console.log('[Appt Check] prevVisit date:', prevVisit ? getDate(prevVisit) : 'none', '| next_appt:', nextApptValue, '| today:', todayStr);
+
 
           if (prevVisit && nextApptValue) {
             const scheduled = new Date(nextApptValue);
@@ -321,7 +321,7 @@ function RecordVisitPageInner() {
             today.setHours(0, 0, 0, 0);
             const diffMs = today.getTime() - scheduled.getTime();
             const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-            console.log('[Appt Check] scheduled:', scheduled.toISOString(), '| diff:', diffDays, 'days');
+
             if (diffDays !== 0) {
               setAppointmentInfo({
                 scheduledDate: nextApptValue,

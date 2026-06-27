@@ -12,6 +12,7 @@ import {
 import { getBangkokDateString, toBangkokDateString } from '@/lib/date-utils';
 import { getAge, normalizeHN } from '@/lib/helpers';
 import { Patient, Visit, Medication } from '@/lib/types';
+import { SITE_URL } from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Sarabun } from 'next/font/google';
 
@@ -608,7 +609,7 @@ interface AlertCardInnerProps {
 }
 
 function AlertCardInner({ patient, theme, origin, dottedBorder }: AlertCardInnerProps) {
-  const qrUrl = origin ? `${origin}/patient/${patient.public_token}` : `https://asthma-flow.vercel.app/patient/${patient.public_token}`;
+  const qrUrl = origin ? `${origin}/patient/${patient.public_token}` : `${SITE_URL}/patient/${patient.public_token}`;
 
   const getThaiIssueDate = () => {
     const months = [
