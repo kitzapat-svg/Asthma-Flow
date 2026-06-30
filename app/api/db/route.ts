@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { 
@@ -39,6 +40,8 @@ import {
   updatePatientStatus, 
   updatePatientData, 
   createPatientData,
+  rotatePatientPublicToken,
+  revokePatientPublicToken,
   updateRowByHnAndDate, 
   deleteRow,
   deleteAllRowsByHn,
@@ -383,6 +386,53 @@ export async function PUT(request: Request) {
 
     const requiresHN = !type.startsWith('drp_') && type !== 'users';
     if (requiresHN && !hn) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+
+    if (type === 'patient_public_token') {
+      if ((session.user as any).role !== 'Admin') {
+        return NextResponse.json({ error: "Access Denied" }, { status: 403 });
+      }
+
+      const { action } = body;
+
+      if (action === 'rotate') {
+        const result = await rotatePatientPublicToken(hn, crypto.randomUUID());
+        if (!result.success) return NextResponse.json({ error: result.error }, { status: 500 });
+
+        await logAudit({
+          action_type: 'UPDATE',
+          module: 'PATIENT',
+          actor_id: session.user?.email || "Unknown",
+          target_hn: hn,
+          payload: {
+            event: 'Patient public token rotated',
+            expires_at: result.expiresAt,
+          }
+        });
+
+        return NextResponse.json({
+          message: "Token rotated",
+          public_token: result.token,
+          public_token_expires_at: result.expiresAt,
+        });
+      }
+
+      if (action === 'revoke') {
+        const result = await revokePatientPublicToken(hn);
+        if (!result.success) return NextResponse.json({ error: result.error }, { status: 500 });
+
+        await logAudit({
+          action_type: 'UPDATE',
+          module: 'PATIENT',
+          actor_id: session.user?.email || "Unknown",
+          target_hn: hn,
+          payload: { event: 'Patient public token revoked' }
+        });
+
+        return NextResponse.json({ message: "Token revoked" });
+      }
+
+      return NextResponse.json({ error: "Invalid token action" }, { status: 400 });
+    }
 
     if (type === 'visits' || type === 'medications' || type === 'technique_checks') {
       const { date } = body;

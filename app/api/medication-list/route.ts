@@ -3,18 +3,47 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { getMedicationList, addMedicationItem, updateMedicationItem, deleteMedicationItem } from '@/lib/db';
 
+async function getSessionOrUnauthorized() {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+        return {
+            session: null,
+            response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+        };
+    }
+
+    return { session, response: null };
+}
+
+async function requireAdmin() {
+    const { session, response } = await getSessionOrUnauthorized();
+    if (response) return { session: null, response };
+
+    if (session.user.role !== "Admin") {
+        return {
+            session: null,
+            response: NextResponse.json({ error: "Access Denied" }, { status: 403 }),
+        };
+    }
+
+    return { session, response: null };
+}
+
 export async function GET() {
+    const { response } = await getSessionOrUnauthorized();
+    if (response) return response;
+
     try {
         const list = await getMedicationList();
         return NextResponse.json(list);
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to fetch medication list' }, { status: 500 });
     }
 }
 
 export async function POST(request: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { response } = await requireAdmin();
+    if (response) return response;
 
     try {
         const body = await request.json();
@@ -28,14 +57,14 @@ export async function POST(request: Request) {
         if (!res.success) throw new Error("Failed to add");
 
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to add medication' }, { status: 500 });
     }
 }
 
 export async function PUT(request: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { response } = await requireAdmin();
+    if (response) return response;
 
     try {
         const body = await request.json();
@@ -49,14 +78,14 @@ export async function PUT(request: Request) {
         if (!res.success) throw new Error("Failed to update");
 
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to update medication' }, { status: 500 });
     }
 }
 
 export async function DELETE(request: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { response } = await requireAdmin();
+    if (response) return response;
 
     try {
         const body = await request.json();
@@ -70,7 +99,7 @@ export async function DELETE(request: Request) {
         if (!res.success) throw new Error("Failed to delete");
 
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to delete medication' }, { status: 500 });
     }
 }

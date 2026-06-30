@@ -1,5 +1,5 @@
 // lib/logger.ts
-import { supabaseAdmin } from './supabase';
+import { supabaseAdmin } from './supabase-admin';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -11,9 +11,9 @@ dayjs.extend(timezone);
 const TIMEZONE = 'Asia/Bangkok';
 
 export type AuditLogPayload = {
-    old_data?: any;
-    new_data?: any;
-    [key: string]: any;
+    old_data?: unknown;
+    new_data?: unknown;
+    [key: string]: unknown;
 };
 
 export type AuditLogEntry = {

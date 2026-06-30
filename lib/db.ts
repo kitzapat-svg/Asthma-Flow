@@ -1,5 +1,6 @@
 // lib/db.ts
-import { supabase, supabaseAdmin } from './supabase';
+import { supabase } from './supabase';
+import { supabaseAdmin } from './supabase-admin';
 import { normalizeHN } from './helpers';
 import { Patient, Medication } from './types';
 
@@ -29,9 +30,17 @@ export async function getPatientByToken(token: string) {
         .from('patients')
         .select('*')
         .eq('public_token', token)
+        .is('public_token_revoked_at', null)
+        .or(`public_token_expires_at.is.null,public_token_expires_at.gt.${new Date().toISOString()}`)
         .single();
     if (error) return null;
     return data;
+}
+
+export function getDefaultPublicTokenExpiry() {
+    const expiry = new Date();
+    expiry.setFullYear(expiry.getFullYear() + 1);
+    return expiry.toISOString();
 }
 
 export async function getAdvice(hn: string) {
@@ -69,6 +78,11 @@ export async function updatePatientData(hn: string, data: any) {
             public_token: data[8],
             phone: data[9]
         };
+
+        if (data[10] !== undefined) payload.public_token_created_at = data[10];
+        if (data[11] !== undefined) payload.public_token_expires_at = data[11] || null;
+        if (data[12] !== undefined) payload.public_token_revoked_at = data[12] || null;
+        if (data[13] !== undefined) payload.public_token_rotated_at = data[13] || null;
     }
     const { error } = await supabase
         .from('patients')
@@ -88,11 +102,39 @@ export async function createPatientData(data: any[]) {
         height: parseFloat(data[6]) || 0,
         status: data[7],
         public_token: data[8],
-        phone: data[9]
+        phone: data[9],
+        public_token_created_at: data[10] || new Date().toISOString(),
+        public_token_expires_at: data[11] || getDefaultPublicTokenExpiry(),
+        public_token_revoked_at: data[12] || null,
+        public_token_rotated_at: data[13] || null,
     };
     const { error } = await supabase
         .from('patients')
         .insert(payload);
+    return { success: !error, error };
+}
+
+export async function rotatePatientPublicToken(hn: string, token: string, expiresAt = getDefaultPublicTokenExpiry()) {
+    const { error } = await supabase
+        .from('patients')
+        .update({
+            public_token: token,
+            public_token_created_at: new Date().toISOString(),
+            public_token_expires_at: expiresAt,
+            public_token_revoked_at: null,
+            public_token_rotated_at: new Date().toISOString(),
+        })
+        .eq('hn', normalizeHN(hn));
+
+    return { success: !error, error, token, expiresAt };
+}
+
+export async function revokePatientPublicToken(hn: string) {
+    const { error } = await supabase
+        .from('patients')
+        .update({ public_token_revoked_at: new Date().toISOString() })
+        .eq('hn', normalizeHN(hn));
+
     return { success: !error, error };
 }
 
@@ -747,7 +789,38 @@ export async function logActivity(email: string, action: string, details: string
 
 // --- Generic Row Updates & Deletes ---
 
+type EditableVisitTable = 'visits' | 'medications' | 'technique_checks';
+type HnDeleteTable = 'patients' | 'visits' | 'medications' | 'technique_checks' | 'staff_advice' | 'drps';
+type DatedDeleteTable = 'visits' | 'medications' | 'technique_checks' | 'drps';
+
+const EDITABLE_VISIT_TABLES = new Set<EditableVisitTable>(['visits', 'medications', 'technique_checks']);
+const HN_DELETE_TABLES = new Set<HnDeleteTable>(['patients', 'visits', 'medications', 'technique_checks', 'staff_advice', 'drps']);
+const DATED_DELETE_TABLES = new Set<DatedDeleteTable>(['visits', 'medications', 'technique_checks', 'drps']);
+
+function isEditableVisitTable(tableName: string): tableName is EditableVisitTable {
+    return EDITABLE_VISIT_TABLES.has(tableName as EditableVisitTable);
+}
+
+function isHnDeleteTable(tableName: string): tableName is HnDeleteTable {
+    return HN_DELETE_TABLES.has(tableName as HnDeleteTable);
+}
+
+function isDatedDeleteTable(tableName: string): tableName is DatedDeleteTable {
+    return DATED_DELETE_TABLES.has(tableName as DatedDeleteTable);
+}
+
+function invalidTableOperation(operation: string, tableName: string) {
+    return {
+        success: false,
+        error: new Error(`Table "${tableName}" is not allowed for ${operation}`),
+    };
+}
+
 export async function updateRowByHnAndDate(tabName: string, hn: string, date: string, data: any[]) {
+    if (!isEditableVisitTable(tabName)) {
+        return invalidTableOperation('date-scoped update', tabName);
+    }
+
     const normalizedHn = normalizeHN(hn);
     let error;
 
@@ -828,19 +901,30 @@ export async function updateRowByHnAndDate(tabName: string, hn: string, date: st
 }
 
 export async function deleteRow(tabName: string, hn: string) {
+    if (!isHnDeleteTable(tabName)) {
+        return invalidTableOperation('HN-scoped delete', tabName);
+    }
+
     const { error } = await supabase.from(tabName).delete().eq('hn', normalizeHN(hn));
     return { success: !error, error };
 }
 
 export async function deleteAllRowsByHn(tabName: string, hn: string) {
+    if (!isHnDeleteTable(tabName)) {
+        return invalidTableOperation('HN-scoped bulk delete', tabName);
+    }
+
     const { error } = await supabase.from(tabName).delete().eq('hn', normalizeHN(hn));
     return { success: !error, error };
 }
 
 export async function deleteAllRowsByHnAndDate(tabName: string, hn: string, date: string) {
+    if (!isDatedDeleteTable(tabName)) {
+        return invalidTableOperation('date-scoped delete', tabName);
+    }
+
     const normalizedHn = normalizeHN(hn);
-    let column = (tabName === 'visits') ? 'visit_date' : 'date';
-    if (tabName === 'drps') column = 'visit_date'; // DRPs use visit_date for matching visit deletion
+    const column = (tabName === 'visits' || tabName === 'drps') ? 'visit_date' : 'date';
     
     const { error } = await supabase.from(tabName).delete().match({ hn: normalizedHn, [column]: date });
     return { success: !error, error };

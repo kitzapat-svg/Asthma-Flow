@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { 
     getPatientByToken, 
     getVisitHistory, 
@@ -6,9 +7,11 @@ import {
     getAdvice,
 } from '@/lib/db';
 import { logAudit } from '@/lib/logger';
-import { normalizeHN } from '@/lib/helpers';
-import { Patient, Visit } from '@/lib/types';
 import { patientRateLimiter } from '@/lib/rate-limit';
+
+function getTokenFingerprint(token: string) {
+    return createHash('sha256').update(token).digest('hex').slice(0, 16);
+}
 
 // --- PUBLIC Patient API ---
 export async function GET(request: Request) {
@@ -61,7 +64,12 @@ export async function GET(request: Request) {
                 action_type: 'AUTH',
                 module: 'PATIENT',
                 actor_id: 'System/Guest',
-                payload: { event: 'DOB Verify Failed', token }
+                target_hn: patient.hn,
+                payload: {
+                    event: 'DOB Verify Failed',
+                    token_fingerprint: getTokenFingerprint(token),
+                    verification_method: 'dob',
+                }
             });
             return NextResponse.json({ error: 'วันเดือนปีเกิดไม่ถูกต้อง', verified: false }, { status: 403 });
         }
@@ -72,7 +80,11 @@ export async function GET(request: Request) {
             module: 'PATIENT',
             actor_id: 'System/Guest',
             target_hn: patient.hn,
-            payload: { event: 'Patient View Success', token }
+            payload: {
+                event: 'Patient View Success',
+                token_fingerprint: getTokenFingerprint(token),
+                verification_method: 'dob',
+            }
         });
 
         const [visits, medication, advice] = await Promise.all([

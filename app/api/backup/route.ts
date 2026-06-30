@@ -1,9 +1,18 @@
 // app/api/backup/route.ts
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import { syncTableToSheet } from '@/lib/sheets';
 
 const AUTH_SECRET = process.env.BACKUP_CRON_SECRET;
+
+type BackupRow = Record<string, unknown>;
+type PagedBackupQuery = {
+  range: (from: number, to: number) => PromiseLike<{ data: BackupRow[] | null; error: { message: string } | null }>;
+};
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Unknown error';
+}
 
 export async function GET(request: Request) {
   // 1. Auth Check (for Cron job)
@@ -43,8 +52,8 @@ export async function GET(request: Request) {
     const backupTasks = [
       {
         tab: 'patients',
-        headers: ['hn', 'prefix', 'first_name', 'last_name', 'dob', 'best_pefr', 'height', 'status', 'public_token', 'phone'],
-        query: supabaseAdmin.from('patients').select('hn, prefix, first_name, last_name, dob, best_pefr, height, status, public_token, phone').order('hn')
+        headers: ['hn', 'prefix', 'first_name', 'last_name', 'dob', 'best_pefr', 'height', 'status', 'public_token', 'public_token_created_at', 'public_token_expires_at', 'public_token_revoked_at', 'public_token_rotated_at', 'phone'],
+        query: supabaseAdmin.from('patients').select('hn, prefix, first_name, last_name, dob, best_pefr, height, status, public_token, public_token_created_at, public_token_expires_at, public_token_revoked_at, public_token_rotated_at, phone').order('hn')
       },
       {
         tab: 'visits',
@@ -89,8 +98,8 @@ export async function GET(request: Request) {
     ];
 
     // Helper function to fetch all rows (handle pagination)
-    async function fetchAllRows(query: any) {
-      let allData: any[] = [];
+    async function fetchAllRows(query: PagedBackupQuery) {
+      let allData: BackupRow[] = [];
       let from = 0;
       const step = 1000;
       let hasMore = true;
@@ -116,7 +125,7 @@ export async function GET(request: Request) {
       try {
         const data = await fetchAllRows(task.query);
         
-        const rows = data.map((item: any) => task.headers.map(h => {
+        const rows = data.map((item) => task.headers.map(h => {
             const val = item[h];
             if (val instanceof Date) return val.toISOString();
             if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
@@ -126,9 +135,9 @@ export async function GET(request: Request) {
 
         const syncResult = await syncTableToSheet(task.tab, task.headers, rows);
         results.push({ tab: task.tab, rows: rows.length, ...syncResult });
-      } catch (error: any) {
+      } catch (error) {
         console.error(`Error fetching/syncing ${task.tab}:`, error);
-        results.push({ tab: task.tab, success: false, error: error.message });
+        results.push({ tab: task.tab, success: false, error: getErrorMessage(error) });
       }
     }
 
@@ -139,8 +148,8 @@ export async function GET(request: Request) {
       details: results 
     });
 
-  } catch (err: any) {
+  } catch (err) {
     console.error('Backup API Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

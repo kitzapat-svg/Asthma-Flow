@@ -8,6 +8,10 @@ export interface Patient {
     best_pefr: string;
     status: string;
     public_token: string;
+    public_token_created_at?: string | null;
+    public_token_expires_at?: string | null;
+    public_token_revoked_at?: string | null;
+    public_token_rotated_at?: string | null;
     phone?: string;
 }
 

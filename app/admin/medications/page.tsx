@@ -3,12 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Trash2, Pill, Activity } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Pill, Activity, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function MedicationManagementPage() {
     const router = useRouter();
+    const { data: session, status } = useSession();
     const [loading, setLoading] = useState(true);
     const [controllers, setControllers] = useState<string[]>([]);
     const [relievers, setRelievers] = useState<string[]>([]);
@@ -22,7 +24,7 @@ export default function MedicationManagementPage() {
             const data = await res.json();
             if (data.controllers) setControllers(data.controllers);
             if (data.relievers) setRelievers(data.relievers);
-        } catch (e) {
+        } catch {
             toast.error('Failed to load medication list');
         } finally {
             setLoading(false);
@@ -30,8 +32,14 @@ export default function MedicationManagementPage() {
     };
 
     useEffect(() => {
-        fetchList();
-    }, []);
+        if (status === 'authenticated') {
+            if (session.user.role === 'Admin') {
+                fetchList();
+            } else {
+                setLoading(false);
+            }
+        }
+    }, [status, session?.user.role]);
 
     const addMedication = async (type: 'Controller' | 'Reliever', name: string, setInput: (s: string) => void) => {
         if (!name.trim()) return;
@@ -49,7 +57,7 @@ export default function MedicationManagementPage() {
             } else {
                 toast.error('Failed to add');
             }
-        } catch (e) {
+        } catch {
             toast.error('Error adding medication');
         }
     };
@@ -69,12 +77,34 @@ export default function MedicationManagementPage() {
             } else {
                 toast.error('Failed to delete');
             }
-        } catch (e) {
+        } catch {
             toast.error('Error deleting medication');
         }
     };
 
     const inputClass = "w-full px-4 py-2 border rounded-md dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-primary";
+    const isAdmin = session?.user.role === 'Admin';
+
+    if (status === 'loading' || loading) {
+        return <div className="p-10 text-center animate-pulse font-bold text-muted-foreground">Loading...</div>;
+    }
+
+    if (status !== 'authenticated' || !isAdmin) {
+        return (
+            <div className="min-h-screen bg-background dark:bg-black p-6 font-sans text-foreground dark:text-white">
+                <div className="max-w-2xl mx-auto space-y-6">
+                    <Button variant="ghost" onClick={() => router.push('/staff/patients')} className="flex gap-2 font-bold hover:text-primary">
+                        <ArrowLeft size={20} /> Back
+                    </Button>
+                    <div className="border border-border bg-card p-6 rounded-lg space-y-3">
+                        <ShieldAlert className="text-destructive" size={32} />
+                        <h1 className="text-2xl font-black">Access denied</h1>
+                        <p className="text-muted-foreground">This medication administration page is available to Admin users only.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-background dark:bg-black p-6 pb-20 font-sans text-foreground dark:text-white transition-colors duration-300">
