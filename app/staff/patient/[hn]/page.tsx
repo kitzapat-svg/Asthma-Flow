@@ -21,8 +21,7 @@ import { EditPatientModal } from './_components/EditPatientModal';
 import { ActionPlanPrint } from './_components/ActionPlanPrint';
 import { StaffAdviceCard } from './_components/StaffAdviceCard';
 import { AddAdviceModal } from './_components/AddAdviceModal';
-import { QRCodeSVG } from 'qrcode.react';
-import { SITE_URL } from '@/lib/config';
+import { AlertCardInner, CARD_THEMES, sarabunFont } from '@/components/AlertCard';
 
 
 export default function PatientDetailPage() {
@@ -40,6 +39,7 @@ export default function PatientDetailPage() {
     const [showEditModal, setShowEditModal] = useState(false);
     const [adviceList, setAdviceList] = useState<any[]>([]);
     const [showAdviceModal, setShowAdviceModal] = useState(false);
+    const [cardOrigin, setCardOrigin] = useState('');
 
     // --- Print Logic ---
     const [printMode, setPrintMode] = useState<'card' | 'plan'>('card');
@@ -56,6 +56,7 @@ export default function PatientDetailPage() {
 
 
     useEffect(() => {
+        setCardOrigin(window.location.origin);
         fetchData();
     }, [params.hn]);
 
@@ -238,6 +239,9 @@ export default function PatientDetailPage() {
         furthestApptStr = maxDate.toISOString();
     }
 
+
+    // Default theme for single-card print (Warm Orange)
+    const cardTheme = CARD_THEMES[0];
 
     return (
         <div className="min-h-screen bg-[#FEFCF8] dark:bg-black font-sans text-[#2D2A26] dark:text-white transition-colors duration-300 print:min-h-0 print:h-auto">
@@ -452,63 +456,57 @@ export default function PatientDetailPage() {
                 ส่วนที่ 2: หน้าตาบัตร (Print View - ไม่ต้อง Dark Mode)
                 ========================================
               */}
-            {/* 1. Wallet Card View — Redesigned: QR + HN only (no name/DOB for privacy) */}
+
+            {/* Print CSS for single card centered on page */}
+            <style jsx global>{`
+                @media print {
+                    @page {
+                        size: A4 portrait;
+                        margin: 0 !important;
+                    }
+                    body, html, #__next, main, div.min-h-screen {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        max-width: none !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        background: white !important;
+                    }
+                    .print\\:hidden, header, footer, nav, .no-print {
+                        display: none !important;
+                    }
+                    main.max-w-7xl {
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        max-width: none !important;
+                    }
+                    .single-card-print-container .physical-card {
+                        width: 9.0cm !important;
+                        height: 6.0cm !important;
+                        box-sizing: border-box !important;
+                        background: white !important;
+                        overflow: hidden !important;
+                    }
+                    * {
+                        font-family: ${sarabunFont.style.fontFamily} !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                }
+            `}</style>
+
+            {/* 1. Alert Card View — Matching print-cards page design */}
             {printMode === 'card' && (
-                <div className="hidden print:flex print:items-center print:justify-center print:h-screen bg-white text-black print:absolute print:top-0 print:left-0 print:w-full print:z-[9999]">
-                    <div className="w-[85.6mm] h-[54mm] border border-gray-200 rounded-xl overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col text-black">
-                        {/* Header with gradient */}
-                        <div className="bg-gradient-to-r from-[#D97736] to-[#E8943D] text-white px-3 py-2 flex items-center justify-between h-[11mm]">
-                            <div className="flex items-center gap-1.5">
-                                <div className="bg-white/20 p-1 rounded-lg">
-                                    <Activity size={11} />
-                                </div>
-                                <div>
-                                    <span className="text-[9px] font-black tracking-wide">Asthma Flow</span>
-                                    <span className="text-[7px] font-medium opacity-80 ml-1">Alert Card</span>
-                                </div>
-                            </div>
-                            <span className="text-[7px] font-bold opacity-80">รพ.สวรรคโลก</span>
-                        </div>
-
-                        {/* Content: QR + Info side by side */}
-                        <div className="flex-1 flex items-center px-3 py-2 gap-3">
-                            {/* QR Code — Large & Centered */}
-                            <div className="flex flex-col items-center justify-center">
-                                <div className="border-2 border-[#D97736] rounded-lg p-1.5 bg-white">
-                                    <QRCodeSVG value={`${typeof window !== 'undefined' ? window.location.origin : SITE_URL}/patient/${patient?.public_token}`} size={85} />
-                                </div>
-                            </div>
-
-                            {/* Right side info */}
-                            <div className="flex-1 flex flex-col justify-between h-full py-0.5">
-                                {/* HN Badge */}
-                                <div className="bg-[#FFF8F0] border border-[#D97736]/30 rounded-lg px-2.5 py-1.5 text-center">
-                                    <p className="text-[6px] text-[#D97736] font-bold uppercase tracking-widest">Hospital Number</p>
-                                    <p className="text-[14px] font-black font-mono text-[#D97736] tracking-wider leading-tight">{patient?.hn}</p>
-                                </div>
-
-                                {/* Scan instruction */}
-                                <div className="text-center py-1">
-                                    <p className="text-[7px] text-gray-500 font-bold">📱 สแกน QR เพื่อดูข้อมูลการรักษา</p>
-                                    <p className="text-[6px] text-gray-400">ยืนยันตัวตนด้วยวันเดือนปีเกิด</p>
-                                </div>
-
-                                {/* Emergency box */}
-                                <div className="bg-red-50 border border-red-200 rounded-lg px-2 py-1.5 text-center">
-                                    <p className="text-[6px] text-red-500 font-bold flex items-center justify-center gap-1">
-                                        <AlertTriangle size={6} /> กรณีฉุกเฉิน
-                                    </p>
-                                    <p className="text-[8px] font-black text-red-700 leading-tight">
-                                        โทร 1669 · นำส่ง รพ. ทันที
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Footer bar */}
-                        <div className="bg-[#2D2A26] h-[2.5mm] w-full mt-auto flex items-center justify-center">
-                            <span className="text-[5px] text-white/50 font-bold tracking-wider">ASTHMA FLOW — SAWANKALOK HOSPITAL</span>
-                        </div>
+                <div className="hidden print:flex print:items-center print:justify-center print:h-screen bg-white text-black print:absolute print:top-0 print:left-0 print:w-full print:z-[9999] single-card-print-container">
+                    <div className="physical-card" style={{ width: '9.0cm', height: '6.0cm' }}>
+                        <AlertCardInner
+                            patient={patient}
+                            theme={cardTheme}
+                            origin={cardOrigin}
+                            dottedBorder={false}
+                        />
                     </div>
                 </div>
             )}
