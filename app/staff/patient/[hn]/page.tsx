@@ -269,7 +269,15 @@ export default function PatientDetailPage() {
                     {/* Left Column */}
                     <div className="space-y-6">
                         <PatientInfoCard patient={patient} age={age} nextAppt={furthestApptStr} onEdit={() => setShowEditModal(true)} />
-                        <QRCodeCard publicToken={patient.public_token} />
+                        <QRCodeCard
+                            hn={patient.hn}
+                            publicToken={patient.public_token}
+                            publicTokenExpiresAt={patient.public_token_expires_at}
+                            publicTokenRevokedAt={patient.public_token_revoked_at}
+                            publicTokenRotatedAt={patient.public_token_rotated_at}
+                            userRole={(session?.user as any)?.role || ''}
+                            onRefresh={fetchData}
+                        />
                         <InhalerReviewCard inhalerStatus={inhalerStatus} onShowHistory={() => setShowTechniqueModal(true)} />
                         {adviceList.length > 0 && (
                             <StaffAdviceCard

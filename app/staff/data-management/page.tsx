@@ -3,9 +3,9 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { 
-  Database, ArrowLeft, Calendar, Search, 
-  FileUp, CheckCircle, XCircle, Clock, 
+import {
+  Database, ArrowLeft, Calendar, Search,
+  FileUp, CheckCircle, XCircle, Clock,
   ChevronRight, AlertCircle, TrendingUp,
   Users, UserPlus
 } from 'lucide-react';
@@ -33,12 +33,12 @@ interface AttendanceRecord {
 export default function DataManagementPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  
+
   // Data State
   const [patients, setPatients] = useState<Patient[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // UI State
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -63,7 +63,7 @@ export default function DataManagementPage() {
       }
     }
     // Only fetch data when status changes to authenticated
-  }, [status, router]); 
+  }, [status, router]);
 
   const fetchData = async () => {
     try {
@@ -72,10 +72,10 @@ export default function DataManagementPage() {
         fetch('/api/db?type=patients'),
         fetch('/api/db?type=visits')
       ]);
-      
+
       const pData = await resPatients.json();
       const vData = await resVisits.json();
-      
+
       if (Array.isArray(pData)) setPatients(pData);
       if (Array.isArray(vData)) setVisits(vData);
     } catch (error) {
@@ -95,7 +95,7 @@ export default function DataManagementPage() {
     if (patients.length === 0 || visits.length === 0) return [];
 
     const records: AttendanceRecord[] = [];
-    
+
     // Group visits by HN, sorted by date
     const visitsByHn: Record<string, Visit[]> = {};
     visits.forEach(v => {
@@ -119,7 +119,7 @@ export default function DataManagementPage() {
       pVisits.forEach((visit, index) => {
         if (visit.next_appt) {
           const apptDate = visit.next_appt;
-          
+
           // Filter by date range
           if (apptDate < startDate || apptDate > endDate) return;
 
@@ -132,11 +132,11 @@ export default function DataManagementPage() {
           if (visitDate) {
             const dAppt = new Date(apptDate);
             const dVisit = new Date(visitDate);
-            dAppt.setHours(0,0,0,0);
-            dVisit.setHours(0,0,0,0);
-            
+            dAppt.setHours(0, 0, 0, 0);
+            dVisit.setHours(0, 0, 0, 0);
+
             diffDays = Math.round((dVisit.getTime() - dAppt.getTime()) / (1000 * 60 * 60 * 24));
-            
+
             if (diffDays === 0) status = 'On-time';
             else if (diffDays < 0) status = 'Early';
             else status = 'Late';
@@ -144,7 +144,7 @@ export default function DataManagementPage() {
             accountedVisits.add(`${hn}|${visitDate}`);
           } else {
             const now = new Date();
-            now.setHours(0,0,0,0);
+            now.setHours(0, 0, 0, 0);
             const dAppt = new Date(apptDate);
             if (dAppt < now) {
               status = 'Missed';
@@ -186,8 +186,8 @@ export default function DataManagementPage() {
   /** Filtered view for the table — applies search & status filter */
   const attendanceData = useMemo(() => {
     return allRecords
-      .filter(r => 
-        r.hn.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      .filter(r =>
+        r.hn.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
       .filter(r => statusFilter === 'All' || r.status === statusFilter)
@@ -209,7 +209,7 @@ export default function DataManagementPage() {
     const totalVisited = onTime + early + late + walkIn;
     const totalScheduled = onTime + early + late + missed;
     const rate = totalScheduled > 0 ? Math.round(((onTime + early + late) / totalScheduled) * 100) : 0;
-    
+
     return { total, onTime, early, late, missed, walkIn, totalVisited, totalScheduled, rate };
   }, [allRecords]);
 
@@ -217,7 +217,7 @@ export default function DataManagementPage() {
 
   return (
     <div className="space-y-6 pb-20 animate-fade-up">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -236,21 +236,21 @@ export default function DataManagementPage() {
 
       {/* Tabs Selector */}
       <div className="flex border-b border-gray-200 dark:border-zinc-800">
-        <button 
+        <button
           onClick={() => setCurrentTab('summary')}
           className={`px-6 py-3 font-bold text-sm transition-all relative ${currentTab === 'summary' ? 'text-[#D97736]' : 'text-muted-foreground hover:text-foreground'}`}
         >
           สรุปการมาตรวจ
           {currentTab === 'summary' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#D97736]" />}
         </button>
-        <button 
+        <button
           onClick={() => setCurrentTab('import')}
           className={`px-6 py-3 font-bold text-sm transition-all relative ${currentTab === 'import' ? 'text-[#D97736]' : 'text-muted-foreground hover:text-foreground'}`}
         >
           นำเข้าข้อมูล (Import)
           {currentTab === 'import' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#D97736]" />}
         </button>
-        <button 
+        <button
           onClick={() => setCurrentTab('meds')}
           className={`px-6 py-3 font-bold text-sm transition-all relative ${currentTab === 'meds' ? 'text-[#D97736]' : 'text-muted-foreground hover:text-foreground'}`}
         >
@@ -266,11 +266,10 @@ export default function DataManagementPage() {
             {/* Total Visitors (highlighted) */}
             <button
               onClick={() => setStatusFilter('All')}
-              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${
-                statusFilter === 'All'
+              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${statusFilter === 'All'
                   ? 'bg-gradient-to-br from-[#D97736] to-[#E8944A] text-white border-[#D97736] ring-2 ring-[#D97736]/30'
                   : 'bg-gradient-to-br from-[#D97736]/10 to-[#E8944A]/10 border-[#D97736]/20 dark:from-[#D97736]/5 dark:to-[#E8944A]/5'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-1.5 mb-1">
                 <Users size={14} className={statusFilter === 'All' ? 'text-white/80' : 'text-[#D97736]'} />
@@ -286,11 +285,10 @@ export default function DataManagementPage() {
             {/* On-time */}
             <button
               onClick={() => setStatusFilter(statusFilter === 'On-time' ? 'All' : 'On-time')}
-              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${
-                statusFilter === 'On-time'
+              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${statusFilter === 'On-time'
                   ? 'bg-green-600 text-white border-green-600 ring-2 ring-green-600/30'
                   : 'bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-1.5 mb-1">
                 <CheckCircle size={14} className={statusFilter === 'On-time' ? 'text-white/80' : 'text-green-600'} />
@@ -304,11 +302,10 @@ export default function DataManagementPage() {
             {/* Early */}
             <button
               onClick={() => setStatusFilter(statusFilter === 'Early' ? 'All' : 'Early')}
-              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${
-                statusFilter === 'Early'
+              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${statusFilter === 'Early'
                   ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-600/30'
                   : 'bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-1.5 mb-1">
                 <Clock size={14} className={statusFilter === 'Early' ? 'text-white/80' : 'text-blue-600'} />
@@ -322,11 +319,10 @@ export default function DataManagementPage() {
             {/* Late */}
             <button
               onClick={() => setStatusFilter(statusFilter === 'Late' ? 'All' : 'Late')}
-              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${
-                statusFilter === 'Late'
+              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${statusFilter === 'Late'
                   ? 'bg-orange-600 text-white border-orange-600 ring-2 ring-orange-600/30'
                   : 'bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-1.5 mb-1">
                 <AlertCircle size={14} className={statusFilter === 'Late' ? 'text-white/80' : 'text-orange-600'} />
@@ -340,11 +336,10 @@ export default function DataManagementPage() {
             {/* Walk-in */}
             <button
               onClick={() => setStatusFilter(statusFilter === 'Walk-in' ? 'All' : 'Walk-in')}
-              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${
-                statusFilter === 'Walk-in'
+              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${statusFilter === 'Walk-in'
                   ? 'bg-purple-600 text-white border-purple-600 ring-2 ring-purple-600/30'
                   : 'bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-1.5 mb-1">
                 <UserPlus size={14} className={statusFilter === 'Walk-in' ? 'text-white/80' : 'text-purple-600'} />
@@ -358,11 +353,10 @@ export default function DataManagementPage() {
             {/* Missed */}
             <button
               onClick={() => setStatusFilter(statusFilter === 'Missed' ? 'All' : 'Missed')}
-              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${
-                statusFilter === 'Missed'
+              className={`p-4 rounded-2xl border shadow-sm text-left transition-all hover:scale-[1.02] ${statusFilter === 'Missed'
                   ? 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-600/30'
                   : 'bg-white dark:bg-zinc-900 border-gray-100 dark:border-zinc-800'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-1.5 mb-1">
                 <XCircle size={14} className={statusFilter === 'Missed' ? 'text-white/80' : 'text-rose-600'} />
@@ -399,15 +393,15 @@ export default function DataManagementPage() {
           <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm flex flex-col md:flex-row gap-4 items-center">
             <div className="flex items-center gap-2 w-full md:w-auto">
               <span className="text-sm font-bold text-muted-foreground shrink-0">ช่วงวันที่:</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 className="bg-gray-50 dark:bg-zinc-800 border-none rounded-lg px-3 py-2 text-sm font-bold outline-none ring-1 ring-gray-200 dark:ring-zinc-700 focus:ring-[#D97736]"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
               />
               <span className="text-muted-foreground">-</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 className="bg-gray-50 dark:bg-zinc-800 border-none rounded-lg px-3 py-2 text-sm font-bold outline-none ring-1 ring-gray-200 dark:ring-zinc-700 focus:ring-[#D97736]"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
@@ -416,8 +410,8 @@ export default function DataManagementPage() {
 
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="ค้นหาชื่อ หรือ HN..."
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-zinc-800 rounded-lg text-sm outline-none ring-1 ring-gray-200 dark:ring-zinc-700 focus:ring-[#D97736]"
                 value={searchTerm}
@@ -430,19 +424,18 @@ export default function DataManagementPage() {
           {statusFilter !== 'All' && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">กำลังแสดง:</span>
-              <span className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 ${
-                statusFilter === 'On-time' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                statusFilter === 'Early' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                statusFilter === 'Late' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                statusFilter === 'Walk-in' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                statusFilter === 'Missed' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                'bg-gray-100 text-gray-700'
-              }`}>
-                {statusFilter === 'On-time' ? 'มาตรงนัด' : 
-                 statusFilter === 'Early' ? 'มาก่อนนัด' : 
-                 statusFilter === 'Late' ? 'มาหลังนัด' : 
-                 statusFilter === 'Walk-in' ? 'Walk-in' : 
-                 statusFilter === 'Missed' ? 'ขาดนัด' : statusFilter}
+              <span className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 ${statusFilter === 'On-time' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                  statusFilter === 'Early' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                    statusFilter === 'Late' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                      statusFilter === 'Walk-in' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                        statusFilter === 'Missed' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+                          'bg-gray-100 text-gray-700'
+                }`}>
+                {statusFilter === 'On-time' ? 'มาตรงนัด' :
+                  statusFilter === 'Early' ? 'มาก่อนนัด' :
+                    statusFilter === 'Late' ? 'มาหลังนัด' :
+                      statusFilter === 'Walk-in' ? 'Walk-in' :
+                        statusFilter === 'Missed' ? 'ขาดนัด' : statusFilter}
                 {' '}{attendanceData.length} รายการ
               </span>
               <button
@@ -469,11 +462,10 @@ export default function DataManagementPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-zinc-800">
                   {attendanceData.map((record, i) => (
-                    <tr 
-                      key={i} 
-                      className={`hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${
-                        record.isWalkIn ? 'bg-purple-50/50 dark:bg-purple-900/5' : ''
-                      }`}
+                    <tr
+                      key={i}
+                      className={`hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors ${record.isWalkIn ? 'bg-purple-50/50 dark:bg-purple-900/5' : ''
+                        }`}
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-2">

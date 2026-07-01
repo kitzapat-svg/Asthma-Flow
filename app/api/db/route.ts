@@ -42,6 +42,7 @@ import {
   createPatientData,
   rotatePatientPublicToken,
   revokePatientPublicToken,
+  renewPatientPublicToken,
   updateRowByHnAndDate, 
   deleteRow,
   deleteAllRowsByHn,
@@ -412,6 +413,27 @@ export async function PUT(request: Request) {
         return NextResponse.json({
           message: "Token rotated",
           public_token: result.token,
+          public_token_expires_at: result.expiresAt,
+        });
+      }
+
+      if (action === 'renew') {
+        const result = await renewPatientPublicToken(hn);
+        if (!result.success) return NextResponse.json({ error: result.error }, { status: 500 });
+
+        await logAudit({
+          action_type: 'UPDATE',
+          module: 'PATIENT',
+          actor_id: session.user?.email || "Unknown",
+          target_hn: hn,
+          payload: {
+            event: 'Patient public token renewed',
+            expires_at: result.expiresAt,
+          }
+        });
+
+        return NextResponse.json({
+          message: "Token renewed",
           public_token_expires_at: result.expiresAt,
         });
       }

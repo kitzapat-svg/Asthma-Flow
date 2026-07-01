@@ -36,40 +36,82 @@ Verification:
 
 ## History
 
+### 2026-07-01 - Implement Staff QR Token Management (Renew, Rotate, Revoke)
+
+เป้าหมาย:
+- เพิ่ม UX สำหรับเจ้าหน้าที่ในการจัดการ patient public token แบบปลอดภัย (Renew, Rotate, Revoke)
+
+ทำเสร็จ:
+- เพิ่มฟังก์ชัน `renewPatientPublicToken` ใน `lib/db.ts` และรองรับ action `renew` ใน `app/api/db/route.ts` พร้อม Audit Log
+- อัปเดต `QRCodeCard.tsx` ให้แสดง 4 สถานะ (ใช้งานได้, ใกล้หมดอายุ, หมดอายุ, ถูกยกเลิก) และเพิ่ม 3 ปุ่มควบคุมสำหรับ Admin
+- ทำ Confirm Dialog โดยใช้ `Modal` component แยกคำเตือนตามผลกระทบของแต่ละ Action ชัดเจน
+- ส่ง props ใหม่และ Callback `onRefresh` จาก `app/staff/patient/[hn]/page.tsx` ไปยัง `QRCodeCard` เพื่ออัปเดตข้อมูลอัตโนมัติหลังทำรายการ
+
+Security/Privacy:
+- บังคับสิทธิ์ Admin ผ่าน API guard ก่อนที่จะอนุญาตให้จัดการ token (Renew/Rotate/Revoke)
+- ซ่อนปุ่มและจำกัดการเข้าใช้งานปุ่มต่างๆ สำหรับ non-Admin บน UI (Defense in depth)
+- แยกความแตกต่างของ dialog ชัดเจนเพื่อความปลอดภัย: เตือนให้ใช้ Rotate/Revoke หากสงสัยว่าลิงก์หลุดแทนที่จะใช้ Renew
+
+ปัญหา/ข้อสังเกต:
+- ไม่มีปัญหา, โครงสร้าง TypeScript ตรวจสอบแล้วผ่านสมบูรณ์ 100%
+
+Next steps:
+- ทดสอบการกดทำรายการจริงในสภาพแวดล้อมระบบพร้อมฐานข้อมูล
+- สังเกตการณ์ Audit Logs ในระบบหลังมีการใช้งานจริง
+
+Verification:
+- รัน `tsc --noEmit` เพื่อตรวจสอบไทป์ผ่านแบบสมบูรณ์
+
 ### 2026-06-30 - Planned handoff: staff QR token controls
 
 เป้าหมาย:
 - ส่งต่องานให้ Antigravity เพิ่ม UX สำหรับเจ้าหน้าที่ในการจัดการ patient public token จากหน้ารายละเอียดผู้ป่วยจริง
 
 ทำเสร็จ:
-- ระบุงานถัดไปที่ควรทำ: เพิ่มปุ่ม rotate/revoke ใน `QRCodeCard` และแสดงสถานะวันหมดอายุของ QR ให้เจ้าหน้าที่เห็นชัด ๆ
+- ระบุงานถัดไปที่ควรทำ: เพิ่มปุ่ม renew/rotate/revoke ใน `QRCodeCard` และแสดงสถานะวันหมดอายุของ QR ให้เจ้าหน้าที่เห็นชัด ๆ
 - จุด UI หลัก:
   - `app/staff/patient/[hn]/page.tsx`
   - `app/staff/patient/[hn]/_components/QRCodeCard.tsx`
 - API ที่พร้อมใช้แล้ว:
   - `PUT /api/db` body `{ "type": "patient_public_token", "hn": "...", "action": "rotate" }`
   - `PUT /api/db` body `{ "type": "patient_public_token", "hn": "...", "action": "revoke" }`
+- API ที่ควรเพิ่ม:
+  - `PUT /api/db` body `{ "type": "patient_public_token", "hn": "...", "action": "renew" }`
+  - backend ควรตั้ง `public_token_expires_at` ใหม่เป็นวันนี้ + 1 ปี โดยไม่เปลี่ยน `public_token`
+  - ถ้าต้องการรองรับภายหลัง อาจรับ `expiresAt` จาก body ได้ แต่รอบแรกแนะนำ fixed 1 ปีเพื่อลดความซับซ้อน
 - Workflow ที่ต้องการ:
+  - ปุ่ม `ต่ออายุ QR` สำหรับ QR ใกล้หมดอายุ/หมดอายุแล้ว แต่ไม่มีความเสี่ยงว่าลิงก์หลุด และไม่อยากพิมพ์บัตรใหม่
   - ปุ่ม `ออก QR ใหม่` สำหรับ token หมดอายุ, QR หาย, ผู้ป่วยขอบัตรใหม่, หรือสงสัยว่าลิงก์หลุด
   - ปุ่ม `ยกเลิก QR นี้` สำหรับปิด QR เดิมทันทีเมื่อแจกผิดคนหรือมีความเสี่ยงข้อมูลรั่ว
+  - หลัง renew สำเร็จ ให้ refresh patient data แล้วแสดงวันหมดอายุใหม่ โดย QR/token เดิมต้องไม่เปลี่ยน
   - หลัง rotate สำเร็จ ให้ refresh patient data แล้ว QR บนหน้าจอเปลี่ยนเป็น token ใหม่ทันที
   - หลัง revoke สำเร็จ ให้แสดงสถานะว่า QR ถูกยกเลิกและไม่ควรให้พิมพ์/ใช้งาน QR เดิม
 
 Security/Privacy:
-- ปุ่ม rotate/revoke ต้องเรียก API เดิมที่ตรวจ role `Admin` อยู่แล้ว ห้ามจัดการ token จาก client โดยตรง
+- ปุ่ม renew/rotate/revoke ต้องเรียก API ที่ตรวจ role `Admin` อยู่แล้ว ห้ามจัดการ token จาก client โดยตรง
 - UI ไม่ควรแสดง raw token ถ้าไม่จำเป็น แสดง QR/link และสถานะพอสำหรับงานหน้าเคาน์เตอร์
-- ควรมี confirm dialog ก่อน rotate/revoke เพราะทำให้ QR เดิมใช้งานไม่ได้ และต้องออกบัตร/QR ใหม่ให้ผู้ป่วย
+- ควรมี confirm dialog ก่อน renew/rotate/revoke โดยข้อความต้องแยกผลกระทบให้ชัด:
+  - renew = QR เดิมใช้ต่อได้ ไม่ต้องพิมพ์ใหม่
+  - rotate = QR เดิมใช้ไม่ได้ ต้องพิมพ์/ออก QR ใหม่
+  - revoke = QR เดิมถูกปิดทันที
+- ถ้าสงสัยว่า QR หลุดหรือแจกผิดคน ห้ามใช้ renew ควรใช้ rotate หรือ revoke ตามสถานการณ์
 
 ปัญหา/ข้อสังเกต:
-- API พร้อมแล้ว แต่ UI ยังไม่มีปุ่มให้เจ้าหน้าที่กด
+- API rotate/revoke พร้อมแล้ว แต่ UI ยังไม่มีปุ่มให้เจ้าหน้าที่กด
+- API renew ยังต้อง implement เพิ่มใน `app/api/db/route.ts` และ helper ใน `lib/db.ts`
 - ต้องแน่ใจว่า type `Patient` ฝั่ง staff รองรับ `public_token_expires_at`, `public_token_revoked_at`, และ `public_token_rotated_at`
 - migration `20260630_patient_public_token_governance.sql` ต้องถูก apply ไป Supabase จริงก่อน field สถานะเหล่านี้จะมีในฐานข้อมูลจริง
 
 Next steps:
 - เพิ่ม props ให้ `QRCodeCard` รับ `hn`, `publicToken`, `publicTokenExpiresAt`, `publicTokenRevokedAt`, callback `onRefresh`
 - เพิ่มสถานะ QR เช่น `ใช้งานได้`, `ใกล้หมดอายุ`, `หมดอายุ`, `ถูกยกเลิก`
-- เพิ่มปุ่มพร้อม loading state และ toast feedback สำหรับ rotate/revoke
-- ทดสอบที่หน้า `/staff/patient/[hn]` ว่า QR เปลี่ยนหลัง rotate และปุ่ม revoke ปิดสถานะถูกต้อง
+- เพิ่ม helper เช่น `renewPatientPublicToken(hn, expiresAt = getDefaultPublicTokenExpiry())` โดย update เฉพาะ `public_token_expires_at` และ clear `public_token_revoked_at` เฉพาะเมื่อเป็นการต่ออายุที่ได้รับอนุญาตตาม policy
+- เพิ่ม action `renew` ใน `app/api/db/route.ts` พร้อม audit log event `Patient public token renewed`
+- เพิ่มปุ่มพร้อม loading state และ toast feedback สำหรับ renew/rotate/revoke
+- ทดสอบที่หน้า `/staff/patient/[hn]` ว่า:
+  - renew แล้ว token/QR เดิมไม่เปลี่ยน แต่วันหมดอายุเปลี่ยน
+  - rotate แล้ว token/QR เปลี่ยนและต้องพิมพ์ใหม่
+  - revoke แล้วสถานะปิดใช้งานถูกต้อง
 
 Verification:
 - ยังไม่ได้ implement UI ในรอบนี้ เป็น planned handoff สำหรับรอบถัดไป

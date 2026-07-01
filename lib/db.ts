@@ -138,6 +138,18 @@ export async function revokePatientPublicToken(hn: string) {
     return { success: !error, error };
 }
 
+export async function renewPatientPublicToken(hn: string, expiresAt = getDefaultPublicTokenExpiry()) {
+    const { error } = await supabase
+        .from('patients')
+        .update({
+            public_token_expires_at: expiresAt,
+            public_token_revoked_at: null,
+        })
+        .eq('hn', normalizeHN(hn));
+
+    return { success: !error, error, expiresAt };
+}
+
 // --- Visit Functions ---
 
 export async function saveVisit(data: any[]) {
