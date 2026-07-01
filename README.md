@@ -1,4 +1,4 @@
-# 🫁 Asthma-Flow (v1.5.6)
+# 🫁 Asthma-Flow (v1.5.7)
 
 **Asthma-Flow** เป็นระบบบริหารจัดการคลินิกโรคหืด (Asthma Clinic Management System) ระดับเวิลด์คลาสและทันสมัยที่สุด ได้รับการพัฒนาด้วยสถาปัตยกรรม Next.js 16, React 19, และ TypeScript ร่วมกับการเชื่อมโยงฐานข้อมูล Supabase (PostgreSQL) และมีระบบสำรองข้อมูลอัตโนมัติรายวันไปยัง Google Sheets เพื่อเสถียรภาพสูงสุดของข้อมูล
 

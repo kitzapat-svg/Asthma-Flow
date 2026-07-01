@@ -192,6 +192,8 @@ export default function DataManagementPage() {
       )
       .filter(r => statusFilter === 'All' || r.status === statusFilter)
       .sort((a, b) => {
+        const hnCompare = a.hn.localeCompare(b.hn, undefined, { numeric: true });
+        if (hnCompare !== 0) return hnCompare;
         const dateA = a.isWalkIn ? (a.visitDate ?? '') : a.appointmentDate;
         const dateB = b.isWalkIn ? (b.visitDate ?? '') : b.appointmentDate;
         return dateB.localeCompare(dateA);
